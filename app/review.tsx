@@ -1,0 +1,73 @@
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { SignAndSendScreen } from '@/src/ui/pdf/SignAndSendScreen';
+import { toClientEstimate } from '@/src/pdf/client-view-model';
+import { renderEstimateHtml } from '@/src/pdf/render-html';
+import { priceEstimate } from '@/src/domain/pricing';
+import { toLaborToggle } from '@/src/data/mappers';
+import { seedLaborToggles } from '@/src/data/seed/assemblies';
+import { useEstimateStore } from '@/src/state/estimateStore';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+
+const toggles = seedLaborToggles.map(toLaborToggle);
+
+export default function ReviewRoute() {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const estimate = useEstimateStore((s) => s.estimate);
+
+  const priced = priceEstimate(estimate, toggles);
+  const client = toClientEstimate(estimate, priced, {
+    businessName: 'Watts Electrical',
+    clientName: 'Sample Client',
+    reference: 'Q-DEMO',
+    dateIso: new Date().toISOString(),
+  });
+
+  const onSigned = async (signatureDataUri: string) => {
+    try {
+      setBusy(true);
+      const html = renderEstimateHtml(client, {
+        dataUri: signatureDataUri,
+        signedByName: 'Sample Client',
+        signedDateIso: new Date().toISOString(),
+      });
+      const { uri } = await Print.printToFileAsync({ html });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Send estimate' });
+      } else {
+        Alert.alert('PDF created', uri);
+      }
+    } catch (e) {
+      Alert.alert('Error', String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (estimate.lineItems.length === 0) {
+    return (
+      <SafeAreaView style={styles.empty} edges={['top', 'bottom']}>
+        <Text style={styles.emptyText}>No items yet. Add some jobs on Quick Quote first.</Text>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+      <SignAndSendScreen estimate={client} onSigned={onSigned} onCancel={() => router.back()} />
+      {busy && <View style={styles.busy}><Text style={styles.busyText}>Generating PDF…</Text></View>}
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#14181F' },
+  empty: { flex: 1, backgroundColor: '#14181F', alignItems: 'center', justifyContent: 'center', padding: 32 },
+  emptyText: { color: '#9AA7B4', fontSize: 16, textAlign: 'center' },
+  busy: { position: 'absolute', bottom: 24, left: 0, right: 0, alignItems: 'center' },
+  busyText: { color: '#FFB020', fontWeight: '700' },
+});

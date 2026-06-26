@@ -55,7 +55,9 @@
     "react-native-worklets": "0.5.1"
   },
   "devDependencies": {
+    "@babel/plugin-transform-private-methods": "^8.0.1",
     "@types/react": "~19.1.0",
+    "babel-preset-expo": "^56.0.15",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
     "typescript": "~5.9.2",
