@@ -13,7 +13,7 @@
  * Verified by typecheck + review (no device runtime here).
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { LaborToggle, LineItem, MinorUnits } from '../../domain/types';
@@ -55,8 +55,13 @@ export function LineDrawer({
   const o = d.working.overrides;
   const isCustom = o?.isCustom === true;
 
-  const unitCostPounds =
-    o?.unitCostMinor != null ? (o.unitCostMinor / 100).toFixed(2) : '';
+  const [costText, setCostText] = useState(
+    o?.unitCostMinor != null ? (o.unitCostMinor / 100).toFixed(2) : '',
+  );
+  useEffect(() => {
+    setCostText(o?.unitCostMinor != null ? (o.unitCostMinor / 100).toFixed(2) : '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d.working.id]);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
@@ -102,10 +107,15 @@ export function LineDrawer({
                     {currency === 'GBP' ? '£' : '€'}
                   </Text>
                   <TextInput
-                    value={unitCostPounds}
+                    value={costText}
                     onChangeText={(t) => {
-                      const n = parseFloat(t);
-                      d.setUnitCost(Number.isFinite(n) ? Math.round(n * 100) : undefined);
+                      const cleaned = t.replace(/[^0-9.]/g, "");
+                      const parts = cleaned.split(".");
+                      const normalized = parts.length > 2 ? parts[0] + "." + parts.slice(1).join("") : cleaned;
+                      const limited = normalized.includes(".") ? normalized.slice(0, normalized.indexOf(".") + 3) : normalized;
+                      setCostText(limited);
+                      if (limited === "" || limited === ".") d.setUnitCost(undefined);
+                      else { const n = parseFloat(limited); if (Number.isFinite(n)) d.setUnitCost(Math.round(n * 100)); }
                     }}
                     keyboardType="decimal-pad"
                     placeholder="Use catalogue price"
@@ -114,7 +124,7 @@ export function LineDrawer({
                     accessibilityLabel="Override material unit cost"
                   />
                   {o?.unitCostMinor != null && (
-                    <Pressable onPress={() => d.setUnitCost(undefined)} accessibilityLabel="Clear override">
+                    <Pressable onPress={() => { d.setUnitCost(undefined); setCostText(""); }} accessibilityLabel="Clear override">
                       <Text style={styles.clear}>Reset</Text>
                     </Pressable>
                   )}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, FlatList, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useEstimateStore } from '@/src/state/estimateStore';
@@ -7,7 +7,9 @@ import { priceLine } from '@/src/domain/pricing';
 import { formatMoney } from '@/src/domain/money';
 import { toLaborToggle } from '@/src/data/mappers';
 import { seedLaborToggles } from '@/src/data/seed/assemblies';
-import type { LineItem } from '@/src/domain/types';
+import type { LineItem, Material } from '@/src/domain/types';
+import { MaterialPicker } from '@/src/ui/catalogue/MaterialPicker';
+import { loadCatalogue } from '@/src/data/catalogue-repo';
 
 const allToggles = seedLaborToggles.map(toLaborToggle);
 const lineToggles = allToggles.filter((t) => t.appliesTo === 'line');
@@ -17,11 +19,23 @@ export default function EstimateScreen() {
   const estimate = useEstimateStore((s) => s.estimate);
   const replaceLine = useEstimateStore((s) => s.replaceLine);
   const remove = useEstimateStore((s) => s.remove);
+  const addMaterial = useEstimateStore((s) => s.addMaterial);
   const [editing, setEditing] = useState<LineItem | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [materials, setMaterials] = useState<Material[]>([]);
+
+  useEffect(() => {
+    loadCatalogue().then((c) => setMaterials(c.materials)).catch(() => {});
+  }, []);
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <Text style={styles.title}>Current estimate</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>Current estimate</Text>
+        <Pressable style={styles.addItemBtn} onPress={() => setPickerOpen(true)}>
+          <Text style={styles.addItemText}>+ Add item</Text>
+        </Pressable>
+      </View>
 
       <FlatList
         data={estimate.lineItems}
@@ -33,7 +47,7 @@ export default function EstimateScreen() {
             <Pressable style={styles.row} onPress={() => setEditing(item)}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.desc}>{item.description}</Text>
-                <Text style={styles.qty}>Qty {item.quantity ?? 1} · tap to edit</Text>
+                <Text style={styles.qty}>{item.quantityMeters != null ? item.quantityMeters + "m" : "Qty " + (item.quantity ?? 1)} · tap to edit</Text>
               </View>
               <Text style={styles.amount}>{formatMoney(b.lineTotalMinor, estimate.currency)}</Text>
             </Pressable>
@@ -55,13 +69,23 @@ export default function EstimateScreen() {
           onCancel={() => setEditing(null)}
         />
       )}
+      <MaterialPicker
+        visible={pickerOpen}
+        materials={materials}
+        currency={estimate.currency}
+        onAdd={(material, amount) => addMaterial(material, amount)}
+        onClose={() => setPickerOpen(false)}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#14181F', padding: 16 },
-  title: { fontSize: 24, fontWeight: '800', color: '#F2F5F8', marginBottom: 16 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  title: { fontSize: 24, fontWeight: '800', color: '#F2F5F8' },
+  addItemBtn: { backgroundColor: '#1E242E', borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8, borderWidth: 1, borderColor: '#2E3744' },
+  addItemText: { color: '#FFB020', fontWeight: '700', fontSize: 14 },
   empty: { color: '#5E6B79', textAlign: 'center', marginTop: 40, fontSize: 15 },
   row: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E242E',

@@ -11,7 +11,7 @@ import {
   resolveAssemblyMaterialCost,
   type MaterialLookup,
 } from '../domain/assembly';
-import type { Assembly, Estimate, LineItem } from '../domain/types';
+import type { Assembly, Estimate, LineItem, Material } from '../domain/types';
 
 let counter = 0;
 /** Simple id generator; the DB assigns real ids on persist. */
@@ -43,6 +43,24 @@ export function lineFromAssembly(
 /** Append a line to an estimate, returning a new estimate (immutable update). */
 export function addLine(estimate: Estimate, line: LineItem): Estimate {
   return { ...estimate, lineItems: [...estimate.lineItems, line] };
+}
+
+/**
+ * Build a material-only line from a catalogue material.
+ * No labour (laborBaseHours: 0) — raw materials are consumables/extras.
+ * For metre-based units (cables, trunking) the amount goes in quantityMeters;
+ * otherwise in quantity.
+ */
+export function lineFromMaterial(material: Material, amount = 1): LineItem {
+  const isMetres = material.unit === "m";
+  return {
+    id: newLineId(),
+    description: material.description,
+    resolvedMaterialCostMinor: material.unitCostMinor,
+    laborBaseHours: 0,
+    ...(isMetres ? { quantityMeters: amount } : { quantity: amount }),
+    appliedLaborToggleIds: [],
+  };
 }
 
 /**

@@ -7,9 +7,9 @@
  * before hydrate runs (which would wipe the saved data).
  */
 import { create } from 'zustand';
-import type { Assembly, Estimate, LineItem } from '@/src/domain/types';
+import type { Assembly, Estimate, LineItem, Material } from '@/src/domain/types';
 import type { MaterialLookup } from '@/src/domain/assembly';
-import { addAssemblyToEstimate, removeLine } from '@/src/data/estimate-service';
+import { addAssemblyToEstimate, removeLine, lineFromMaterial, addLine } from '@/src/data/estimate-service';
 import {
   saveActiveEstimate,
   loadActiveEstimate,
@@ -21,6 +21,7 @@ interface EstimateStore {
   hydrated: boolean;
   hydrate: () => Promise<void>;
   addAssembly: (assembly: Assembly, lookup: MaterialLookup) => void;
+  addMaterial: (material: Material, amount: number) => void;
   remove: (lineId: string) => void;
   replaceLine: (updated: LineItem) => void;
   clear: () => void;
@@ -63,6 +64,13 @@ export const useEstimateStore = create<EstimateStore>((set, get) => ({
   addAssembly: (assembly, lookup) =>
     set((s) => {
       const estimate = addAssemblyToEstimate(s.estimate, assembly, lookup);
+      persist(estimate, s.hydrated);
+      return { estimate };
+    }),
+
+  addMaterial: (material, amount) =>
+    set((s) => {
+      const estimate = addLine(s.estimate, lineFromMaterial(material, amount));
       persist(estimate, s.hydrated);
       return { estimate };
     }),
