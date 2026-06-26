@@ -50,6 +50,10 @@ export interface EstimatePriceBreakdown {
   lines: LinePriceBreakdown[];
   /** Sum of all line totals, before VAT. */
   subtotalMinor: MinorUnits;
+  /** Sum of all lines' marked-up material totals. */
+  materialsTotalMinor: MinorUnits;
+  /** Sum of all lines' labour costs. */
+  laborTotalMinor: MinorUnits;
   vatAmountMinor: MinorUnits;
   /** subtotal + VAT. */
   grandTotalMinor: MinorUnits;
@@ -115,7 +119,9 @@ export function priceLine(
     toggleIndex,
   );
 
-  const labor = computeLabor(baseLaborHours(line), hourlyRateMinor, applicableToggles);
+  let labor = computeLabor(baseLaborHours(line), hourlyRateMinor, applicableToggles);
+  const flatLabor = line.overrides?.customLaborFlatMinor;
+  if (flatLabor != null) labor = { ...labor, costMinor: flatLabor, hours: 0 };
 
   return {
     lineId: line.id,
@@ -166,11 +172,15 @@ export function priceEstimate(
   );
 
   const subtotal = sumMinor(lines.map((l) => l.lineTotalMinor));
+  const materialsTotal = sumMinor(lines.map((l) => l.materialTotalMinor));
+  const laborTotal = sumMinor(lines.map((l) => l.labor.costMinor));
   const vatAmount = applyFactor(subtotal, estimate.vatRatePct / 100);
 
   return {
     lines,
     subtotalMinor: subtotal,
+    materialsTotalMinor: materialsTotal,
+    laborTotalMinor: laborTotal,
     vatAmountMinor: vatAmount,
     grandTotalMinor: subtotal + vatAmount,
   };

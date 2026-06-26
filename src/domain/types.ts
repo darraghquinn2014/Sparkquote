@@ -85,6 +85,8 @@ export interface LineItemOverrides {
   customCostMinor?: MinorUnits;
   /** Base labor hours for a custom item. */
   customLaborHours?: number;
+  /** Fixed labour amount for a custom item, independent of hourly rate. Overrides hours x rate when set. */
+  customLaborFlatMinor?: MinorUnits;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -158,4 +160,6 @@ export interface Estimate {
   appliedLaborToggleIds: string[];
   /** VAT rate as a percentage, e.g. 20 for UK standard. 0 = no VAT line. */
   vatRatePct: number;
+  /** Whether the client PDF shows the Materials/Labour split (true) or just the total. */
+  showLaborBreakdown?: boolean;
 }

@@ -9,7 +9,7 @@
 import { create } from 'zustand';
 import type { Assembly, Estimate, LineItem, Material } from '@/src/domain/types';
 import type { MaterialLookup } from '@/src/domain/assembly';
-import { addAssemblyToEstimate, removeLine, lineFromMaterial, addLine } from '@/src/data/estimate-service';
+import { addAssemblyToEstimate, removeLine, lineFromMaterial, lineFromLabour, addLine } from '@/src/data/estimate-service';
 import {
   saveActiveEstimate,
   loadActiveEstimate,
@@ -22,9 +22,13 @@ interface EstimateStore {
   hydrate: () => Promise<void>;
   addAssembly: (assembly: Assembly, lookup: MaterialLookup) => void;
   addMaterial: (material: Material, amount: number) => void;
+  addLabour: (opts: { hours?: number; flatMinor?: number }) => void;
   remove: (lineId: string) => void;
   replaceLine: (updated: LineItem) => void;
+
   clear: () => void;
+  setHourlyRate: (rateMinor: number) => void;
+  setShowLaborBreakdown: (show: boolean) => void;
 }
 
 function emptyEstimate(): Estimate {
@@ -35,6 +39,7 @@ function emptyEstimate(): Estimate {
     currency: 'GBP',
     hourlyRateMinor: 5000,
     vatRatePct: 20,
+    showLaborBreakdown: true,
     appliedLaborToggleIds: [],
     lineItems: [],
   };
@@ -75,6 +80,13 @@ export const useEstimateStore = create<EstimateStore>((set, get) => ({
       return { estimate };
     }),
 
+  addLabour: (opts) =>
+    set((s) => {
+      const estimate = addLine(s.estimate, lineFromLabour(opts));
+      persist(estimate, s.hydrated);
+      return { estimate };
+    }),
+
   remove: (lineId) =>
     set((s) => {
       const estimate = removeLine(s.estimate, lineId);
@@ -88,6 +100,20 @@ export const useEstimateStore = create<EstimateStore>((set, get) => ({
         ...s.estimate,
         lineItems: s.estimate.lineItems.map((l) => (l.id === updated.id ? updated : l)),
       };
+      persist(estimate, s.hydrated);
+      return { estimate };
+    }),
+
+  setHourlyRate: (rateMinor) =>
+    set((s) => {
+      const estimate = { ...s.estimate, hourlyRateMinor: rateMinor };
+      persist(estimate, s.hydrated);
+      return { estimate };
+    }),
+
+  setShowLaborBreakdown: (show) =>
+    set((s) => {
+      const estimate = { ...s.estimate, showLaborBreakdown: show };
       persist(estimate, s.hydrated);
       return { estimate };
     }),

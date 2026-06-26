@@ -31,6 +31,8 @@ export interface ClientEstimate {
   vatRatePct: number;
   vatAmountMinor: number;
   grandTotalMinor: number;
+  /** Optional single labour figure shown as an "includes labour" note. Materials are NEVER broken out. */
+  laborTotalMinor?: number;
   /** Optional business/client identity for the document header. */
   businessName?: string;
   clientName?: string;
@@ -82,6 +84,7 @@ export function toClientEstimate(
     vatAmountMinor: pricing.vatAmountMinor,
     grandTotalMinor: pricing.grandTotalMinor,
   };
+  if (estimate.showLaborBreakdown) result.laborTotalMinor = pricing.laborTotalMinor;
   if (meta.businessName != null) result.businessName = meta.businessName;
   if (meta.clientName != null) result.clientName = meta.clientName;
   if (meta.reference != null) result.reference = meta.reference;

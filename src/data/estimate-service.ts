@@ -51,6 +51,30 @@ export function addLine(estimate: Estimate, line: LineItem): Estimate {
  * For metre-based units (cables, trunking) the amount goes in quantityMeters;
  * otherwise in quantity.
  */
+/**
+ * Build a standalone labour line.
+ * - Hours mode: priced as hours x rate by the engine (recalculates with rate).
+ * - Flat mode: a fixed labour amount, independent of the rate.
+ * Either way it counts as labour, never materials.
+ */
+export function lineFromLabour(opts: { hours?: number; flatMinor?: number; description?: string }): LineItem {
+  const isFlat = opts.flatMinor != null;
+  return {
+    id: newLineId(),
+    description: opts.description ?? (isFlat ? "Labour" : `Labour (${opts.hours ?? 0}h)`),
+    resolvedMaterialCostMinor: 0,
+    laborBaseHours: 0,
+    quantity: 1,
+    appliedLaborToggleIds: [],
+    overrides: {
+      isCustom: true,
+      customCostMinor: 0,
+      customLaborHours: isFlat ? 0 : (opts.hours ?? 0),
+      ...(isFlat ? { customLaborFlatMinor: opts.flatMinor } : {}),
+    },
+  };
+}
+
 export function lineFromMaterial(material: Material, amount = 1): LineItem {
   const isMetres = material.unit === "m";
   return {

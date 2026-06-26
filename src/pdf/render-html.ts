@@ -54,6 +54,10 @@ export function renderEstimateHtml(
     estimate.vatRatePct > 0
       ? `<tr><td class="sum-label">VAT (${estimate.vatRatePct}%)</td><td class="sum-amt">${money(estimate, estimate.vatAmountMinor)}</td></tr>`
       : '';
+  const laborNote =
+    estimate.laborTotalMinor != null
+      ? `<tr class="labor-note"><td class="sum-label">Includes labour</td><td class="sum-amt">${money(estimate, estimate.laborTotalMinor)}</td></tr>`
+      : '';
 
   const headerMeta = [
     estimate.reference ? `Ref ${escapeHtml(estimate.reference)}` : '',
@@ -102,6 +106,7 @@ export function renderEstimateHtml(
   .sum-label { color: #555; }
   .sum-amt { text-align: right; font-variant-numeric: tabular-nums; }
   .grand td { border-top: 2px solid #1a1a1a; padding-top: 10px; font-size: 16px; font-weight: 700; }
+  .labor-note td { font-size: 11px; color: #888; font-style: italic; font-weight: 400; padding-top: 6px; border-top: none; }
   .signature { margin-top: 48px; border-top: 1px solid #ddd; padding-top: 16px; }
   .sig-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 8px; }
   .sig-img { max-width: 240px; max-height: 100px; }
@@ -132,6 +137,7 @@ export function renderEstimateHtml(
       <tr><td class="sum-label">Subtotal</td><td class="sum-amt">${money(estimate, estimate.subtotalMinor)}</td></tr>
       ${vatRow}
       <tr class="grand"><td>Total</td><td class="sum-amt">${money(estimate, estimate.grandTotalMinor)}</td></tr>
+      ${laborNote}
     </table>
   </div>
 

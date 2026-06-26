@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, FlatList, StyleSheet } from 'react-native';
+import { View, Text, Pressable, FlatList, TextInput, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useEstimateStore } from '@/src/state/estimateStore';
 import { LineDrawer } from '@/src/ui/drawer/LineDrawer';
-import { priceLine } from '@/src/domain/pricing';
+import { priceLine, priceEstimate } from '@/src/domain/pricing';
 import { formatMoney } from '@/src/domain/money';
 import { toLaborToggle } from '@/src/data/mappers';
 import { seedLaborToggles } from '@/src/data/seed/assemblies';
 import type { LineItem, Material } from '@/src/domain/types';
 import { MaterialPicker } from '@/src/ui/catalogue/MaterialPicker';
+import { LabourSheet } from '@/src/ui/catalogue/LabourSheet';
 import { loadCatalogue } from '@/src/data/catalogue-repo';
 
 const allToggles = seedLaborToggles.map(toLaborToggle);
@@ -20,9 +21,15 @@ export default function EstimateScreen() {
   const replaceLine = useEstimateStore((s) => s.replaceLine);
   const remove = useEstimateStore((s) => s.remove);
   const addMaterial = useEstimateStore((s) => s.addMaterial);
+  const setHourlyRate = useEstimateStore((s) => s.setHourlyRate);
+  const addLabour = useEstimateStore((s) => s.addLabour);
   const [editing, setEditing] = useState<LineItem | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [labourOpen, setLabourOpen] = useState(false);
   const [materials, setMaterials] = useState<Material[]>([]);
+  const [rateEditing, setRateEditing] = useState(false);
+  const [rateText, setRateText] = useState('');
+  const breakdown = priceEstimate(estimate, allToggles);
 
   useEffect(() => {
     loadCatalogue().then((c) => setMaterials(c.materials)).catch(() => {});
@@ -30,8 +37,11 @@ export default function EstimateScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>Current estimate</Text>
+      <Text style={styles.title}>Current estimate</Text>
+      <View style={styles.headerBtns}>
+        <Pressable style={styles.addItemBtn} onPress={() => setLabourOpen(true)}>
+          <Text style={styles.addItemText}>+ Labour</Text>
+        </Pressable>
         <Pressable style={styles.addItemBtn} onPress={() => setPickerOpen(true)}>
           <Text style={styles.addItemText}>+ Add item</Text>
         </Pressable>
@@ -41,6 +51,34 @@ export default function EstimateScreen() {
         data={estimate.lineItems}
         keyExtractor={(l) => l.id}
         ListEmptyComponent={<Text style={styles.empty}>No items yet. Add jobs on Quick Quote.</Text>}
+        ListFooterComponent={estimate.lineItems.length === 0 ? null : (
+          <View style={styles.footer}>
+            <Pressable style={styles.rateRow} onPress={() => { setRateText(String(estimate.hourlyRateMinor / 100)); setRateEditing(true); }}>
+              <Text style={styles.rateLabel}>Labour rate</Text>
+              {rateEditing ? (
+                <View style={styles.rateEditRow}>
+                  <Text style={styles.rateCurrency}>{estimate.currency === 'GBP' ? '£' : '€'}</Text>
+                  <TextInput
+                    value={rateText}
+                    onChangeText={(t) => setRateText(t.replace(/[^0-9.]/g, ''))}
+                    keyboardType="decimal-pad"
+                    autoFocus
+                    style={styles.rateInput}
+                    onBlur={() => { const n = parseFloat(rateText); if (Number.isFinite(n) && n > 0) setHourlyRate(Math.round(n * 100)); setRateEditing(false); }}
+                  />
+                  <Text style={styles.ratePerHr}>/hr</Text>
+                </View>
+              ) : (
+                <Text style={styles.rateValue}>{formatMoney(estimate.hourlyRateMinor, estimate.currency)}/hr</Text>
+              )}
+            </Pressable>
+            <View style={styles.breakdownRow}><Text style={styles.bdLabel}>Materials</Text><Text style={styles.bdValue}>{formatMoney(breakdown.materialsTotalMinor, estimate.currency)}</Text></View>
+            <View style={styles.breakdownRow}><Text style={styles.bdLabel}>Labour</Text><Text style={styles.bdValue}>{formatMoney(breakdown.laborTotalMinor, estimate.currency)}</Text></View>
+            <View style={styles.breakdownRow}><Text style={styles.bdLabel}>Subtotal</Text><Text style={styles.bdValue}>{formatMoney(breakdown.subtotalMinor, estimate.currency)}</Text></View>
+            <View style={styles.breakdownRow}><Text style={styles.bdLabel}>VAT ({estimate.vatRatePct}%)</Text><Text style={styles.bdValue}>{formatMoney(breakdown.vatAmountMinor, estimate.currency)}</Text></View>
+            <View style={[styles.breakdownRow, styles.totalRow]}><Text style={styles.totalLabel}>Total</Text><Text style={styles.totalValue}>{formatMoney(breakdown.grandTotalMinor, estimate.currency)}</Text></View>
+          </View>
+        )}
         renderItem={({ item }) => {
           const b = priceLine(item, estimate.hourlyRateMinor, toggleIndex, estimate.appliedLaborToggleIds);
           return (
@@ -69,6 +107,13 @@ export default function EstimateScreen() {
           onCancel={() => setEditing(null)}
         />
       )}
+      <LabourSheet
+        visible={labourOpen}
+        hourlyRateMinor={estimate.hourlyRateMinor}
+        currency={estimate.currency}
+        onAdd={(opts) => addLabour(opts)}
+        onClose={() => setLabourOpen(false)}
+      />
       <MaterialPicker
         visible={pickerOpen}
         materials={materials}
@@ -83,9 +128,10 @@ export default function EstimateScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#14181F', padding: 16 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-  title: { fontSize: 24, fontWeight: '800', color: '#F2F5F8' },
+  title: { fontSize: 24, fontWeight: '800', color: '#F2F5F8', marginBottom: 12 },
   addItemBtn: { backgroundColor: '#1E242E', borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8, borderWidth: 1, borderColor: '#2E3744' },
   addItemText: { color: '#FFB020', fontWeight: '700', fontSize: 14 },
+  headerBtns: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   empty: { color: '#5E6B79', textAlign: 'center', marginTop: 40, fontSize: 15 },
   row: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E242E',
@@ -94,4 +140,18 @@ const styles = StyleSheet.create({
   desc: { fontSize: 16, color: '#F2F5F8', fontWeight: '600' },
   qty: { fontSize: 12, color: '#5E6B79', marginTop: 2 },
   amount: { fontSize: 17, color: '#9AA7B4', fontWeight: '600' },
+  footer: { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#2E3744' },
+  rateRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#1E242E', borderRadius: 14, padding: 16, marginBottom: 16 },
+  rateLabel: { fontSize: 15, color: '#9AA7B4', fontWeight: '600' },
+  rateValue: { fontSize: 17, color: '#FFB020', fontWeight: '700' },
+  rateEditRow: { flexDirection: 'row', alignItems: 'center' },
+  rateCurrency: { fontSize: 17, color: '#F2F5F8', fontWeight: '700' },
+  rateInput: { fontSize: 17, color: '#F2F5F8', fontWeight: '700', minWidth: 60, paddingHorizontal: 4 },
+  ratePerHr: { fontSize: 15, color: '#9AA7B4' },
+  breakdownRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
+  bdLabel: { fontSize: 15, color: '#9AA7B4' },
+  bdValue: { fontSize: 15, color: '#F2F5F8', fontWeight: '600', fontVariant: ['tabular-nums'] },
+  totalRow: { borderTopWidth: 1, borderTopColor: '#2E3744', marginTop: 6, paddingTop: 12 },
+  totalLabel: { fontSize: 18, color: '#F2F5F8', fontWeight: '800' },
+  totalValue: { fontSize: 22, color: '#FFB020', fontWeight: '800', fontVariant: ['tabular-nums'] },
 });
