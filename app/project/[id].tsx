@@ -95,7 +95,12 @@ export default function ProjectDetailScreen() {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12}><Text style={styles.back}>‹ Back</Text></Pressable>
-        <Pressable onPress={confirmDeleteProject} hitSlop={12}><Text style={{ color: colors.danger, fontWeight: '700' }}>Delete</Text></Pressable>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+          <Pressable style={styles.quoteBtn} onPress={() => router.push(`/project/quote/${id}` as any)} hitSlop={8}>
+            <Text style={styles.quoteBtnText}>Quote</Text>
+          </Pressable>
+          <Pressable onPress={confirmDeleteProject} hitSlop={12}><Text style={{ color: colors.danger, fontWeight: '700' }}>Delete</Text></Pressable>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxl }}>
@@ -209,6 +214,8 @@ export default function ProjectDetailScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ground },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.lg, paddingVertical: space.md },
+  quoteBtn: { backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.sm },
+  quoteBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 13 },
   back: { color: colors.textSecondary, fontSize: 16, fontWeight: '600' },
   nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   editBtn: { color: colors.accent, fontWeight: '700', fontSize: 13 },

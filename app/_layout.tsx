@@ -20,6 +20,7 @@ export default function RootLayout() {
         <Stack.Screen name="project/new" options={{ headerShown: false }} />
         <Stack.Screen name="project/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="project/room/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="project/quote/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style="auto" />

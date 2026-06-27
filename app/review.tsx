@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Alert, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SignAndSendScreen } from '@/src/ui/pdf/SignAndSendScreen';
 import { toClientEstimate } from '@/src/pdf/client-view-model';
 import { renderEstimateHtml } from '@/src/pdf/render-html';
@@ -9,6 +9,9 @@ import { priceEstimate } from '@/src/domain/pricing';
 import { toLaborToggle } from '@/src/data/mappers';
 import { seedLaborToggles } from '@/src/data/seed/assemblies';
 import { useEstimateStore } from '@/src/state/estimateStore';
+import { loadProjectEstimate } from '@/src/data/project-estimate-repo';
+import { loadProjects } from '@/src/data/project-repo';
+import type { Estimate, Project } from '@/src/domain/types';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
@@ -16,30 +19,38 @@ const toggles = seedLaborToggles.map(toLaborToggle);
 
 export default function ReviewRoute() {
   const router = useRouter();
+  const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const [busy, setBusy] = useState(false);
-  const estimate = useEstimateStore((s) => s.estimate);
+  const [projectEstimate, setProjectEstimate] = useState<Estimate | null>(null);
+  const [projectData, setProjectData] = useState<Project | null>(null);
+
+  const activeEstimate = useEstimateStore((s) => s.estimate);
   const setShowLaborBreakdown = useEstimateStore((s) => s.setShowLaborBreakdown);
 
+  const estimate = projectEstimate ?? activeEstimate;
+
+  useEffect(() => {
+    if (!projectId) return;
+    loadProjectEstimate(projectId).then((e) => { if (e) setProjectEstimate(e); }).catch(console.error);
+    loadProjects().then((ps) => setProjectData(ps.find((p) => p.id === projectId) ?? null)).catch(console.error);
+  }, [projectId]);
+
   const priced = priceEstimate(estimate, toggles);
-  const client = toClientEstimate(estimate, priced, {
+  const meta = {
     businessName: 'Watts Electrical',
-    clientName: 'Sample Client',
-    reference: 'Q-DEMO',
+    clientName: projectData?.clientName ?? 'Sample Client',
+    reference: projectData ? projectData.name.slice(0, 12).toUpperCase() : 'Q-DEMO',
     dateIso: new Date().toISOString(),
-  });
+  };
+  const client = toClientEstimate(estimate, priced, meta);
 
   const onSigned = async (signatureDataUri: string) => {
     try {
       setBusy(true);
-      // Rebuild fresh from current store state so the labour toggle is honoured.
-      const liveEstimate = useEstimateStore.getState().estimate;
+      // For project estimates use projectEstimate; for quick quotes use live store state.
+      const liveEstimate = projectEstimate ?? useEstimateStore.getState().estimate;
       const livePriced = priceEstimate(liveEstimate, toggles);
-      const liveClient = toClientEstimate(liveEstimate, livePriced, {
-        businessName: 'Watts Electrical',
-        clientName: 'Sample Client',
-        reference: 'Q-DEMO',
-        dateIso: new Date().toISOString(),
-      });
+      const liveClient = toClientEstimate(liveEstimate, livePriced, meta);
       const html = renderEstimateHtml(liveClient, {
         dataUri: signatureDataUri,
         signedByName: 'Sample Client',
@@ -61,25 +72,29 @@ export default function ReviewRoute() {
   if (estimate.lineItems.length === 0) {
     return (
       <SafeAreaView style={styles.empty} edges={['top', 'bottom']}>
-        <Text style={styles.emptyText}>No items yet. Add some jobs on Quick Quote first.</Text>
+        <Text style={styles.emptyText}>
+          {projectId ? 'No items on this quote yet. Add items per room on the project quote screen.' : 'No items yet. Add some jobs on Quick Quote first.'}
+        </Text>
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-      <View style={styles.toggleRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.toggleLabel}>Show labour on quote</Text>
-          <Text style={styles.toggleHint}>Adds an "includes labour" line for the client</Text>
+      {!projectId && (
+        <View style={styles.toggleRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.toggleLabel}>Show labour on quote</Text>
+            <Text style={styles.toggleHint}>Adds an "includes labour" line for the client</Text>
+          </View>
+          <Switch
+            value={estimate.showLaborBreakdown ?? true}
+            onValueChange={setShowLaborBreakdown}
+            trackColor={{ true: '#FFB020', false: '#2E3744' }}
+            thumbColor='#F2F5F8'
+          />
         </View>
-        <Switch
-          value={estimate.showLaborBreakdown ?? true}
-          onValueChange={setShowLaborBreakdown}
-          trackColor={{ true: '#FFB020', false: '#2E3744' }}
-          thumbColor='#F2F5F8'
-        />
-      </View>
+      )}
       <SignAndSendScreen estimate={client} onSigned={onSigned} onCancel={() => router.back()} />
       {busy && <View style={styles.busy}><Text style={styles.busyText}>Generating PDF…</Text></View>}
     </SafeAreaView>
