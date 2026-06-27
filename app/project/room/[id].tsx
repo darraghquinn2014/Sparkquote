@@ -5,7 +5,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
   View, Text, Pressable, ScrollView, StyleSheet, Alert,
-  ActivityIndicator, Modal, Dimensions, Platform,
+  ActivityIndicator, Modal, Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -44,6 +44,7 @@ export default function RoomScreen() {
   const cameraRef = useRef<CameraView>(null);
 
   const [permission, requestPermission] = useCameraPermissions();
+  const [lightboxPhoto, setLightboxPhoto] = useState<Photo | null>(null);
 
   const reload = useCallback(async () => {
     if (!id) return;
@@ -181,6 +182,7 @@ export default function RoomScreen() {
               <Pressable
                 key={photo.id}
                 style={styles.thumb}
+                onPress={() => setLightboxPhoto(photo)}
                 onLongPress={() => confirmDelete(photo)}
                 delayLongPress={400}
               >
@@ -196,9 +198,32 @@ export default function RoomScreen() {
         )}
 
         {photos.length > 0 && (
-          <Text style={styles.hint}>Hold a photo to delete it.</Text>
+          <Text style={styles.hint}>Tap to view  ·  Hold to delete</Text>
         )}
       </ScrollView>
+
+      {/* Lightbox */}
+      <Modal
+        visible={lightboxPhoto != null}
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setLightboxPhoto(null)}
+      >
+        <Pressable style={styles.lightbox} onPress={() => setLightboxPhoto(null)}>
+          {lightboxPhoto && (
+            <Image
+              source={{ uri: lightboxPhoto.filePath }}
+              style={styles.lightboxImage}
+              contentFit="contain"
+            />
+          )}
+          <SafeAreaView style={styles.lightboxClose} edges={['top']}>
+            <Pressable onPress={() => setLightboxPhoto(null)} hitSlop={16}>
+              <Text style={styles.lightboxCloseText}>✕</Text>
+            </Pressable>
+          </SafeAreaView>
+        </Pressable>
+      </Modal>
 
       {/* Camera modal */}
       <Modal
@@ -290,6 +315,12 @@ const styles = StyleSheet.create({
   emptyText: { color: colors.textSecondary, fontSize: 16, fontWeight: '600', marginBottom: space.xs },
   emptyHint: { color: colors.textMuted, fontSize: 13 },
   empty: { color: colors.textMuted, textAlign: 'center', marginTop: space.xxl },
+
+  // Lightbox
+  lightbox: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
+  lightboxImage: { width: '100%', height: '100%' },
+  lightboxClose: { position: 'absolute', top: 0, right: 0, padding: space.lg },
+  lightboxCloseText: { color: '#fff', fontSize: 22, fontWeight: '700' },
 
   // Camera
   cameraScreen: { flex: 1, backgroundColor: '#000' },
