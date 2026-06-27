@@ -95,6 +95,11 @@ export async function addLocation(
   return newId;
 }
 
+export async function loadLocation(id: string): Promise<Location> {
+  const row = await database.get<LocationModel>('locations').find(id);
+  return toLocation(row);
+}
+
 export async function loadLocations(projectId: string): Promise<Location[]> {
   const rows = await database
     .get<LocationModel>('locations')

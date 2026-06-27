@@ -37,6 +37,7 @@ export interface Photo {
   id: string;
   projectId: string;
   lineItemId?: string;
+  locationId?: string;
   filePath: string;
   quality: ImageQuality;
   visibility: PhotoVisibility;

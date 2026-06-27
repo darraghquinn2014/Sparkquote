@@ -13,7 +13,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 2,
+  version: 3,
   tables: [
     // ── Catalogue ────────────────────────────────────────────────────────
     tableSchema({
@@ -128,6 +128,7 @@ export const schema = appSchema({
       columns: [
         { name: 'project_id', type: 'string', isIndexed: true },
         { name: 'line_item_id', type: 'string', isOptional: true },
+        { name: 'location_id', type: 'string', isOptional: true, isIndexed: true },
         { name: 'file_path', type: 'string' },
         { name: 'quality', type: 'string' }, // low | medium | high
         { name: 'visibility', type: 'string' }, // always 'internal' — never in client PDF

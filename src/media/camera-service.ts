@@ -8,7 +8,7 @@
  */
 
 import * as ImageManipulator from 'expo-image-manipulator';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import type { ImageQuality, MediaPaths, Photo } from './media-types';
 import { QUALITY_SPECS, projectMediaDir } from './media-types';
 import { createPhoto } from './photo-service';
@@ -19,6 +19,7 @@ export interface SaveCaptureInput {
   paths: MediaPaths;
   projectId: string;
   lineItemId?: string;
+  locationId?: string;
   quality: ImageQuality;
 }
 
@@ -42,6 +43,7 @@ export async function saveCapture(input: SaveCaptureInput): Promise<Photo> {
     quality: input.quality,
   };
   if (input.lineItemId != null) captureInput.lineItemId = input.lineItemId;
+  if (input.locationId != null) captureInput.locationId = input.locationId;
   const { photo, destPath } = createPhoto(captureInput);
 
   // Ensure the project folder exists, then move the processed file in.

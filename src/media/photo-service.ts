@@ -20,6 +20,7 @@ export interface RawPhoto {
   id: string;
   project_id: string;
   line_item_id?: string | null;
+  location_id?: string | null;
   file_path: string;
   quality: string;
   visibility: string;
@@ -30,6 +31,7 @@ export interface CapturePhotoInput {
   paths: MediaPaths;
   projectId: string;
   lineItemId?: string;
+  locationId?: string;
   quality: ImageQuality;
   capturedAt?: number;
 }
@@ -51,6 +53,7 @@ export function createPhoto(input: CapturePhotoInput): { photo: Photo; destPath:
     capturedAt: input.capturedAt ?? Date.now(),
   };
   if (input.lineItemId != null) photo.lineItemId = input.lineItemId;
+  if (input.locationId != null) photo.locationId = input.locationId;
   return { photo, destPath };
 }
 
@@ -80,6 +83,7 @@ export function toPhoto(r: RawPhoto): Photo {
     capturedAt: r.captured_at,
   };
   if (r.line_item_id != null) photo.lineItemId = r.line_item_id;
+  if (r.location_id != null) photo.locationId = r.location_id;
   return photo;
 }
 
@@ -88,6 +92,7 @@ export function photoToRaw(p: Photo): RawPhoto {
     id: p.id,
     project_id: p.projectId,
     line_item_id: p.lineItemId ?? null,
+    location_id: p.locationId ?? null,
     file_path: p.filePath,
     quality: p.quality,
     visibility: 'internal',

@@ -99,6 +99,7 @@ export class PhotoModel extends Model {
   static table = 'photos';
   @text('project_id') projectId!: string;
   @text('line_item_id') lineItemId!: string | null;
+  @text('location_id') locationId!: string | null;
   @text('file_path') filePath!: string;
   @text('quality') quality!: string;
   @text('visibility') visibility!: string;
