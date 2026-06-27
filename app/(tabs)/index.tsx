@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Text, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { QuickQuoteScreen } from '@/src/ui/quick-quote/QuickQuoteScreen';
 import { seedIfEmpty, loadCatalogue } from '@/src/data/catalogue-repo';
 import { useEstimateStore } from '@/src/state/estimateStore';
@@ -15,18 +15,23 @@ export default function HomeScreen() {
   const [cat, setCat] = useState<Catalogue | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        await seedIfEmpty();
-        await hydrate();              // load any saved estimate before UI is interactive
-        const loaded = await loadCatalogue();
-        setCat(loaded);
-      } catch (e) {
-        setError(String(e));
-      }
-    })();
+  const reloadCatalogue = useCallback(async () => {
+    try {
+      setError(null);
+      await seedIfEmpty();
+      await hydrate();              // load any saved estimate before UI is interactive
+      const loaded = await loadCatalogue();
+      setCat(loaded);
+    } catch (e) {
+      setError(String(e));
+    }
   }, [hydrate]);
+
+  useFocusEffect(
+    useCallback(() => {
+      reloadCatalogue();
+    }, [reloadCatalogue]),
+  );
 
   if (error) {
     return (
@@ -49,12 +54,17 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={{ flex: 1 }} edges={['top']}>
       <QuickQuoteScreen
-        assemblies={cat.assemblies}
+        assemblies={cat.assemblies.filter((a) => a.quickQuoteRank != null).sort((a, b) => (a.quickQuoteRank ?? 0) - (b.quickQuoteRank ?? 0))}
         materials={cat.materials}
         toggles={cat.toggles}
         config={{ currency: 'GBP', hourlyRateMinor: 5000, vatRatePct: 20 }}
         onReview={() => router.push('/review')}
+        onManage={() => router.push('/manage-jobs' as never)}
       />
     </SafeAreaView>
   );
 }
+
+
+
+

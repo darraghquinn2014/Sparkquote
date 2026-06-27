@@ -29,9 +29,10 @@ interface Props {
   toggles: LaborToggle[];
   config: QuickQuoteConfig;
   onReview: (estimateId: string) => void;
+  onManage: () => void;
 }
 
-export function QuickQuoteScreen({ assemblies, materials, toggles, config, onReview }: Props) {
+export function QuickQuoteScreen({ assemblies, materials, toggles, config, onReview, onManage }: Props) {
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
@@ -76,7 +77,12 @@ export function QuickQuoteScreen({ assemblies, materials, toggles, config, onRev
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <Text style={styles.title}>Quick Quote</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Quick Quote</Text>
+          <Pressable onPress={onManage} accessibilityRole="button" style={styles.manageButton}>
+            <Text style={styles.manageText}>Manage</Text>
+          </Pressable>
+        </View>
         <TextInput
           value={query}
           onChangeText={setQuery}
@@ -148,7 +154,10 @@ export function QuickQuoteScreen({ assemblies, materials, toggles, config, onRev
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ground },
   header: { paddingHorizontal: space.lg, paddingTop: space.xl, paddingBottom: space.sm, gap: space.md },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
   title: { fontSize: 26, fontWeight: '800', color: colors.textPrimary },
+  manageButton: { borderWidth: 1, borderColor: colors.hairline, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.sm },
+  manageText: { color: colors.accent, fontSize: 13, fontWeight: '800' },
   search: {
     backgroundColor: colors.surface,
     borderRadius: radius.bar,
@@ -172,3 +181,5 @@ const styles = StyleSheet.create({
   gridRow: { gap: 0 },
   empty: { color: colors.textMuted, textAlign: 'center', marginTop: space.xxl, ...type.body },
 });
+
+

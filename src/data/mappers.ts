@@ -133,13 +133,16 @@ export function toAssembly(r: RawAssembly, components: RawAssemblyComponent[]): 
     if (c.waste_factor != null) comp.wasteFactor = c.waste_factor;
     return comp;
   });
-  return {
+  const assembly: Assembly = {
     id: r.id,
     name: r.name,
     category: r.category,
     baseLaborHours: r.base_labor_hours,
     components: mapped,
   };
+  if (r.quick_quote_rank != null) assembly.quickQuoteRank = r.quick_quote_rank;
+  if (r.quick_quote_icon != null) assembly.quickQuoteIcon = r.quick_quote_icon;
+  return assembly;
 }
 
 export function toLaborToggle(r: RawLaborToggle): LaborToggle {

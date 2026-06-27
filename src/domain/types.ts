@@ -46,6 +46,10 @@ export interface Assembly {
   /** Base labor hours for one unit of this assembly, before toggles. */
   baseLaborHours: number;
   components: AssemblyComponent[];
+  /** If set, this assembly is a Quick-Quote favourite; value orders the tiles. */
+  quickQuoteRank?: number;
+  /** Optional icon name for the Quick-Quote tile. */
+  quickQuoteIcon?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────

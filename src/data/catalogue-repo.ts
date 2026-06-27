@@ -214,3 +214,107 @@ export const dbCatalogueRepo: CatalogueRepository = {
     });
   },
 };
+
+
+// ── Assembly management (create / favourite / delete) ──────────────────────
+
+/** Set or clear an assembly's Quick-Quote favourite rank. null = unfavourite. */
+export async function setAssemblyFavourite(id: string, rank: number | null): Promise<void> {
+  await database.write(async () => {
+    const row = await database.get<AssemblyModel>("assemblies").find(id);
+    await row.update((r) => { r.quickQuoteRank = rank; });
+  });
+}
+
+/** Next available favourite rank (max existing + 1), so new favourites sort last. */
+async function nextRank(): Promise<number> {
+  const rows = await database.get<AssemblyModel>("assemblies").query().fetch();
+  const ranks = rows.map((r) => r.quickQuoteRank ?? 0);
+  return (ranks.length ? Math.max(...ranks) : 0) + 1;
+}
+
+/** Create a custom assembly + its components. Favourite by default. */
+export async function createAssembly(input: {
+  name: string;
+  category: string;
+  baseLaborHours: number;
+  components: { materialId: string; quantity: number }[];
+}): Promise<string> {
+  const rank = await nextRank();
+  let newId = "";
+  await database.write(async () => {
+    const asmTable = database.get<AssemblyModel>("assemblies");
+    const compTable = database.get<AssemblyComponentModel>("assembly_components");
+    const batch: Model[] = [];
+    const asm = asmTable.prepareCreate((r) => {
+      r.name = input.name;
+      r.category = input.category;
+      r.baseLaborHours = input.baseLaborHours;
+      r.quickQuoteRank = rank;
+    });
+    newId = asm.id;
+    batch.push(asm);
+    for (const c of input.components) {
+      batch.push(
+        compTable.prepareCreate((r) => {
+          r.assemblyId = asm.id;
+          r.materialId = c.materialId;
+          r.quantity = c.quantity;
+        }),
+      );
+    }
+    await database.batch(...batch);
+  });
+  return newId;
+}
+
+
+/** Update an existing assembly and replace its component list. Visibility is preserved. */
+export async function updateAssembly(input: {
+  id: string;
+  name: string;
+  category: string;
+  baseLaborHours: number;
+  components: { materialId: string; quantity: number }[];
+}): Promise<void> {
+  await database.write(async () => {
+    const asmTable = database.get<AssemblyModel>("assemblies");
+    const compTable = database.get<AssemblyComponentModel>("assembly_components");
+    const asm = await asmTable.find(input.id);
+    const existingComps = await compTable
+      .query(Q.where("assembly_id", input.id))
+      .fetch();
+
+    const batch: Model[] = [
+      asm.prepareUpdate((r) => {
+        r.name = input.name;
+        r.category = input.category;
+        r.baseLaborHours = input.baseLaborHours;
+      }),
+      ...existingComps.map((c) => c.prepareDestroyPermanently()),
+      ...input.components.map((c) =>
+        compTable.prepareCreate((r) => {
+          r.assemblyId = input.id;
+          r.materialId = c.materialId;
+          r.quantity = c.quantity;
+        }),
+      ),
+    ];
+
+    await database.batch(...batch);
+  });
+}
+/** Delete an assembly and its components. */
+export async function deleteAssembly(id: string): Promise<void> {
+  await database.write(async () => {
+    const comps = await database
+      .get<AssemblyComponentModel>("assembly_components")
+      .query(Q.where("assembly_id", id))
+      .fetch();
+    const batch: Model[] = comps.map((c) => c.prepareDestroyPermanently());
+    const asm = await database.get<AssemblyModel>("assemblies").find(id);
+    batch.push(asm.prepareDestroyPermanently());
+    await database.batch(...batch);
+  });
+}
+
