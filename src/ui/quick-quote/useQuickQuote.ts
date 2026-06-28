@@ -17,6 +17,7 @@ export interface QuickQuoteState {
   pricing: EstimatePriceBreakdown;
   lineCount: number;
   addAssembly: (assembly: Assembly) => void;
+  removeAssembly: (assemblyId: string) => void;
   remove: (lineId: string) => void;
   clear: () => void;
 }
@@ -35,6 +36,7 @@ export function useQuickQuote(
   const estimate = useEstimateStore((s) => s.estimate);
   const storeAdd = useEstimateStore((s) => s.addAssembly);
   const storeRemove = useEstimateStore((s) => s.remove);
+  const storeReplace = useEstimateStore((s) => s.replaceLine);
   const storeClear = useEstimateStore((s) => s.clear);
 
   const lookup = useMemo(() => materialLookupFrom(materials), [materials]);
@@ -43,6 +45,22 @@ export function useQuickQuote(
     (assembly: Assembly) => storeAdd(assembly, lookup),
     [storeAdd, lookup],
   );
+
+  const removeAssembly = useCallback(
+    (assemblyId: string) => {
+      const line = estimate.lineItems.find(
+        (l) => l.sourceAssemblyId === assemblyId && !l.overrides,
+      );
+      if (!line) return;
+      if ((line.quantity ?? 1) <= 1) {
+        storeRemove(line.id);
+      } else {
+        storeReplace({ ...line, quantity: (line.quantity ?? 1) - 1 });
+      }
+    },
+    [estimate.lineItems, storeRemove, storeReplace],
+  );
+
   const remove = useCallback((lineId: string) => storeRemove(lineId), [storeRemove]);
   const clear = useCallback(() => storeClear(), [storeClear]);
 
@@ -54,6 +72,7 @@ export function useQuickQuote(
     pricing,
     lineCount: estimate.lineItems.length,
     addAssembly,
+    removeAssembly,
     remove,
     clear,
   };

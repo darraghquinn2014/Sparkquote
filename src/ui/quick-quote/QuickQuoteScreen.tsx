@@ -131,6 +131,7 @@ export function QuickQuoteScreen({ assemblies, materials, toggles, config, onRev
             currency={config.currency}
             quantityInEstimate={quantityByAssembly.get(item.id) ?? 0}
             onPress={qq.addAssembly}
+            onRemove={qq.removeAssembly}
           />
         )}
         ListEmptyComponent={

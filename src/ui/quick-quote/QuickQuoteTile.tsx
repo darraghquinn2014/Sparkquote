@@ -22,6 +22,7 @@ interface Props {
   /** Quantity already in the estimate for this assembly (0 = none yet). */
   quantityInEstimate: number;
   onPress: (assembly: Assembly) => void;
+  onRemove: (assemblyId: string) => void;
 }
 
 function QuickQuoteTileBase({
@@ -30,6 +31,7 @@ function QuickQuoteTileBase({
   currency,
   quantityInEstimate,
   onPress,
+  onRemove,
 }: Props) {
   const band = categoryColor(assembly.category);
 
@@ -44,8 +46,17 @@ function QuickQuoteTileBase({
       <View style={[styles.band, { backgroundColor: band }]} />
 
       {quantityInEstimate > 0 && (
-        <View style={styles.countBadge}>
-          <Text style={styles.countText}>{quantityInEstimate}</Text>
+        <View style={styles.controls}>
+          <Pressable
+            onPress={() => onRemove(assembly.id)}
+            hitSlop={8}
+            style={styles.minusBtn}
+          >
+            <Text style={styles.minusText}>−</Text>
+          </Pressable>
+          <View style={styles.countBadge}>
+            <Text style={styles.countText}>{quantityInEstimate}</Text>
+          </View>
         </View>
       )}
 
@@ -99,10 +110,32 @@ const styles = StyleSheet.create({
     ...type.money,
     color: colors.textSecondary,
   },
-  countBadge: {
+  controls: {
     position: 'absolute',
     top: space.sm,
     right: space.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    zIndex: 2,
+  },
+  minusBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  minusText: {
+    color: colors.textPrimary,
+    fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  countBadge: {
     minWidth: 24,
     height: 24,
     paddingHorizontal: 6,
@@ -110,7 +143,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 2,
   },
   countText: {
     color: colors.accentInk,

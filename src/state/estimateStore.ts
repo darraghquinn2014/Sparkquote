@@ -19,7 +19,10 @@ import {
 interface EstimateStore {
   estimate: Estimate;
   hydrated: boolean;
+  savedEstimate: Estimate | null;
   hydrate: () => Promise<void>;
+  restoreSaved: () => void;
+  dismissSaved: () => void;
   addAssembly: (assembly: Assembly, lookup: MaterialLookup) => void;
   addMaterial: (material: Material, amount: number) => void;
   addLabour: (opts: { hours?: number; flatMinor?: number }) => void;
@@ -54,17 +57,31 @@ function persist(estimate: Estimate, hydrated: boolean) {
 export const useEstimateStore = create<EstimateStore>((set, get) => ({
   estimate: emptyEstimate(),
   hydrated: false,
+  savedEstimate: null,
 
   hydrate: async () => {
+    if (get().hydrated) return;
     try {
       const saved = await loadActiveEstimate();
-      if (saved) set({ estimate: saved });
+      if (saved && saved.lineItems.length > 0) {
+        set({ savedEstimate: saved });
+      }
     } catch (e) {
       console.error('hydrate failed', e);
     } finally {
       set({ hydrated: true });
     }
   },
+
+  restoreSaved: () =>
+    set((s) => {
+      if (!s.savedEstimate) return {};
+      const estimate = s.savedEstimate;
+      persist(estimate, s.hydrated);
+      return { estimate, savedEstimate: null };
+    }),
+
+  dismissSaved: () => set({ savedEstimate: null }),
 
   addAssembly: (assembly, lookup) =>
     set((s) => {
@@ -122,6 +139,6 @@ export const useEstimateStore = create<EstimateStore>((set, get) => ({
     set((s) => {
       const estimate = emptyEstimate();
       if (s.hydrated) clearActiveEstimate().catch((e) => console.error('clear failed', e));
-      return { estimate };
+      return { estimate, savedEstimate: null };
     }),
 }));

@@ -18,6 +18,9 @@ const toggleIndex = new Map(allToggles.map((t) => [t.id, t]));
 
 export default function EstimateScreen() {
   const estimate = useEstimateStore((s) => s.estimate);
+  const savedEstimate = useEstimateStore((s) => s.savedEstimate);
+  const restoreSaved = useEstimateStore((s) => s.restoreSaved);
+  const dismissSaved = useEstimateStore((s) => s.dismissSaved);
   const replaceLine = useEstimateStore((s) => s.replaceLine);
   const remove = useEstimateStore((s) => s.remove);
   const addMaterial = useEstimateStore((s) => s.addMaterial);
@@ -50,6 +53,24 @@ export default function EstimateScreen() {
       <FlatList
         data={estimate.lineItems}
         keyExtractor={(l) => l.id}
+        ListHeaderComponent={
+          savedEstimate && estimate.lineItems.length === 0 ? (
+            <View style={styles.resumeBanner}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.resumeTitle}>Last estimate</Text>
+                <Text style={styles.resumeSub}>
+                  {savedEstimate.lineItems.length} item{savedEstimate.lineItems.length !== 1 ? 's' : ''} · {formatMoney(priceEstimate(savedEstimate, allToggles).grandTotalMinor, savedEstimate.currency)}
+                </Text>
+              </View>
+              <Pressable style={styles.resumeBtn} onPress={restoreSaved}>
+                <Text style={styles.resumeBtnText}>Resume</Text>
+              </Pressable>
+              <Pressable style={styles.dismissBtn} onPress={dismissSaved}>
+                <Text style={styles.dismissBtnText}>✕</Text>
+              </Pressable>
+            </View>
+          ) : null
+        }
         ListEmptyComponent={<Text style={styles.empty}>No items yet. Add jobs on Quick Quote.</Text>}
         ListFooterComponent={estimate.lineItems.length === 0 ? null : (
           <View style={styles.footer}>
@@ -154,4 +175,18 @@ const styles = StyleSheet.create({
   totalRow: { borderTopWidth: 1, borderTopColor: '#2E3744', marginTop: 6, paddingTop: 12 },
   totalLabel: { fontSize: 18, color: '#F2F5F8', fontWeight: '800' },
   totalValue: { fontSize: 22, color: '#FFB020', fontWeight: '800', fontVariant: ['tabular-nums'] },
+  resumeBanner: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E242E',
+    borderRadius: 14, padding: 16, marginBottom: 16,
+    borderWidth: 1, borderColor: '#2E3744',
+  },
+  resumeTitle: { fontSize: 15, color: '#F2F5F8', fontWeight: '700', marginBottom: 2 },
+  resumeSub: { fontSize: 13, color: '#9AA7B4' },
+  resumeBtn: {
+    backgroundColor: '#FFB020', borderRadius: 999,
+    paddingHorizontal: 16, paddingVertical: 8, marginLeft: 12,
+  },
+  resumeBtnText: { color: '#14181F', fontWeight: '800', fontSize: 14 },
+  dismissBtn: { padding: 8, marginLeft: 4 },
+  dismissBtnText: { color: '#5E6B79', fontSize: 16 },
 });
