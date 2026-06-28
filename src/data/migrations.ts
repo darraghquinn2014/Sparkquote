@@ -11,5 +11,14 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 4,
+      steps: [
+        addColumns({
+          table: 'estimates',
+          columns: [{ name: 'show_labor_breakdown', type: 'boolean', isOptional: true }],
+        }),
+      ],
+    },
   ],
 });

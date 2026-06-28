@@ -82,6 +82,7 @@ export interface RawEstimate {
   currency: string;
   hourly_rate_minor: number;
   vat_rate_pct: number;
+  show_labor_breakdown?: boolean | null;
   applied_labor_toggle_ids: string;
 }
 
@@ -180,6 +181,7 @@ export function toEstimate(r: RawEstimate, lines: RawLineItem[]): Estimate {
     currency: assertOneOf(r.currency, CURRENCIES, 'currency'),
     hourlyRateMinor: r.hourly_rate_minor,
     vatRatePct: r.vat_rate_pct,
+    showLaborBreakdown: r.show_labor_breakdown == null ? true : r.show_labor_breakdown,
     appliedLaborToggleIds: parseIdArray(r.applied_labor_toggle_ids),
     lineItems: lines.map(toLineItem),
   };

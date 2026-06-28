@@ -13,7 +13,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 3,
+  version: 4,
   tables: [
     // ── Catalogue ────────────────────────────────────────────────────────
     tableSchema({
@@ -96,6 +96,7 @@ export const schema = appSchema({
         { name: 'currency', type: 'string' },
         { name: 'hourly_rate_minor', type: 'number' },
         { name: 'vat_rate_pct', type: 'number' },
+        { name: 'show_labor_breakdown', type: 'boolean', isOptional: true },
         // estimate-wide toggle ids, JSON-encoded array of strings
         { name: 'applied_labor_toggle_ids', type: 'string' },
         { name: 'created_at', type: 'number' },

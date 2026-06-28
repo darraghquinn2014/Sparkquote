@@ -74,6 +74,7 @@ export class EstimateModel extends Model {
   @text('currency') currency!: string;
   @field('hourly_rate_minor') hourlyRateMinor!: number;
   @field('vat_rate_pct') vatRatePct!: number;
+  @field('show_labor_breakdown') showLaborBreakdown!: boolean | null;
   @text('applied_labor_toggle_ids') appliedLaborToggleIds!: string;
   @readonly @date('created_at') createdAt!: Date;
   @readonly @date('updated_at') updatedAt!: Date;

@@ -54,6 +54,7 @@ export async function saveActiveEstimate(estimate: Estimate): Promise<void> {
       r.currency = estimate.currency;
       r.hourlyRateMinor = estimate.hourlyRateMinor;
       r.vatRatePct = estimate.vatRatePct;
+      r.showLaborBreakdown = estimate.showLaborBreakdown ?? true;
       r.appliedLaborToggleIds = JSON.stringify(estimate.appliedLaborToggleIds);
     };
 
@@ -119,6 +120,7 @@ export async function loadActiveEstimate(): Promise<Estimate | null> {
     currency: estRow.currency,
     hourly_rate_minor: estRow.hourlyRateMinor,
     vat_rate_pct: estRow.vatRatePct,
+    show_labor_breakdown: estRow.showLaborBreakdown,
     applied_labor_toggle_ids: estRow.appliedLaborToggleIds,
   };
 
