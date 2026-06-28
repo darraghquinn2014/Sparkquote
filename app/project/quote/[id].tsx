@@ -18,6 +18,7 @@ import { loadCatalogue } from '@/src/data/catalogue-repo';
 import { MaterialPicker } from '@/src/ui/catalogue/MaterialPicker';
 import { LabourSheet } from '@/src/ui/catalogue/LabourSheet';
 import { CableEstimatorSheet } from '@/src/ui/catalogue/CableEstimatorSheet';
+import { EditLineSheet } from '@/src/ui/catalogue/EditLineSheet';
 import { toLaborToggle } from '@/src/data/mappers';
 import { seedLaborToggles } from '@/src/data/seed/assemblies';
 import type { Project, Location, Estimate, LineItem, Material } from '@/src/domain/types';
@@ -51,6 +52,7 @@ export default function ProjectQuoteScreen() {
   const [pickerRoomId, setPickerRoomId] = useState<string | null>(null);
   const [labourRoomId, setLabourRoomId] = useState<string | null>(null);
   const [cableRoomId, setCableRoomId] = useState<string | null>(null);
+  const [editLine, setEditLine] = useState<LineItem | null>(null);
   const [rateEditing, setRateEditing] = useState(false);
   const [rateText, setRateText] = useState('');
 
@@ -110,6 +112,10 @@ export default function ProjectQuoteScreen() {
     const updated = lines.reduce((est, line) => addLine(est, line), estimate);
     save(updated);
     setCableRoomId(null);
+  }, [estimate, save]);
+
+  const handleSaveEdit = useCallback((updated: LineItem) => {
+    save({ ...estimate, lineItems: estimate.lineItems.map((l) => l.id === updated.id ? updated : l) });
   }, [estimate, save]);
 
   const handleRemove = (lineId: string) => save(removeLine(estimate, lineId));
@@ -197,14 +203,17 @@ export default function ProjectQuoteScreen() {
 
                     {roomLines.map((line) => (
                       <View key={line.id} style={styles.lineRow}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.lineDesc}>{line.description}</Text>
-                          {line.quantityMeters != null
-                            ? <Text style={styles.lineQty}>{line.quantityMeters}m</Text>
-                            : line.quantity != null && line.quantity !== 1
-                              ? <Text style={styles.lineQty}>×{line.quantity}</Text>
-                              : null}
-                        </View>
+                        <Pressable style={styles.lineMain} onPress={() => setEditLine(line)}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.lineDesc}>{line.description}</Text>
+                            {line.quantityMeters != null
+                              ? <Text style={styles.lineQty}>{line.quantityMeters}m</Text>
+                              : line.quantity != null && line.quantity !== 1
+                                ? <Text style={styles.lineQty}>×{line.quantity}</Text>
+                                : null}
+                          </View>
+                          <Text style={styles.editHint}>✎</Text>
+                        </Pressable>
                         <Text style={styles.lineAmt}>{formatMoney(lineTotalById.get(line.id) ?? 0, estimate.currency)}</Text>
                         <Pressable onPress={() => handleRemove(line.id)} hitSlop={8} style={styles.removeBtn}>
                           <Text style={styles.removeText}>✕</Text>
@@ -285,6 +294,13 @@ export default function ProjectQuoteScreen() {
         onAdd={handleAddCableLines}
         onClose={() => setCableRoomId(null)}
       />
+      <EditLineSheet
+        line={editLine}
+        hourlyRateMinor={estimate.hourlyRateMinor}
+        currency={estimate.currency}
+        onSave={handleSaveEdit}
+        onClose={() => setEditLine(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -323,6 +339,8 @@ const styles = StyleSheet.create({
   roomTotal: { color: colors.accent, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
 
   lineRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: space.xs, borderTopWidth: 1, borderTopColor: colors.hairline, gap: space.sm },
+  lineMain: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  editHint: { color: colors.hairline, fontSize: 13, paddingHorizontal: space.xs },
   lineRowUnassigned: { backgroundColor: colors.surface, borderRadius: radius.tile, paddingHorizontal: space.md, marginBottom: space.xs, borderTopWidth: 0 },
   lineDesc: { color: colors.textPrimary, fontSize: 14 },
   lineQty: { color: colors.textMuted, fontSize: 12, marginTop: 1 },
