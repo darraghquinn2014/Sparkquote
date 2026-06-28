@@ -87,7 +87,9 @@ export function renderEstimateHtml(
   * { box-sizing: border-box; }
   body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; color: #1a1a1a; margin: 0; padding: 32px; font-size: 13px; line-height: 1.5; }
   .doc-head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a1a1a; padding-bottom: 16px; margin-bottom: 24px; }
+  .logo { max-height: 64px; max-width: 200px; object-fit: contain; display: block; margin-bottom: 8px; }
   .business { font-size: 20px; font-weight: 700; }
+  .tagline { font-size: 12px; color: #555; margin-top: 2px; margin-bottom: 4px; }
   .doc-title { text-transform: uppercase; letter-spacing: 2px; font-size: 11px; color: #666; }
   .meta { text-align: right; font-size: 12px; color: #555; }
   .client { margin-bottom: 24px; }
@@ -116,7 +118,9 @@ export function renderEstimateHtml(
 <body>
   <div class="doc-head">
     <div>
+      ${estimate.logoDataUri ? `<img class="logo" src="${estimate.logoDataUri}" alt="Logo" />` : ''}
       <div class="business">${escapeHtml(estimate.businessName ?? 'Estimate')}</div>
+      ${estimate.tagline ? `<div class="tagline">${escapeHtml(estimate.tagline)}</div>` : ''}
       <div class="doc-title">Estimate</div>
     </div>
     <div class="meta">${headerMeta}</div>

@@ -8,6 +8,10 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <Text style={styles.title}>Settings</Text>
+      <Pressable style={styles.row} onPress={() => router.push('/business-profile' as any)}>
+        <Text style={styles.rowText}>Business profile</Text>
+        <Text style={styles.chevron}>›</Text>
+      </Pressable>
       <Pressable style={styles.row} onPress={() => router.push('/media-settings')}>
         <Text style={styles.rowText}>Photos & storage</Text>
         <Text style={styles.chevron}>›</Text>

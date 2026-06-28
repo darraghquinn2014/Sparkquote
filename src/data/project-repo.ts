@@ -10,7 +10,7 @@ import { ProjectModel, LocationModel } from './models';
 import type { Project, Location } from '../domain/types';
 
 function toProject(r: ProjectModel): Project {
-  const p: Project = { id: r.id, name: r.name };
+  const p: Project = { id: r.id, name: r.name, createdAt: r.createdAt.getTime() };
   if (r.clientName != null) p.clientName = r.clientName;
   return p;
 }
@@ -42,7 +42,7 @@ export async function createProject(name: string, clientName?: string): Promise<
 
 export async function loadProjects(): Promise<Project[]> {
   const rows = await database.get<ProjectModel>('projects').query().fetch();
-  return rows.map(toProject).sort((a, b) => a.name.localeCompare(b.name));
+  return rows.map(toProject).sort((a, b) => b.createdAt - a.createdAt);
 }
 
 export async function renameProject(id: string, name: string, clientName?: string): Promise<void> {

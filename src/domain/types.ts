@@ -140,6 +140,7 @@ export interface Project {
   id: string;
   name: string;
   clientName?: string;
+  createdAt: number; // Unix ms
 }
 
 export interface Location {

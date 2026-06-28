@@ -61,6 +61,9 @@ export default function ProjectsScreen() {
                   {item.clientName ? `${item.clientName} · ` : ''}
                   {roomCounts[item.id] ?? 0} room{(roomCounts[item.id] ?? 0) === 1 ? '' : 's'}
                 </Text>
+                <Text style={styles.date}>
+                  {new Date(item.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </Text>
               </View>
               <Text style={{ color: colors.textMuted, fontSize: 20 }}>›</Text>
             </Pressable>
@@ -80,6 +83,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.surface, borderRadius: radius.tile, padding: space.lg, marginBottom: space.sm },
   name: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
   meta: { color: colors.textMuted, fontSize: 13, marginTop: 2 },
+  date: { color: colors.textMuted, fontSize: 12, marginTop: 3, opacity: 0.7 },
   empty: { alignItems: 'center', marginTop: space.xxl * 2, paddingHorizontal: space.xl, gap: space.sm },
   emptyTitle: { color: colors.textSecondary, fontSize: 17, fontWeight: '700', marginTop: space.sm },
   emptyText: { color: colors.textMuted, textAlign: 'center', ...typo.body },

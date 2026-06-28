@@ -12,6 +12,7 @@ import { useEstimateStore } from '@/src/state/estimateStore';
 import { loadProjectEstimate } from '@/src/data/project-estimate-repo';
 import { loadProjects } from '@/src/data/project-repo';
 import type { Estimate, Project } from '@/src/domain/types';
+import { loadBusinessProfile, readLogoDataUri, type BusinessProfile } from '@/src/data/business-profile';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
@@ -23,6 +24,8 @@ export default function ReviewRoute() {
   const [busy, setBusy] = useState(false);
   const [projectEstimate, setProjectEstimate] = useState<Estimate | null>(null);
   const [projectData, setProjectData] = useState<Project | null>(null);
+  const [profile, setProfile] = useState<BusinessProfile>({ businessName: '', tagline: '', logoPath: null });
+  const [logoDataUri, setLogoDataUri] = useState<string | null>(null);
 
   const activeEstimate = useEstimateStore((s) => s.estimate);
   const setShowLaborBreakdown = useEstimateStore((s) => s.setShowLaborBreakdown);
@@ -30,6 +33,8 @@ export default function ReviewRoute() {
   const estimate = projectEstimate ?? activeEstimate;
 
   useEffect(() => {
+    loadBusinessProfile().then(setProfile).catch(console.error);
+    readLogoDataUri().then(setLogoDataUri).catch(console.error);
     if (!projectId) return;
     loadProjectEstimate(projectId).then((e) => { if (e) setProjectEstimate(e); }).catch(console.error);
     loadProjects().then((ps) => setProjectData(ps.find((p) => p.id === projectId) ?? null)).catch(console.error);
@@ -37,9 +42,11 @@ export default function ReviewRoute() {
 
   const priced = priceEstimate(estimate, toggles);
   const meta = {
-    businessName: 'Watts Electrical',
-    clientName: projectData?.clientName ?? 'Sample Client',
-    reference: projectData ? projectData.name.slice(0, 12).toUpperCase() : 'Q-DEMO',
+    businessName: profile.businessName || undefined,
+    tagline: profile.tagline || undefined,
+    logoDataUri: logoDataUri ?? undefined,
+    clientName: projectData?.clientName || undefined,
+    reference: projectData ? projectData.name.slice(0, 20).toUpperCase() : undefined,
     dateIso: new Date().toISOString(),
   };
   const client = toClientEstimate(estimate, priced, meta);

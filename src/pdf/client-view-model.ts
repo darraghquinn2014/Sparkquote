@@ -35,6 +35,8 @@ export interface ClientEstimate {
   laborTotalMinor?: number;
   /** Optional business/client identity for the document header. */
   businessName?: string;
+  tagline?: string;
+  logoDataUri?: string;
   clientName?: string;
   reference?: string;
   dateIso?: string;
@@ -42,6 +44,8 @@ export interface ClientEstimate {
 
 export interface ClientEstimateMeta {
   businessName?: string;
+  tagline?: string;
+  logoDataUri?: string;
   clientName?: string;
   reference?: string;
   dateIso?: string;
@@ -86,6 +90,8 @@ export function toClientEstimate(
   };
   if (estimate.showLaborBreakdown) result.laborTotalMinor = pricing.laborTotalMinor;
   if (meta.businessName != null) result.businessName = meta.businessName;
+  if (meta.tagline != null) result.tagline = meta.tagline;
+  if (meta.logoDataUri != null) result.logoDataUri = meta.logoDataUri;
   if (meta.clientName != null) result.clientName = meta.clientName;
   if (meta.reference != null) result.reference = meta.reference;
   if (meta.dateIso != null) result.dateIso = meta.dateIso;
