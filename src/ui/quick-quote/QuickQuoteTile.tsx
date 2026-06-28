@@ -87,7 +87,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.tile,
     overflow: 'hidden',
-    flex: 1,
   },
   tilePressed: {
     backgroundColor: colors.surfacePressed,
@@ -100,8 +99,6 @@ const styles = StyleSheet.create({
   tileBody: {
     padding: space.md,
     gap: space.xs,
-    flex: 1,
-    justifyContent: 'space-between',
   },
   eyebrow: {
     ...type.eyebrow,

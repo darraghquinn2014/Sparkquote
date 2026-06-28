@@ -217,6 +217,44 @@ export const dbCatalogueRepo: CatalogueRepository = {
 };
 
 
+// ── Supplier price list management ───────────────────────────────────────────
+
+export interface SupplierSummary {
+  catalogueId: string;
+  displayName: string;
+  itemCount: number;
+}
+
+/** Return one summary row per distinct catalogueId in the materials table. */
+export async function loadSuppliers(): Promise<SupplierSummary[]> {
+  const rows = await database.get<MaterialModel>('materials').query().fetch();
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    counts.set(r.catalogueId, (counts.get(r.catalogueId) ?? 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([catalogueId, itemCount]) => ({
+      catalogueId,
+      displayName: catalogueId
+        .split('-')
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' '),
+      itemCount,
+    }));
+}
+
+/** Delete all materials belonging to a supplier. Seed rows are left untouched. */
+export async function deleteSupplierPrices(catalogueId: string): Promise<void> {
+  await database.write(async () => {
+    const rows = await database
+      .get<MaterialModel>('materials')
+      .query(Q.where('catalogue_id', catalogueId))
+      .fetch();
+    await database.batch(...rows.map((r) => r.prepareDestroyPermanently()));
+  });
+}
+
 // ── One-time data migration: prefix all assembly names with "Install" ────────
 
 /**

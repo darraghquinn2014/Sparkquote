@@ -93,36 +93,39 @@ export function QuickQuoteScreen({ assemblies, materials, toggles, config, onRev
         />
       </View>
 
-      {/* category filter row */}
-      <FlatList
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        data={[null, ...categories]}
-        keyExtractor={(c) => c ?? '__all'}
-        contentContainerStyle={styles.filterRow}
-        renderItem={({ item }) => {
-          const active = activeCategory === item;
-          const tint = item ? categoryColor(item) : colors.accent;
-          return (
-            <Pressable
-              onPress={() => setActiveCategory(item)}
-              accessibilityRole="button"
-              style={[styles.chip, active && { backgroundColor: tint, borderColor: tint }]}
-            >
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                {item ?? 'All'}
-              </Text>
-            </Pressable>
-          );
-        }}
-      />
+      {/* category filter row — fixed height so it's never squeezed by the grid */}
+      <View style={styles.filterContainer}>
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={[null, ...categories]}
+          keyExtractor={(c) => c ?? '__all'}
+          contentContainerStyle={styles.filterRow}
+          renderItem={({ item }) => {
+            const active = activeCategory === item;
+            const tint = item ? categoryColor(item) : colors.accent;
+            return (
+              <Pressable
+                onPress={() => setActiveCategory(item)}
+                accessibilityRole="button"
+                style={[styles.chip, active && { backgroundColor: tint, borderColor: tint }]}
+              >
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                  {item ?? 'All'}
+                </Text>
+              </Pressable>
+            );
+          }}
+        />
+      </View>
 
-      {/* tile grid */}
+      {/* tile grid — flex:1 fills remaining space between chip row and total bar */}
       <FlatList
+        style={styles.grid}
         data={filtered}
         keyExtractor={(a) => a.id}
         numColumns={2}
-        contentContainerStyle={styles.grid}
+        contentContainerStyle={styles.gridContent}
         columnWrapperStyle={styles.gridRow}
         renderItem={({ item }) => (
           <QuickQuoteTile
@@ -167,7 +170,8 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: 16,
   },
-  filterRow: { paddingHorizontal: space.lg, paddingVertical: space.sm, gap: space.sm },
+  filterContainer: { height: 52 },
+  filterRow: { paddingHorizontal: space.lg, paddingVertical: space.sm, gap: space.sm, alignItems: 'center' },
   chip: {
     paddingHorizontal: space.lg,
     paddingVertical: space.sm,
@@ -178,7 +182,8 @@ const styles = StyleSheet.create({
   },
   chipText: { ...type.caption, color: colors.textSecondary },
   chipTextActive: { color: colors.accentInk, fontWeight: '800' },
-  grid: { paddingHorizontal: space.sm, paddingTop: space.sm, paddingBottom: space.xl },
+  grid: { flex: 1 },
+  gridContent: { paddingHorizontal: space.sm, paddingTop: space.sm, paddingBottom: space.xl },
   gridRow: { gap: 0 },
   empty: { color: colors.textMuted, textAlign: 'center', marginTop: space.xxl, ...type.body },
 });
