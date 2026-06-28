@@ -9,13 +9,21 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import type { Project, Location } from '@/src/domain/types';
 import { loadProjects, loadLocations, addLocation, deleteLocation, deleteProject, renameProject, renameLocation } from '@/src/data/project-repo';
+import { loadProjectEstimate } from '@/src/data/project-estimate-repo';
+import { priceEstimate } from '@/src/domain/pricing';
+import { formatMoney } from '@/src/domain/money';
+import { toLaborToggle } from '@/src/data/mappers';
+import { seedLaborToggles } from '@/src/data/seed/assemblies';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
+
+const allToggles = seedLaborToggles.map(toLaborToggle);
 
 export default function ProjectDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
+  const [roomTotals, setRoomTotals] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
 
   // inline-add state: which parent we're adding to (null = adding a floor)
@@ -26,9 +34,25 @@ export default function ProjectDetailScreen() {
 
   const reload = useCallback(async () => {
     if (!id) return;
-    const ps = await loadProjects();
+    const [ps, locs, estimate] = await Promise.all([
+      loadProjects(),
+      loadLocations(id),
+      loadProjectEstimate(id),
+    ]);
     setProject(ps.find((p) => p.id === id) ?? null);
-    setLocations(await loadLocations(id));
+    setLocations(locs);
+    if (estimate) {
+      const priced = priceEstimate(estimate, allToggles);
+      const lineTotals = new Map(priced.lines.map((l) => [l.lineId, l.lineTotalMinor]));
+      const totals = new Map<string, number>();
+      for (const line of estimate.lineItems) {
+        if (!line.locationId) continue;
+        totals.set(line.locationId, (totals.get(line.locationId) ?? 0) + (lineTotals.get(line.id) ?? 0));
+      }
+      setRoomTotals(totals);
+    } else {
+      setRoomTotals(new Map());
+    }
     setLoading(false);
   }, [id]);
 
@@ -36,6 +60,8 @@ export default function ProjectDetailScreen() {
 
   const floors = locations.filter((l) => l.parentId == null);
   const roomsOf = (floorId: string) => locations.filter((l) => l.parentId === floorId);
+  const floorTotal = (floorId: string) =>
+    roomsOf(floorId).reduce((s, r) => s + (roomTotals.get(r.id) ?? 0), 0);
 
   const commitAdd = async (parentId?: string) => {
     const name = draftName.trim();
@@ -154,7 +180,12 @@ export default function ProjectDetailScreen() {
                 </>
               ) : (
                 <>
-                  <Text style={styles.floorName}>{floor.name}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.floorName}>{floor.name}</Text>
+                    {floorTotal(floor.id) > 0 && (
+                      <Text style={styles.floorTotalText}>{formatMoney(floorTotal(floor.id), 'GBP')}</Text>
+                    )}
+                  </View>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
                     <Pressable onPress={() => startEdit(floor.id, floor.name)} hitSlop={8}><Text style={styles.editBtn}>Edit</Text></Pressable>
                     <Pressable onPress={() => confirmDeleteLocation(floor)} hitSlop={8}><Text style={{ color: colors.textMuted, fontSize: 13 }}>Delete</Text></Pressable>
@@ -174,6 +205,9 @@ export default function ProjectDetailScreen() {
                   <>
                     <Pressable style={{ flex: 1 }} onPress={() => router.push(`/project/room/${room.id}` as any)}>
                       <Text style={styles.roomName}>{room.name}</Text>
+                      {(roomTotals.get(room.id) ?? 0) > 0 && (
+                        <Text style={styles.roomTotalText}>{formatMoney(roomTotals.get(room.id)!, 'GBP')}</Text>
+                      )}
                     </Pressable>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
                       <Pressable onPress={() => startEdit(room.id, room.name)} hitSlop={8}><Text style={styles.editBtn}>Edit</Text></Pressable>
@@ -231,8 +265,10 @@ const styles = StyleSheet.create({
   floorBlock: { backgroundColor: colors.surface, borderRadius: radius.tile, padding: space.md, marginBottom: space.md },
   floorRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.sm },
   floorName: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
+  floorTotalText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'], marginTop: 1 },
   roomRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.ground, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.md, marginBottom: space.xs },
   roomName: { color: colors.textPrimary, fontSize: 15 },
+  roomTotalText: { color: colors.accent, fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'], marginTop: 1 },
   addRoomBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: space.sm, marginTop: space.xs },
   addRoomText: { color: colors.textSecondary, fontWeight: '600', fontSize: 13 },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.sm, marginBottom: space.sm },
