@@ -3,7 +3,7 @@ import { View, Text, Pressable, FlatList, TextInput, StyleSheet } from 'react-na
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
 import { useEstimateStore } from '@/src/state/estimateStore';
-import { LineDrawer } from '@/src/ui/drawer/LineDrawer';
+import { EditLineSheet } from '@/src/ui/catalogue/EditLineSheet';
 import { priceLine, priceEstimate } from '@/src/domain/pricing';
 import { formatMoney } from '@/src/domain/money';
 import { toLaborToggle } from '@/src/data/mappers';
@@ -14,7 +14,6 @@ import { LabourSheet } from '@/src/ui/catalogue/LabourSheet';
 import { loadCatalogue } from '@/src/data/catalogue-repo';
 
 const allToggles = seedLaborToggles.map(toLaborToggle);
-const lineToggles = allToggles.filter((t) => t.appliesTo === 'line');
 const toggleIndex = new Map(allToggles.map((t) => [t.id, t]));
 
 export default function EstimateScreen() {
@@ -136,20 +135,13 @@ export default function EstimateScreen() {
         }}
       />
 
-      {editing && (
-        <LineDrawer
-          visible={true}
-          line={editing}
-          hourlyRateMinor={estimate.hourlyRateMinor}
-          currency={estimate.currency}
-          lineToggles={lineToggles}
-          allToggles={allToggles}
-          estimateWideToggleIds={estimate.appliedLaborToggleIds}
-          onSave={(updated) => { replaceLine(updated); setEditing(null); }}
-          onDelete={() => { if (editing) remove(editing.id); setEditing(null); }}
-          onCancel={() => setEditing(null)}
-        />
-      )}
+      <EditLineSheet
+        line={editing}
+        hourlyRateMinor={estimate.hourlyRateMinor}
+        currency={estimate.currency}
+        onSave={(updated) => { replaceLine(updated); setEditing(null); }}
+        onClose={() => setEditing(null)}
+      />
       <LabourSheet
         visible={labourOpen}
         hourlyRateMinor={estimate.hourlyRateMinor}
