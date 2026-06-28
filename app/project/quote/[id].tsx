@@ -17,6 +17,7 @@ import { loadProjectEstimate, saveProjectEstimate } from '@/src/data/project-est
 import { loadCatalogue } from '@/src/data/catalogue-repo';
 import { MaterialPicker } from '@/src/ui/catalogue/MaterialPicker';
 import { LabourSheet } from '@/src/ui/catalogue/LabourSheet';
+import { CableEstimatorSheet } from '@/src/ui/catalogue/CableEstimatorSheet';
 import { toLaborToggle } from '@/src/data/mappers';
 import { seedLaborToggles } from '@/src/data/seed/assemblies';
 import type { Project, Location, Estimate, LineItem, Material } from '@/src/domain/types';
@@ -49,6 +50,7 @@ export default function ProjectQuoteScreen() {
 
   const [pickerRoomId, setPickerRoomId] = useState<string | null>(null);
   const [labourRoomId, setLabourRoomId] = useState<string | null>(null);
+  const [cableRoomId, setCableRoomId] = useState<string | null>(null);
   const [rateEditing, setRateEditing] = useState(false);
   const [rateText, setRateText] = useState('');
 
@@ -103,6 +105,12 @@ export default function ProjectQuoteScreen() {
     save(addLine(estimate, line));
     setLabourRoomId(null);
   }, [labourRoomId, estimate, save]);
+
+  const handleAddCableLines = useCallback((lines: LineItem[]) => {
+    const updated = lines.reduce((est, line) => addLine(est, line), estimate);
+    save(updated);
+    setCableRoomId(null);
+  }, [estimate, save]);
 
   const handleRemove = (lineId: string) => save(removeLine(estimate, lineId));
 
@@ -212,6 +220,9 @@ export default function ProjectQuoteScreen() {
                         <Text style={styles.actionBtnText}>+ Labour</Text>
                       </Pressable>
                     </View>
+                    <Pressable style={styles.cableEstBtn} onPress={() => setCableRoomId(room.id)}>
+                      <Text style={styles.cableEstBtnText}>~ Estimate cable</Text>
+                    </Pressable>
                   </View>
                 );
               })}
@@ -266,6 +277,14 @@ export default function ProjectQuoteScreen() {
         onAdd={handleAddLabour}
         onClose={() => setLabourRoomId(null)}
       />
+      <CableEstimatorSheet
+        visible={cableRoomId != null}
+        roomName={cableRoomId ? (locations.find((l) => l.id === cableRoomId)?.name ?? '') : ''}
+        locationId={cableRoomId ?? ''}
+        materials={materials}
+        onAdd={handleAddCableLines}
+        onClose={() => setCableRoomId(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -314,6 +333,8 @@ const styles = StyleSheet.create({
   roomActions: { flexDirection: 'row', gap: space.sm, marginTop: space.sm, paddingTop: space.sm, borderTopWidth: 1, borderTopColor: colors.hairline },
   actionBtn: { flex: 1, backgroundColor: colors.ground, borderRadius: radius.tile, paddingVertical: space.sm, alignItems: 'center' },
   actionBtnText: { color: colors.accent, fontWeight: '700', fontSize: 13 },
+  cableEstBtn: { marginTop: space.xs, paddingVertical: space.xs + 2, alignItems: 'center', borderRadius: radius.tile, borderWidth: 1, borderColor: colors.hairline },
+  cableEstBtnText: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
 
   footer: { marginTop: space.lg, paddingTop: space.lg, borderTopWidth: 1, borderTopColor: colors.hairline },
   bdRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
