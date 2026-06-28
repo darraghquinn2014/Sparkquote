@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { View, Text, Pressable, FlatList, TextInput, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Swipeable } from 'react-native-gesture-handler';
 import { useEstimateStore } from '@/src/state/estimateStore';
 import { LineDrawer } from '@/src/ui/drawer/LineDrawer';
 import { priceLine, priceEstimate } from '@/src/domain/pricing';
@@ -33,6 +34,7 @@ export default function EstimateScreen() {
   const [rateEditing, setRateEditing] = useState(false);
   const [rateText, setRateText] = useState('');
   const breakdown = priceEstimate(estimate, allToggles);
+  const swipeableRefs = useRef<Map<string, Swipeable>>(new Map());
 
   useEffect(() => {
     loadCatalogue().then((c) => setMaterials(c.materials)).catch(() => {});
@@ -103,13 +105,33 @@ export default function EstimateScreen() {
         renderItem={({ item }) => {
           const b = priceLine(item, estimate.hourlyRateMinor, toggleIndex, estimate.appliedLaborToggleIds);
           return (
-            <Pressable style={styles.row} onPress={() => setEditing(item)}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.desc}>{item.description}</Text>
-                <Text style={styles.qty}>{item.quantityMeters != null ? item.quantityMeters + "m" : "Qty " + (item.quantity ?? 1)} · tap to edit</Text>
-              </View>
-              <Text style={styles.amount}>{formatMoney(b.lineTotalMinor, estimate.currency)}</Text>
-            </Pressable>
+            <Swipeable
+              ref={(ref) => {
+                if (ref) swipeableRefs.current.set(item.id, ref);
+                else swipeableRefs.current.delete(item.id);
+              }}
+              onSwipeableWillOpen={() => {
+                swipeableRefs.current.forEach((sw, id) => {
+                  if (id !== item.id) sw.close();
+                });
+              }}
+              renderRightActions={() => (
+                <Pressable
+                  style={styles.deleteAction}
+                  onPress={() => remove(item.id)}
+                >
+                  <Text style={styles.deleteActionText}>Delete</Text>
+                </Pressable>
+              )}
+            >
+              <Pressable style={styles.row} onPress={() => setEditing(item)}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.desc}>{item.description}</Text>
+                  <Text style={styles.qty}>{item.quantityMeters != null ? item.quantityMeters + "m" : "Qty " + (item.quantity ?? 1)} · tap to edit</Text>
+                </View>
+                <Text style={styles.amount}>{formatMoney(b.lineTotalMinor, estimate.currency)}</Text>
+              </Pressable>
+            </Swipeable>
           );
         }}
       />
@@ -189,4 +211,13 @@ const styles = StyleSheet.create({
   resumeBtnText: { color: '#14181F', fontWeight: '800', fontSize: 14 },
   dismissBtn: { padding: 8, marginLeft: 4 },
   dismissBtnText: { color: '#5E6B79', fontSize: 16 },
+  deleteAction: {
+    backgroundColor: '#E5564B',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 80,
+    borderRadius: 14,
+    marginBottom: 8,
+  },
+  deleteActionText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });
