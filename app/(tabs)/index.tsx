@@ -3,7 +3,7 @@ import { Text, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { QuickQuoteScreen } from '@/src/ui/quick-quote/QuickQuoteScreen';
-import { seedIfEmpty, loadCatalogue } from '@/src/data/catalogue-repo';
+import { seedIfEmpty, loadCatalogue, prefixAssembliesWithInstall } from '@/src/data/catalogue-repo';
 import { useEstimateStore } from '@/src/state/estimateStore';
 import type { Assembly, LaborToggle, Material } from '@/src/domain/types';
 
@@ -19,6 +19,7 @@ export default function HomeScreen() {
     try {
       setError(null);
       await seedIfEmpty();
+      await prefixAssembliesWithInstall();
       await hydrate();              // load any saved estimate before UI is interactive
       const loaded = await loadCatalogue();
       setCat(loaded);

@@ -15,15 +15,15 @@ import type { RawAssembly, RawAssemblyComponent, RawLaborToggle } from '../mappe
 
 export const seedAssemblies: RawAssembly[] = [
   {
-    id: 'asm_lightswitch_1g', name: '1-Way Light Switch', category: 'Lighting',
+    id: 'asm_lightswitch_1g', name: 'Install 1-Gang Light Switch', category: 'Lighting',
     base_labor_hours: 0.5, quick_quote_icon: 'toggle-left', quick_quote_rank: 1,
   },
   {
-    id: 'asm_double_socket', name: 'Replace Double Socket', category: 'Power',
+    id: 'asm_double_socket', name: 'Install Double Socket', category: 'Power',
     base_labor_hours: 0.4, quick_quote_icon: 'plug', quick_quote_rank: 2,
   },
   {
-    id: 'asm_add_socket', name: 'Add Double Socket (spur)', category: 'Power',
+    id: 'asm_add_socket', name: 'Install Double Socket (new spur)', category: 'Power',
     base_labor_hours: 1.2, quick_quote_icon: 'plug-zap', quick_quote_rank: 3,
   },
   {
@@ -31,11 +31,11 @@ export const seedAssemblies: RawAssembly[] = [
     base_labor_hours: 0.75, quick_quote_icon: 'lightbulb', quick_quote_rank: 4,
   },
   {
-    id: 'asm_cu_swap', name: 'Replace Consumer Unit (10-way)', category: 'Distribution',
+    id: 'asm_cu_swap', name: 'Install Consumer Unit (10-way)', category: 'Distribution',
     base_labor_hours: 5.0, quick_quote_icon: 'layout-grid', quick_quote_rank: 5,
   },
   {
-    id: 'asm_fcu', name: 'Fit Switched FCU', category: 'Power',
+    id: 'asm_fcu', name: 'Install Switched FCU', category: 'Power',
     base_labor_hours: 0.6, quick_quote_icon: 'square-power', quick_quote_rank: 6,
   },
 ];

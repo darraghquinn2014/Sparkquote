@@ -36,14 +36,26 @@ function QuickQuoteTileBase({
   const band = categoryColor(assembly.category);
 
   return (
-    <Pressable
-      onPress={() => onPress(assembly)}
-      accessibilityRole="button"
-      accessibilityLabel={`Add ${assembly.name}, ${formatMoney(unitPriceMinor, currency)}`}
-      style={({ pressed }) => [styles.tile, pressed && styles.tilePressed]}
-    >
-      {/* category band — informational, muted */}
-      <View style={[styles.band, { backgroundColor: band }]} />
+    <View style={styles.tileOuter}>
+      <Pressable
+        onPress={() => onPress(assembly)}
+        accessibilityRole="button"
+        accessibilityLabel={`Add ${assembly.name}, ${formatMoney(unitPriceMinor, currency)}`}
+        style={({ pressed }) => [styles.tile, pressed && styles.tilePressed]}
+      >
+        {/* category band — informational, muted */}
+        <View style={[styles.band, { backgroundColor: band }]} />
+
+        <View style={styles.tileBody}>
+          <Text style={styles.eyebrow} numberOfLines={1}>
+            {assembly.category.toUpperCase()}
+          </Text>
+          <Text style={styles.label} numberOfLines={2}>
+            {assembly.name}
+          </Text>
+          <Text style={styles.price}>{formatMoney(unitPriceMinor, currency)}</Text>
+        </View>
+      </Pressable>
 
       {quantityInEstimate > 0 && (
         <View style={styles.controls}>
@@ -59,30 +71,23 @@ function QuickQuoteTileBase({
           </View>
         </View>
       )}
-
-      <View style={styles.tileBody}>
-        <Text style={styles.eyebrow} numberOfLines={1}>
-          {assembly.category.toUpperCase()}
-        </Text>
-        <Text style={styles.label} numberOfLines={2}>
-          {assembly.name}
-        </Text>
-        <Text style={styles.price}>{formatMoney(unitPriceMinor, currency)}</Text>
-      </View>
-    </Pressable>
+    </View>
   );
 }
 
 export const QuickQuoteTile = React.memo(QuickQuoteTileBase);
 
 const styles = StyleSheet.create({
+  tileOuter: {
+    flex: 1,
+    margin: space.xs,
+  },
   tile: {
     minHeight: TOUCH_MIN + 40,
     backgroundColor: colors.surface,
     borderRadius: radius.tile,
     overflow: 'hidden',
     flex: 1,
-    margin: space.xs,
   },
   tilePressed: {
     backgroundColor: colors.surfacePressed,

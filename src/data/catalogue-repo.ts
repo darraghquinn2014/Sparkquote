@@ -217,6 +217,26 @@ export const dbCatalogueRepo: CatalogueRepository = {
 };
 
 
+// ── One-time data migration: prefix all assembly names with "Install" ────────
+
+/**
+ * Finds all assemblies in the DB whose name doesn't already start with
+ * "Install " and prepends it. Runs once per session — cheap no-op after
+ * the first run. Safe to call on every startup.
+ */
+export async function prefixAssembliesWithInstall(): Promise<void> {
+  const asmTable = database.get<AssemblyModel>('assemblies');
+  const rows = await asmTable.query().fetch();
+  const toRename = rows.filter((r) => !r.name.startsWith('Install '));
+  if (toRename.length === 0) return;
+  await database.write(async () => {
+    const batch = toRename.map((r) =>
+      r.prepareUpdate((row) => { row.name = `Install ${row.name}`; }),
+    );
+    await database.batch(...batch);
+  });
+}
+
 // ── Assembly management (create / favourite / delete) ──────────────────────
 
 /** Set or clear an assembly's Quick-Quote favourite rank. null = unfavourite. */
