@@ -17,8 +17,8 @@ import { loadProjectEstimate, saveProjectEstimate } from '@/src/data/project-est
 import { loadCatalogue } from '@/src/data/catalogue-repo';
 import { MaterialPicker } from '@/src/ui/catalogue/MaterialPicker';
 import { LabourSheet } from '@/src/ui/catalogue/LabourSheet';
-import { CableEstimatorSheet } from '@/src/ui/catalogue/CableEstimatorSheet';
 import { EditLineSheet } from '@/src/ui/catalogue/EditLineSheet';
+import { PhotoMeasureSheet } from '@/src/ui/measure/PhotoMeasureSheet';
 import { toLaborToggle } from '@/src/data/mappers';
 import { seedLaborToggles } from '@/src/data/seed/assemblies';
 import type { Project, Location, Estimate, LineItem, Material } from '@/src/domain/types';
@@ -51,7 +51,7 @@ export default function ProjectQuoteScreen() {
 
   const [pickerRoomId, setPickerRoomId] = useState<string | null>(null);
   const [labourRoomId, setLabourRoomId] = useState<string | null>(null);
-  const [cableRoomId, setCableRoomId] = useState<string | null>(null);
+  const [measureRoomId, setMeasureRoomId] = useState<string | null>(null);
   const [editLine, setEditLine] = useState<LineItem | null>(null);
   const [rateEditing, setRateEditing] = useState(false);
   const [rateText, setRateText] = useState('');
@@ -108,10 +108,10 @@ export default function ProjectQuoteScreen() {
     setLabourRoomId(null);
   }, [labourRoomId, estimate, save]);
 
-  const handleAddCableLines = useCallback((lines: LineItem[]) => {
+  const handleAddMeasureLines = useCallback((lines: LineItem[]) => {
     const updated = lines.reduce((est, line) => addLine(est, line), estimate);
     save(updated);
-    setCableRoomId(null);
+    setMeasureRoomId(null);
   }, [estimate, save]);
 
   const handleSaveEdit = useCallback((updated: LineItem) => {
@@ -229,8 +229,8 @@ export default function ProjectQuoteScreen() {
                         <Text style={styles.actionBtnText}>+ Labour</Text>
                       </Pressable>
                     </View>
-                    <Pressable style={styles.cableEstBtn} onPress={() => setCableRoomId(room.id)}>
-                      <Text style={styles.cableEstBtnText}>~ Estimate cable</Text>
+                    <Pressable style={styles.cableEstBtn} onPress={() => setMeasureRoomId(room.id)}>
+                      <Text style={styles.cableEstBtnText}>~ Measure room</Text>
                     </Pressable>
                   </View>
                 );
@@ -286,20 +286,20 @@ export default function ProjectQuoteScreen() {
         onAdd={handleAddLabour}
         onClose={() => setLabourRoomId(null)}
       />
-      <CableEstimatorSheet
-        visible={cableRoomId != null}
-        roomName={cableRoomId ? (locations.find((l) => l.id === cableRoomId)?.name ?? '') : ''}
-        locationId={cableRoomId ?? ''}
-        materials={materials}
-        onAdd={handleAddCableLines}
-        onClose={() => setCableRoomId(null)}
-      />
       <EditLineSheet
         line={editLine}
         hourlyRateMinor={estimate.hourlyRateMinor}
         currency={estimate.currency}
         onSave={handleSaveEdit}
         onClose={() => setEditLine(null)}
+      />
+      <PhotoMeasureSheet
+        visible={measureRoomId != null}
+        roomName={measureRoomId ? (locations.find((l) => l.id === measureRoomId)?.name ?? '') : ''}
+        locationId={measureRoomId ?? ''}
+        materials={materials}
+        onAdd={handleAddMeasureLines}
+        onClose={() => setMeasureRoomId(null)}
       />
     </SafeAreaView>
   );
