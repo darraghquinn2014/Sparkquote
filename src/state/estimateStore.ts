@@ -28,6 +28,7 @@ interface EstimateStore {
   addLabour: (opts: { hours?: number; flatMinor?: number }) => void;
   remove: (lineId: string) => void;
   replaceLine: (updated: LineItem) => void;
+  reloadEstimate: () => Promise<void>;
 
   clear: () => void;
   setHourlyRate: (rateMinor: number) => void;
@@ -120,6 +121,15 @@ export const useEstimateStore = create<EstimateStore>((set, get) => ({
       persist(estimate, s.hydrated);
       return { estimate };
     }),
+
+  reloadEstimate: async () => {
+    try {
+      const saved = await loadActiveEstimate();
+      if (saved) set({ estimate: saved });
+    } catch (e) {
+      console.error('reloadEstimate failed', e);
+    }
+  },
 
   setHourlyRate: (rateMinor) =>
     set((s) => {

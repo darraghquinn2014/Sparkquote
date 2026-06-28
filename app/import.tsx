@@ -9,6 +9,7 @@ import { parseFileBytes } from '@/src/import/parse-sheet';
 import { commitImport } from '@/src/import/commit';
 import { loadCatalogue, dbCatalogueRepo } from '@/src/data/catalogue-repo';
 import { loadActiveEstimate } from '@/src/data/estimate-repo';
+import { useEstimateStore } from '@/src/state/estimateStore';
 import type { ParsedSheet } from '@/src/import/parse-sheet';
 
 export default function ImportRoute() {
@@ -115,6 +116,10 @@ export default function ImportRoute() {
             const result = await commitImport(
               dbCatalogueRepo, newMaterials, materials, assemblies, estimates, true,
             );
+            // Refresh in-memory estimate so new prices are visible immediately
+            if (result.refreshedDraftIds.length > 0) {
+              await useEstimateStore.getState().reloadEstimate();
+            }
             const p = result.plan;
             Alert.alert(
               'Import complete',
