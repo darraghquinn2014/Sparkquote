@@ -29,16 +29,21 @@ export function MaterialPicker({ visible, materials, currency, onAdd, onClose }:
   const [selected, setSelected] = useState<Material | null>(null);
   const [amountText, setAmountText] = useState('1');
   const [justAdded, setJustAdded] = useState<string | null>(null);
+  const [activeSupplier, setActiveSupplier] = useState<string | null>(null);
+
+  const suppliers = useMemo(() => {
+    const ids = Array.from(new Set(materials.map((m) => m.catalogueId))).sort();
+    return ids.length > 1 ? ids : [];
+  }, [materials]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return materials;
-    return materials.filter(
-      (m) =>
-        m.description.toLowerCase().includes(q) ||
-        m.sku.toLowerCase().includes(q),
-    );
-  }, [materials, query]);
+    return materials.filter((m) => {
+      if (activeSupplier && m.catalogueId !== activeSupplier) return false;
+      if (!q) return true;
+      return m.description.toLowerCase().includes(q) || m.sku.toLowerCase().includes(q);
+    });
+  }, [materials, query, activeSupplier]);
 
   const isMetres = selected?.unit === 'm';
 
@@ -81,6 +86,32 @@ export function MaterialPicker({ visible, materials, currency, onAdd, onClose }:
             autoCorrect={false}
           />
 
+          {suppliers.length > 0 && (
+            <View style={styles.supplierContainer}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.supplierRow}
+                keyboardShouldPersistTaps="handled"
+              >
+                {[null, ...suppliers].map((s) => {
+                  const active = activeSupplier === s;
+                  return (
+                    <Pressable
+                      key={s ?? '__all'}
+                      onPress={() => setActiveSupplier(s)}
+                      style={[styles.supplierChip, active && styles.supplierChipActive]}
+                    >
+                      <Text style={[styles.supplierChipText, active && styles.supplierChipTextActive]}>
+                        {s ?? 'All'}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
+
           <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
             {filtered.map((m) => {
               const isSel = selected?.id === m.id;
@@ -95,7 +126,7 @@ export function MaterialPicker({ visible, materials, currency, onAdd, onClose }:
                   >
                     <View style={{ flex: 1 }}>
                       <Text style={styles.rowDesc}>{m.description}</Text>
-                      <Text style={styles.rowMeta}>{m.sku} · {m.unit}</Text>
+                      <Text style={styles.rowMeta}>{m.sku} · {m.unit}{suppliers.length > 0 ? ` · ${m.catalogueId}` : ''}</Text>
                     </View>
                     <Text style={styles.rowPrice}>{formatMoney(m.unitCostMinor, currency)}</Text>
                   </Pressable>
@@ -134,7 +165,7 @@ export function MaterialPicker({ visible, materials, currency, onAdd, onClose }:
 const styles = StyleSheet.create({
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   scrimTap: { flex: 1 },
-  sheet: { backgroundColor: colors.ground, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '85%', paddingHorizontal: space.lg, paddingTop: space.sm },
+  sheet: { backgroundColor: colors.ground, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '85%', paddingHorizontal: space.lg, paddingTop: space.sm, flexDirection: 'column' },
   grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.hairline, marginBottom: space.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.md },
   title: { fontSize: 20, fontWeight: '800', color: colors.textPrimary },
@@ -154,4 +185,10 @@ const styles = StyleSheet.create({
   addBtn: { backgroundColor: colors.accent, borderRadius: radius.tile, paddingHorizontal: space.xl, paddingVertical: space.sm },
   addBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 15 },
   empty: { color: colors.textMuted, textAlign: 'center', paddingVertical: space.xl },
+  supplierContainer: { height: 44, marginBottom: space.sm },
+  supplierRow: { gap: space.xs, alignItems: 'center' },
+  supplierChip: { paddingHorizontal: space.md, paddingVertical: space.xs, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.hairline, marginRight: space.xs },
+  supplierChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  supplierChipText: { ...type.caption, color: colors.textSecondary },
+  supplierChipTextActive: { color: colors.accentInk, fontWeight: '800' },
 });

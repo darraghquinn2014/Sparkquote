@@ -161,12 +161,13 @@ export const dbCatalogueRepo: CatalogueRepository = {
       const matTable = database.get<MaterialModel>('materials');
       const batch: Model[] = [];
 
-      // Upsert materials by SKU: update existing, insert new.
+      // Upsert materials by SKU + catalogueId: same SKU from different suppliers coexist.
       const existing = await matTable.query().fetch();
-      const bySku = new Map(existing.map((m) => [m.sku, m]));
+      const bySkuAndSupplier = new Map(existing.map((m) => [`${m.sku}::${m.catalogueId}`, m]));
 
       for (const m of materials) {
-        const row = bySku.get(m.sku);
+        const key = `${m.sku}::${m.catalogue_id}`;
+        const row = bySkuAndSupplier.get(key);
         if (row) {
           batch.push(
             row.prepareUpdate((r) => {

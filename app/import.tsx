@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { Alert, View, Text, Pressable, ActivityIndicator, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
@@ -14,6 +14,8 @@ import type { ParsedSheet } from '@/src/import/parse-sheet';
 export default function ImportRoute() {
   const router = useRouter();
   const [sheet, setSheet] = useState<ParsedSheet | null>(null);
+  const [supplierName, setSupplierName] = useState('');
+  const [supplierConfirmed, setSupplierConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const pickFile = async () => {
@@ -34,9 +36,11 @@ export default function ImportRoute() {
       setBusy(true);
       const asset = res.assets[0];
       const file = new File(asset.uri);
-      const bytes = await file.bytes();           // Uint8Array, SDK 54 API
+      const bytes = await file.bytes();
       const parsed = parseFileBytes(bytes);
       setSheet(parsed);
+      setSupplierName('');
+      setSupplierConfirmed(false);
     } catch (e) {
       Alert.alert('Could not read file', String(e));
     } finally {
@@ -50,7 +54,7 @@ export default function ImportRoute() {
         <Text style={styles.title}>Import wholesale prices</Text>
         <Text style={styles.sub}>
           Choose a price file (.csv or .xlsx) exported from your wholesaler.
-          You’ll map the columns and review before anything is saved.
+          You'll map the columns and review before anything is saved.
         </Text>
         <Pressable style={styles.pickBtn} onPress={pickFile} disabled={busy}>
           <Text style={styles.pickText}>{busy ? 'Reading…' : 'Choose file'}</Text>
@@ -62,11 +66,44 @@ export default function ImportRoute() {
     );
   }
 
+  if (!supplierConfirmed) {
+    return (
+      <SafeAreaView style={styles.pickScreen} edges={['top', 'bottom']}>
+        <Text style={styles.title}>Name this supplier</Text>
+        <Text style={styles.sub}>
+          Give this price sheet a name so you know whose prices you're using (e.g. "Rexel", "City Electrical").
+        </Text>
+        <TextInput
+          value={supplierName}
+          onChangeText={setSupplierName}
+          placeholder="Supplier name"
+          placeholderTextColor="#5E6B79"
+          style={styles.supplierInput}
+          autoFocus
+          returnKeyType="done"
+          onSubmitEditing={() => { if (supplierName.trim()) setSupplierConfirmed(true); }}
+        />
+        <Pressable
+          style={[styles.pickBtn, !supplierName.trim() && styles.pickBtnDisabled]}
+          onPress={() => { if (supplierName.trim()) setSupplierConfirmed(true); }}
+          disabled={!supplierName.trim()}
+        >
+          <Text style={styles.pickText}>Continue</Text>
+        </Pressable>
+        <Pressable onPress={() => setSheet(null)} style={styles.cancelBtn}>
+          <Text style={styles.cancelText}>Back</Text>
+        </Pressable>
+      </SafeAreaView>
+    );
+  }
+
+  const catalogueId = supplierName.trim().toLowerCase().replace(/\s+/g, '-');
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#14181F' }} edges={['top', 'bottom']}>
       <ColumnMappingScreen
         sheet={sheet}
-        catalogueId="wholesaler-import"
+        catalogueId={catalogueId}
         currency="GBP"
         onCommit={async (state) => {
           try {
@@ -111,9 +148,11 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '800', color: '#F2F5F8' },
   sub: { fontSize: 15, color: '#9AA7B4', lineHeight: 22 },
   pickBtn: { backgroundColor: '#FFB020', paddingVertical: 16, borderRadius: 14, alignItems: 'center', marginTop: 8 },
+  pickBtnDisabled: { opacity: 0.4 },
   pickText: { fontSize: 16, fontWeight: '800', color: '#1A1205' },
   cancelBtn: { paddingVertical: 14, alignItems: 'center' },
   cancelText: { fontSize: 15, color: '#9AA7B4', fontWeight: '600' },
+  supplierInput: { backgroundColor: '#1E242E', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, color: '#F2F5F8', fontSize: 18, fontWeight: '600' },
   overlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.4)' },
   overlayText: { color: '#FFB020', marginTop: 12, fontWeight: '700' },
 });
