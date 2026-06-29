@@ -7,6 +7,7 @@ import {
   View, Text, Pressable, ScrollView, StyleSheet, TextInput,
   ActivityIndicator, Alert,
 } from 'react-native';
+
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { priceEstimate, priceLine } from '@/src/domain/pricing';
@@ -23,6 +24,10 @@ import { toLaborToggle } from '@/src/data/mappers';
 import { seedLaborToggles } from '@/src/data/seed/assemblies';
 import type { Project, Location, Estimate, LineItem, Material } from '@/src/domain/types';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
+import { loadBusinessProfile, readLogoDataUri } from '@/src/data/business-profile';
+import { toClientEstimate } from '@/src/pdf/client-view-model';
+import { renderEstimateHtml } from '@/src/pdf/render-html';
+import { PdfPreviewModal } from '@/src/ui/pdf/PdfPreviewModal';
 
 const allToggles = seedLaborToggles.map(toLaborToggle);
 
@@ -55,6 +60,8 @@ export default function ProjectQuoteScreen() {
   const [editLine, setEditLine] = useState<LineItem | null>(null);
   const [rateEditing, setRateEditing] = useState(false);
   const [rateText, setRateText] = useState('');
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState(false);
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -119,6 +126,28 @@ export default function ProjectQuoteScreen() {
   }, [estimate, save]);
 
   const handleRemove = (lineId: string) => save(removeLine(estimate, lineId));
+
+  const previewPdf = async () => {
+    try {
+      setPreviewing(true);
+      const [profile, logoDataUri] = await Promise.all([loadBusinessProfile(), readLogoDataUri()]);
+      const meta = {
+        businessName: profile.businessName || undefined,
+        tagline: profile.tagline || undefined,
+        logoDataUri: logoDataUri ?? undefined,
+        clientName: project?.clientName || undefined,
+        reference: project ? project.name.slice(0, 20).toUpperCase() : undefined,
+        dateIso: new Date().toISOString(),
+      };
+      const priced = priceEstimate(estimate, allToggles);
+      const client = toClientEstimate(estimate, priced, meta);
+      setPreviewHtml(renderEstimateHtml(client));
+    } catch (e) {
+      Alert.alert('Preview error', String(e));
+    } finally {
+      setPreviewing(false);
+    }
+  };
 
   const commitRate = () => {
     const n = parseFloat(rateText);
@@ -260,6 +289,13 @@ export default function ProjectQuoteScreen() {
         {/* Grand total footer */}
         {estimate.lineItems.length > 0 && (
           <View style={styles.footer}>
+            <Pressable
+              style={[styles.previewBtn, previewing && styles.previewBtnBusy]}
+              onPress={previewPdf}
+              disabled={previewing}
+            >
+              <Text style={styles.previewBtnText}>{previewing ? 'Building…' : 'Preview PDF quote'}</Text>
+            </Pressable>
             <View style={styles.bdRow}><Text style={styles.bdLabel}>Materials</Text><Text style={styles.bdValue}>{formatMoney(priced.materialsTotalMinor, estimate.currency)}</Text></View>
             <View style={styles.bdRow}><Text style={styles.bdLabel}>Labour</Text><Text style={styles.bdValue}>{formatMoney(priced.laborTotalMinor, estimate.currency)}</Text></View>
             <View style={styles.bdRow}><Text style={styles.bdLabel}>Subtotal</Text><Text style={styles.bdValue}>{formatMoney(priced.subtotalMinor, estimate.currency)}</Text></View>
@@ -300,6 +336,11 @@ export default function ProjectQuoteScreen() {
         materials={materials}
         onAdd={handleAddMeasureLines}
         onClose={() => setMeasureRoomId(null)}
+      />
+      <PdfPreviewModal
+        visible={previewHtml != null}
+        html={previewHtml}
+        onClose={() => setPreviewHtml(null)}
       />
     </SafeAreaView>
   );
@@ -355,6 +396,9 @@ const styles = StyleSheet.create({
   cableEstBtnText: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
 
   footer: { marginTop: space.lg, paddingTop: space.lg, borderTopWidth: 1, borderTopColor: colors.hairline },
+  previewBtn: { backgroundColor: colors.accent, borderRadius: radius.pill, paddingVertical: 12, alignItems: 'center', marginBottom: space.lg },
+  previewBtnBusy: { opacity: 0.6 },
+  previewBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 15 },
   bdRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
   bdLabel: { color: colors.textSecondary, fontSize: 15 },
   bdValue: { color: colors.textPrimary, fontSize: 15, fontWeight: '600', fontVariant: ['tabular-nums'] },

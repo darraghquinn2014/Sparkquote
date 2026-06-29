@@ -15,7 +15,7 @@ import { loadCatalogue } from '@/src/data/catalogue-repo';
 import { loadBusinessProfile, readLogoDataUri } from '@/src/data/business-profile';
 import { toClientEstimate } from '@/src/pdf/client-view-model';
 import { renderEstimateHtml } from '@/src/pdf/render-html';
-import * as Print from 'expo-print';
+import { PdfPreviewModal } from '@/src/ui/pdf/PdfPreviewModal';
 
 const allToggles = seedLaborToggles.map(toLaborToggle);
 const toggleIndex = new Map(allToggles.map((t) => [t.id, t]));
@@ -37,6 +37,7 @@ export default function EstimateScreen() {
   const [rateEditing, setRateEditing] = useState(false);
   const [rateText, setRateText] = useState('');
   const [previewing, setPreviewing] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const breakdown = priceEstimate(estimate, allToggles);
   const swipeableRefs = useRef<Map<string, Swipeable>>(new Map());
 
@@ -59,8 +60,7 @@ export default function EstimateScreen() {
       };
       const priced = priceEstimate(estimate, allToggles);
       const client = toClientEstimate(estimate, priced, meta);
-      const html = renderEstimateHtml(client);
-      await Print.printAsync({ html });
+      setPreviewHtml(renderEstimateHtml(client));
     } catch (e) {
       Alert.alert('Preview error', String(e));
     } finally {
@@ -109,7 +109,7 @@ export default function EstimateScreen() {
               onPress={previewPdf}
               disabled={previewing}
             >
-              <Text style={styles.previewBtnText}>{previewing ? 'Building preview…' : 'Preview PDF quote'}</Text>
+              <Text style={styles.previewBtnText}>{previewing ? 'Building…' : 'Preview PDF quote'}</Text>
             </Pressable>
             <Pressable style={styles.rateRow} onPress={() => { setRateText(String(estimate.hourlyRateMinor / 100)); setRateEditing(true); }}>
               <Text style={styles.rateLabel}>Labour rate</Text>
@@ -191,6 +191,11 @@ export default function EstimateScreen() {
         currency={estimate.currency}
         onAdd={(material, amount) => addMaterial(material, amount)}
         onClose={() => setPickerOpen(false)}
+      />
+      <PdfPreviewModal
+        visible={previewHtml != null}
+        html={previewHtml}
+        onClose={() => setPreviewHtml(null)}
       />
     </SafeAreaView>
   );
