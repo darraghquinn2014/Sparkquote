@@ -215,6 +215,9 @@ export default function ProjectDetailScreen() {
           <Pressable style={styles.quoteBtn} onPress={() => router.push(`/project/quote/${id}` as any)} hitSlop={8}>
             <Text style={styles.quoteBtnText}>Quote</Text>
           </Pressable>
+          <Pressable style={styles.drawingsBtn} onPress={() => router.push(`/project/drawings/${id}` as any)} hitSlop={8}>
+            <Text style={styles.drawingsBtnText}>Drawings</Text>
+          </Pressable>
           <Pressable style={styles.reportBtn} onPress={generateReport} hitSlop={8}>
             <Text style={styles.reportBtnText}>Report</Text>
           </Pressable>
@@ -349,6 +352,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.lg, paddingVertical: space.md },
   quoteBtn: { backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.sm },
   quoteBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 13 },
+  drawingsBtn: { backgroundColor: colors.surface, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.hairline },
+  drawingsBtnText: { color: colors.textSecondary, fontWeight: '700', fontSize: 13 },
   reportBtn: { borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.hairline },
   reportBtnText: { color: colors.textSecondary, fontWeight: '700', fontSize: 13 },
   busyOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(20,24,31,0.82)', alignItems: 'center', justifyContent: 'center', gap: space.md },
