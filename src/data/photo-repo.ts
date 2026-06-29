@@ -23,6 +23,8 @@ function toPhoto(r: PhotoModel): Photo {
   };
   if (r.lineItemId != null) photo.lineItemId = r.lineItemId;
   if (r.locationId != null) photo.locationId = r.locationId;
+  if (r.caption != null) photo.caption = r.caption;
+  if (r.note != null) photo.note = r.note;
   return photo;
 }
 
@@ -56,6 +58,17 @@ export async function photosForLocation(locationId: string): Promise<Photo[]> {
     .query(Q.where('location_id', locationId))
     .fetch();
   return rows.map(toPhoto).sort((a, b) => b.capturedAt - a.capturedAt);
+}
+
+/** Update the caption and note for a photo. Pass empty strings to clear. */
+export async function updatePhotoCaption(id: string, caption: string, note: string): Promise<void> {
+  await database.write(async () => {
+    const row = await database.get<PhotoModel>('photos').find(id);
+    await row.update((r) => {
+      r.caption = caption || null;
+      r.note = note || null;
+    });
+  });
 }
 
 /** Remove the DB row. Call camera-service.deletePhoto(photo) separately to remove the file. */

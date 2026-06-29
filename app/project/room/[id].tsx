@@ -5,7 +5,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
   View, Text, Pressable, ScrollView, StyleSheet, Alert,
-  ActivityIndicator, Modal, Dimensions,
+  ActivityIndicator, Modal, Dimensions, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -15,7 +15,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import type { Location } from '@/src/domain/types';
 import type { Photo } from '@/src/media/media-types';
 import { loadLocation } from '@/src/data/project-repo';
-import { photosForLocation, addLocationPhoto, deleteLocationPhoto } from '@/src/data/photo-repo';
+import { photosForLocation, addLocationPhoto, deleteLocationPhoto, updatePhotoCaption } from '@/src/data/photo-repo';
 import { saveCapture, deletePhoto } from '@/src/media/camera-service';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 
@@ -45,6 +45,10 @@ export default function RoomScreen() {
 
   const [permission, requestPermission] = useCameraPermissions();
   const [lightboxPhoto, setLightboxPhoto] = useState<Photo | null>(null);
+
+  const [captionModalOpen, setCaptionModalOpen] = useState(false);
+  const [captionText, setCaptionText] = useState('');
+  const [noteText, setNoteText] = useState('');
 
   const reload = useCallback(async () => {
     if (!id) return;
@@ -113,6 +117,25 @@ export default function RoomScreen() {
   const retake = () => {
     setCapturedUri(null);
     setCameraState('live');
+  };
+
+  const openCaptionEdit = () => {
+    if (!lightboxPhoto) return;
+    setCaptionText(lightboxPhoto.caption ?? '');
+    setNoteText(lightboxPhoto.note ?? '');
+    setCaptionModalOpen(true);
+  };
+
+  const saveCaptionEdit = async () => {
+    if (!lightboxPhoto) return;
+    const trimCaption = captionText.trim();
+    const trimNote = noteText.trim();
+    await updatePhotoCaption(lightboxPhoto.id, trimCaption, trimNote);
+    setCaptionModalOpen(false);
+    setLightboxPhoto(prev =>
+      prev ? { ...prev, caption: trimCaption || undefined, note: trimNote || undefined } : null,
+    );
+    reload();
   };
 
   const confirmDelete = (photo: Photo) => {
@@ -192,13 +215,18 @@ export default function RoomScreen() {
                   contentFit="cover"
                   transition={150}
                 />
+                {photo.caption ? (
+                  <View style={styles.thumbCaption}>
+                    <Text style={styles.thumbCaptionText} numberOfLines={1}>{photo.caption}</Text>
+                  </View>
+                ) : null}
               </Pressable>
             ))}
           </View>
         )}
 
         {photos.length > 0 && (
-          <Text style={styles.hint}>Tap to view  ·  Hold to delete</Text>
+          <Text style={styles.hint}>Tap to view / name  ·  Hold to delete</Text>
         )}
       </ScrollView>
 
@@ -222,7 +250,77 @@ export default function RoomScreen() {
               <Text style={styles.lightboxCloseText}>✕</Text>
             </Pressable>
           </SafeAreaView>
+          {lightboxPhoto && (
+            <Pressable style={styles.lightboxInfoBar} onPress={() => {}}>
+              <SafeAreaView edges={['bottom']}>
+                <View style={styles.lightboxInfoContent}>
+                  <View style={{ flex: 1 }}>
+                    {lightboxPhoto.caption ? (
+                      <Text style={styles.lightboxCaption}>{lightboxPhoto.caption}</Text>
+                    ) : (
+                      <Text style={styles.lightboxCaptionEmpty}>No name — tap Edit to add one</Text>
+                    )}
+                    {lightboxPhoto.note ? (
+                      <Text style={styles.lightboxNote}>{lightboxPhoto.note}</Text>
+                    ) : null}
+                  </View>
+                  <Pressable onPress={openCaptionEdit} hitSlop={8}>
+                    <Text style={styles.lightboxEditBtn}>Edit</Text>
+                  </Pressable>
+                </View>
+              </SafeAreaView>
+            </Pressable>
+          )}
         </Pressable>
+      </Modal>
+
+      {/* Caption / note edit sheet */}
+      <Modal
+        visible={captionModalOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setCaptionModalOpen(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.captionOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <Pressable style={styles.captionBackdrop} onPress={() => setCaptionModalOpen(false)} />
+          <View style={styles.captionSheet}>
+            <Text style={styles.captionSheetTitle}>Photo details</Text>
+            <Text style={styles.captionLabel}>Name</Text>
+            <TextInput
+              style={styles.captionInput}
+              value={captionText}
+              onChangeText={setCaptionText}
+              placeholder="e.g. Consumer unit, North wall socket..."
+              placeholderTextColor={colors.textMuted}
+              autoFocus
+              returnKeyType="next"
+              maxLength={80}
+            />
+            <Text style={styles.captionLabel}>Note</Text>
+            <TextInput
+              style={[styles.captionInput, styles.captionNoteInput]}
+              value={noteText}
+              onChangeText={setNoteText}
+              placeholder="Any extra details..."
+              placeholderTextColor={colors.textMuted}
+              multiline
+              numberOfLines={3}
+              returnKeyType="done"
+              maxLength={300}
+            />
+            <View style={styles.captionBtns}>
+              <Pressable onPress={() => setCaptionModalOpen(false)} hitSlop={8}>
+                <Text style={styles.captionCancel}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.captionSaveBtn} onPress={saveCaptionEdit}>
+                <Text style={styles.captionSaveBtnText}>Save</Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Camera modal */}
@@ -316,11 +414,82 @@ const styles = StyleSheet.create({
   emptyHint: { color: colors.textMuted, fontSize: 13 },
   empty: { color: colors.textMuted, textAlign: 'center', marginTop: space.xxl },
 
+  thumbCaption: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.62)',
+    paddingHorizontal: 4,
+    paddingVertical: 3,
+  },
+  thumbCaptionText: { color: '#fff', fontSize: 9, fontWeight: '600' },
+
   // Lightbox
   lightbox: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
   lightboxImage: { width: '100%', height: '100%' },
   lightboxClose: { position: 'absolute', top: 0, right: 0, padding: space.lg },
   lightboxCloseText: { color: '#fff', fontSize: 22, fontWeight: '700' },
+  lightboxInfoBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.68)',
+  },
+  lightboxInfoContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
+    gap: space.md,
+  },
+  lightboxCaption: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  lightboxCaptionEmpty: { color: 'rgba(255,255,255,0.4)', fontSize: 13, fontStyle: 'italic' },
+  lightboxNote: { color: 'rgba(255,255,255,0.65)', fontSize: 13, marginTop: 2 },
+  lightboxEditBtn: { color: colors.accent, fontSize: 14, fontWeight: '700' },
+
+  // Caption edit sheet
+  captionOverlay: { flex: 1, justifyContent: 'flex-end' },
+  captionBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
+  captionSheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.bar,
+    borderTopRightRadius: radius.bar,
+    padding: space.xl,
+    paddingBottom: space.xxl,
+  },
+  captionSheetTitle: {
+    color: colors.textPrimary,
+    fontSize: 17,
+    fontWeight: '800',
+    marginBottom: space.lg,
+  },
+  captionLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '600', marginBottom: space.xs },
+  captionInput: {
+    backgroundColor: colors.ground,
+    color: colors.textPrimary,
+    borderRadius: radius.tile,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
+    fontSize: 15,
+    marginBottom: space.md,
+  },
+  captionNoteInput: { height: 80, textAlignVertical: 'top', paddingTop: space.sm },
+  captionBtns: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: space.sm,
+  },
+  captionCancel: { color: colors.textSecondary, fontSize: 15, fontWeight: '600' },
+  captionSaveBtn: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.xl,
+    paddingVertical: space.sm,
+  },
+  captionSaveBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 15 },
 
   // Camera
   cameraScreen: { flex: 1, backgroundColor: '#000' },

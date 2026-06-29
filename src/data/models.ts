@@ -105,6 +105,8 @@ export class PhotoModel extends Model {
   @text('quality') quality!: string;
   @text('visibility') visibility!: string;
   @field('captured_at') capturedAt!: number;
+  @text('caption') caption!: string | null;
+  @text('note') note!: string | null;
 }
 
 export class SyncQueueModel extends Model {

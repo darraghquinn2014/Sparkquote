@@ -25,6 +25,8 @@ export interface RawPhoto {
   quality: string;
   visibility: string;
   captured_at: number;
+  caption?: string | null;
+  note?: string | null;
 }
 
 export interface CapturePhotoInput {
@@ -84,6 +86,8 @@ export function toPhoto(r: RawPhoto): Photo {
   };
   if (r.line_item_id != null) photo.lineItemId = r.line_item_id;
   if (r.location_id != null) photo.locationId = r.location_id;
+  if (r.caption != null) photo.caption = r.caption;
+  if (r.note != null) photo.note = r.note;
   return photo;
 }
 
@@ -97,5 +101,7 @@ export function photoToRaw(p: Photo): RawPhoto {
     quality: p.quality,
     visibility: 'internal',
     captured_at: p.capturedAt,
+    caption: p.caption ?? null,
+    note: p.note ?? null,
   };
 }

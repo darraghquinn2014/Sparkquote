@@ -42,6 +42,8 @@ export interface Photo {
   quality: ImageQuality;
   visibility: PhotoVisibility;
   capturedAt: number;
+  caption?: string;
+  note?: string;
 }
 
 /** Root of app-private storage (set by the app from FileSystem.documentDirectory). */
