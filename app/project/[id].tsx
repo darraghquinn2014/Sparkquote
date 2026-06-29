@@ -5,11 +5,19 @@
  */
 import React, { useCallback, useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, Alert, ActivityIndicator, TextInput } from 'react-native';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import type { Project, Location } from '@/src/domain/types';
 import { loadProjects, loadLocations, addLocation, deleteLocation, deleteProject, renameProject, renameLocation } from '@/src/data/project-repo';
 import { loadProjectEstimate } from '@/src/data/project-estimate-repo';
+import { photosForLocation } from '@/src/data/photo-repo';
+import { loadBusinessProfile, readLogoDataUri } from '@/src/data/business-profile';
+import { renderProjectReportHtml } from '@/src/pdf/render-project-report';
+import type { ReportFloor, ReportRoom, ReportPhoto } from '@/src/pdf/render-project-report';
 import { priceEstimate } from '@/src/domain/pricing';
 import { formatMoney } from '@/src/domain/money';
 import { toLaborToggle } from '@/src/data/mappers';
@@ -25,6 +33,7 @@ export default function ProjectDetailScreen() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [roomTotals, setRoomTotals] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [reportBusy, setReportBusy] = useState(false);
 
   // inline-add state: which parent we're adding to (null = adding a floor)
   const [addingTo, setAddingTo] = useState<string | 'floor' | null>(null);
@@ -57,6 +66,87 @@ export default function ProjectDetailScreen() {
   }, [id]);
 
   useFocusEffect(useCallback(() => { reload(); }, [reload]));
+
+  const generateReport = async () => {
+    if (!project || !id) return;
+    setReportBusy(true);
+    try {
+      const [locs, estimate, profile, logoUri] = await Promise.all([
+        loadLocations(id),
+        loadProjectEstimate(id),
+        loadBusinessProfile(),
+        readLogoDataUri(),
+      ]);
+
+      const priced = estimate ? priceEstimate(estimate, allToggles) : null;
+      const lineTotals = new Map(priced?.lines.map((l) => [l.lineId, l.lineTotalMinor]) ?? []);
+      const currency = estimate?.currency ?? 'GBP';
+
+      const floorLocs = locs.filter((l) => l.parentId == null);
+      const reportFloors: ReportFloor[] = [];
+
+      for (const floor of floorLocs) {
+        const rooms = locs.filter((l) => l.parentId === floor.id);
+        const reportRooms: ReportRoom[] = [];
+
+        for (const room of rooms) {
+          const roomPhotos = await photosForLocation(room.id);
+          const reportPhotos: ReportPhoto[] = [];
+          for (const photo of roomPhotos) {
+            try {
+              // Shrink to 400px wide thumbnail before base64 — keeps HTML small enough
+              // for printToFileAsync to handle without hanging.
+              const resized = await ImageManipulator.manipulateAsync(
+                photo.filePath,
+                [{ resize: { width: 400 } }],
+                { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+              );
+              if (resized.base64) {
+                reportPhotos.push({
+                  dataUri: `data:image/jpeg;base64,${resized.base64}`,
+                  caption: photo.caption,
+                  note: photo.note,
+                });
+              }
+            } catch { /* skip unreadable files */ }
+          }
+
+          const roomLines = (estimate?.lineItems ?? []).filter((l) => l.locationId === room.id);
+          const lineItems = roomLines.map((l) => ({
+            description: l.description,
+            quantityLabel: l.quantityMeters != null ? `${l.quantityMeters} m` : l.quantity != null ? String(l.quantity) : '1',
+            lineTotalMinor: lineTotals.get(l.id) ?? 0,
+          }));
+          const roomTotal = lineItems.reduce((s, l) => s + l.lineTotalMinor, 0);
+          reportRooms.push({ name: room.name, lineItems, roomTotalMinor: roomTotal, photos: reportPhotos });
+        }
+
+        const floorTotal = reportRooms.reduce((s, r) => s + r.roomTotalMinor, 0);
+        reportFloors.push({ name: floor.name, rooms: reportRooms, floorTotalMinor: floorTotal });
+      }
+
+      const html = renderProjectReportHtml({
+        projectName: project.name,
+        clientName: project.clientName,
+        businessName: profile.businessName || undefined,
+        logoDataUri: logoUri ?? undefined,
+        dateIso: new Date().toISOString(),
+        currency,
+        floors: reportFloors,
+        subtotalMinor: priced?.subtotalMinor ?? 0,
+        vatRatePct: estimate?.vatRatePct ?? 20,
+        vatAmountMinor: priced?.vatAmountMinor ?? 0,
+        grandTotalMinor: priced?.grandTotalMinor ?? 0,
+      });
+
+      const { uri } = await Print.printToFileAsync({ html });
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `${project.name} — Report` });
+    } catch (e) {
+      Alert.alert('Report error', String(e));
+    } finally {
+      setReportBusy(false);
+    }
+  };
 
   const floors = locations.filter((l) => l.parentId == null);
   const roomsOf = (floorId: string) => locations.filter((l) => l.parentId === floorId);
@@ -124,6 +214,9 @@ export default function ProjectDetailScreen() {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
           <Pressable style={styles.quoteBtn} onPress={() => router.push(`/project/quote/${id}` as any)} hitSlop={8}>
             <Text style={styles.quoteBtnText}>Quote</Text>
+          </Pressable>
+          <Pressable style={styles.reportBtn} onPress={generateReport} hitSlop={8}>
+            <Text style={styles.reportBtnText}>Report</Text>
           </Pressable>
           <Pressable onPress={confirmDeleteProject} hitSlop={12}><Text style={{ color: colors.danger, fontWeight: '700' }}>Delete</Text></Pressable>
         </View>
@@ -241,6 +334,12 @@ export default function ProjectDetailScreen() {
           </View>
         ))}
       </ScrollView>
+      {reportBusy && (
+        <View style={styles.busyOverlay}>
+          <ActivityIndicator color={colors.accent} size="large" />
+          <Text style={styles.busyText}>Building report…</Text>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -250,6 +349,10 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.lg, paddingVertical: space.md },
   quoteBtn: { backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.sm },
   quoteBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 13 },
+  reportBtn: { borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.hairline },
+  reportBtnText: { color: colors.textSecondary, fontWeight: '700', fontSize: 13 },
+  busyOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(20,24,31,0.82)', alignItems: 'center', justifyContent: 'center', gap: space.md },
+  busyText: { color: colors.accent, fontWeight: '700', fontSize: 15 },
   back: { color: colors.textSecondary, fontSize: 16, fontWeight: '600' },
   nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   editBtn: { color: colors.accent, fontWeight: '700', fontSize: 13 },
