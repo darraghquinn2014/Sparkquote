@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, Pressable, FlatList, TextInput, StyleSheet } from 'react-native';
+import { View, Text, Pressable, FlatList, TextInput, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
 import { useEstimateStore } from '@/src/state/estimateStore';
@@ -12,6 +12,10 @@ import type { LineItem, Material } from '@/src/domain/types';
 import { MaterialPicker } from '@/src/ui/catalogue/MaterialPicker';
 import { LabourSheet } from '@/src/ui/catalogue/LabourSheet';
 import { loadCatalogue } from '@/src/data/catalogue-repo';
+import { loadBusinessProfile, readLogoDataUri } from '@/src/data/business-profile';
+import { toClientEstimate } from '@/src/pdf/client-view-model';
+import { renderEstimateHtml } from '@/src/pdf/render-html';
+import * as Print from 'expo-print';
 
 const allToggles = seedLaborToggles.map(toLaborToggle);
 const toggleIndex = new Map(allToggles.map((t) => [t.id, t]));
@@ -32,12 +36,37 @@ export default function EstimateScreen() {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [rateEditing, setRateEditing] = useState(false);
   const [rateText, setRateText] = useState('');
+  const [previewing, setPreviewing] = useState(false);
   const breakdown = priceEstimate(estimate, allToggles);
   const swipeableRefs = useRef<Map<string, Swipeable>>(new Map());
 
   useEffect(() => {
     loadCatalogue().then((c) => setMaterials(c.materials)).catch(() => {});
   }, []);
+
+  const previewPdf = async () => {
+    try {
+      setPreviewing(true);
+      const [profile, logoDataUri] = await Promise.all([
+        loadBusinessProfile(),
+        readLogoDataUri(),
+      ]);
+      const meta = {
+        businessName: profile.businessName || undefined,
+        tagline: profile.tagline || undefined,
+        logoDataUri: logoDataUri ?? undefined,
+        dateIso: new Date().toISOString(),
+      };
+      const priced = priceEstimate(estimate, allToggles);
+      const client = toClientEstimate(estimate, priced, meta);
+      const html = renderEstimateHtml(client);
+      await Print.printAsync({ html });
+    } catch (e) {
+      Alert.alert('Preview error', String(e));
+    } finally {
+      setPreviewing(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -75,6 +104,13 @@ export default function EstimateScreen() {
         ListEmptyComponent={<Text style={styles.empty}>No items yet. Add jobs on Quick Quote.</Text>}
         ListFooterComponent={estimate.lineItems.length === 0 ? null : (
           <View style={styles.footer}>
+            <Pressable
+              style={[styles.previewBtn, previewing && styles.previewBtnBusy]}
+              onPress={previewPdf}
+              disabled={previewing}
+            >
+              <Text style={styles.previewBtnText}>{previewing ? 'Building preview…' : 'Preview PDF quote'}</Text>
+            </Pressable>
             <Pressable style={styles.rateRow} onPress={() => { setRateText(String(estimate.hourlyRateMinor / 100)); setRateEditing(true); }}>
               <Text style={styles.rateLabel}>Labour rate</Text>
               {rateEditing ? (
@@ -176,6 +212,9 @@ const styles = StyleSheet.create({
   qty: { fontSize: 12, color: '#5E6B79', marginTop: 2 },
   amount: { fontSize: 17, color: '#9AA7B4', fontWeight: '600' },
   footer: { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#2E3744' },
+  previewBtn: { backgroundColor: '#FFB020', borderRadius: 999, paddingVertical: 12, alignItems: 'center', marginBottom: 16 },
+  previewBtnBusy: { opacity: 0.6 },
+  previewBtnText: { color: '#14181F', fontWeight: '800', fontSize: 15 },
   rateRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#1E242E', borderRadius: 14, padding: 16, marginBottom: 16 },
   rateLabel: { fontSize: 15, color: '#9AA7B4', fontWeight: '600' },
   rateValue: { fontSize: 17, color: '#FFB020', fontWeight: '700' },
