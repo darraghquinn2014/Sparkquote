@@ -8,7 +8,7 @@
  */
 import React, { useMemo, useState } from 'react';
 import {
-  Modal, Pressable, ScrollView, Text, TextInput, View, StyleSheet,
+  KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, StyleSheet,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Material, Currency } from '../../domain/types';
@@ -62,62 +62,66 @@ export function MaterialPicker({ visible, materials, currency, onAdd, onClose }:
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.scrim}>
         <Pressable style={styles.scrimTap} onPress={onClose} accessibilityLabel="Close" />
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }]}>
-          <View style={styles.grabber} />
-          <View style={styles.headerRow}>
-            <Text style={styles.title}>Add material</Text>
-            <Pressable onPress={onClose} accessibilityLabel="Done">
-              <Text style={styles.done}>Done</Text>
-            </Pressable>
-          </View>
-
-          {justAdded && (
-            <View style={styles.toast}>
-              <Text style={styles.toastText}>Added {justAdded}</Text>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.kavWrapper}
+        >
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }]}>
+            <View style={styles.grabber} />
+            <View style={styles.headerRow}>
+              <Text style={styles.title}>Add material</Text>
+              <Pressable onPress={onClose} accessibilityLabel="Done">
+                <Text style={styles.done}>Done</Text>
+              </Pressable>
             </View>
-          )}
 
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search by name or code"
-            placeholderTextColor={colors.textMuted}
-            style={styles.search}
-            autoCorrect={false}
-          />
+            {justAdded && (
+              <View style={styles.toast}>
+                <Text style={styles.toastText}>Added {justAdded}</Text>
+              </View>
+            )}
 
-          {suppliers.length > 0 && (
-            <View style={styles.supplierContainer}>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.supplierRow}
-                keyboardShouldPersistTaps="handled"
-              >
-                {[null, ...suppliers].map((s) => {
-                  const active = activeSupplier === s;
-                  return (
-                    <Pressable
-                      key={s ?? '__all'}
-                      onPress={() => setActiveSupplier(s)}
-                      style={[styles.supplierChip, active && styles.supplierChipActive]}
-                    >
-                      <Text style={[styles.supplierChipText, active && styles.supplierChipTextActive]}>
-                        {s ?? 'All'}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </View>
-          )}
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search by name or code"
+              placeholderTextColor={colors.textMuted}
+              style={styles.search}
+              autoCorrect={false}
+            />
 
-          <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
-            {filtered.map((m) => {
-              const isSel = selected?.id === m.id;
-              return (
-                <View key={m.id}>
+            {suppliers.length > 0 && (
+              <View style={styles.supplierContainer}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.supplierRow}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {[null, ...suppliers].map((s) => {
+                    const active = activeSupplier === s;
+                    return (
+                      <Pressable
+                        key={s ?? '__all'}
+                        onPress={() => setActiveSupplier(s)}
+                        style={[styles.supplierChip, active && styles.supplierChipActive]}
+                      >
+                        <Text style={[styles.supplierChipText, active && styles.supplierChipTextActive]}>
+                          {s ?? 'All'}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            )}
+
+            <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
+              {filtered.map((m) => {
+                const isSel = selected?.id === m.id;
+                return (
                   <Pressable
+                    key={m.id}
                     style={[styles.row, isSel && styles.rowActive]}
                     onPress={() => {
                       setSelected(isSel ? null : m);
@@ -128,35 +132,40 @@ export function MaterialPicker({ visible, materials, currency, onAdd, onClose }:
                       <Text style={styles.rowDesc}>{m.description}</Text>
                       <Text style={styles.rowMeta}>{m.sku} · {m.unit}{suppliers.length > 0 ? ` · ${m.catalogueId}` : ''}</Text>
                     </View>
-                    <Text style={styles.rowPrice}>{formatMoney(m.unitCostMinor, currency)}</Text>
+                    <Text style={[styles.rowPrice, isSel && styles.rowPriceActive]}>{formatMoney(m.unitCostMinor, currency)}</Text>
                   </Pressable>
-                  {isSel && (
-                    <View style={styles.addRow}>
-                      <Text style={styles.addLabel}>{isMetres ? 'Metres' : 'Quantity'}</Text>
-                      <TextInput
-                        value={amountText}
-                        onChangeText={(t) => {
-                          const cleaned = t.replace(/[^0-9.]/g, '');
-                          const parts = cleaned.split('.');
-                          setAmountText(parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : cleaned);
-                        }}
-                        keyboardType="decimal-pad"
-                        style={styles.amountInput}
-                        accessibilityLabel={isMetres ? 'Metres' : 'Quantity'}
-                      />
-                      <Pressable style={styles.addBtn} onPress={confirmAdd}>
-                        <Text style={styles.addBtnText}>Add</Text>
-                      </Pressable>
-                    </View>
-                  )}
+                );
+              })}
+              {filtered.length === 0 && (
+                <Text style={styles.empty}>No materials match "{query}".</Text>
+              )}
+            </ScrollView>
+
+            {selected && (
+              <View style={styles.addRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.addItemName} numberOfLines={1}>{selected.description}</Text>
+                  <Text style={styles.addLabel}>{isMetres ? 'Metres' : 'Quantity'}</Text>
                 </View>
-              );
-            })}
-            {filtered.length === 0 && (
-              <Text style={styles.empty}>No materials match "{query}".</Text>
+                <TextInput
+                  value={amountText}
+                  onChangeText={(t) => {
+                    const cleaned = t.replace(/[^0-9.]/g, '');
+                    const parts = cleaned.split('.');
+                    setAmountText(parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : cleaned);
+                  }}
+                  keyboardType="decimal-pad"
+                  style={styles.amountInput}
+                  selectTextOnFocus
+                  accessibilityLabel={isMetres ? 'Metres' : 'Quantity'}
+                />
+                <Pressable style={styles.addBtn} onPress={confirmAdd}>
+                  <Text style={styles.addBtnText}>Add</Text>
+                </Pressable>
+              </View>
             )}
-          </ScrollView>
-        </View>
+          </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -165,7 +174,8 @@ export function MaterialPicker({ visible, materials, currency, onAdd, onClose }:
 const styles = StyleSheet.create({
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   scrimTap: { flex: 1 },
-  sheet: { backgroundColor: colors.ground, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '85%', paddingHorizontal: space.lg, paddingTop: space.sm, flexDirection: 'column' },
+  kavWrapper: { width: '100%', maxHeight: '85%' },
+  sheet: { backgroundColor: colors.ground, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: space.lg, paddingTop: space.sm, flexDirection: 'column' },
   grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.hairline, marginBottom: space.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.md },
   title: { fontSize: 20, fontWeight: '800', color: colors.textPrimary },
@@ -179,9 +189,11 @@ const styles = StyleSheet.create({
   rowDesc: { fontSize: 15, fontWeight: '600', color: colors.textPrimary },
   rowMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   rowPrice: { fontSize: 15, fontWeight: '700', color: colors.textSecondary, fontVariant: ['tabular-nums'] },
-  addRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.surface, borderBottomLeftRadius: radius.tile, borderBottomRightRadius: radius.tile, paddingHorizontal: space.md, paddingBottom: space.md, marginBottom: space.sm },
-  addLabel: { fontSize: 13, fontWeight: '700', color: colors.textSecondary, letterSpacing: 0.5 },
-  amountInput: { flex: 1, backgroundColor: colors.ground, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.sm, color: colors.textPrimary, fontSize: 16, fontVariant: ['tabular-nums'] },
+  rowPriceActive: { color: colors.accent },
+  addRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.surface, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.md, marginTop: space.sm },
+  addItemName: { fontSize: 13, fontWeight: '700', color: colors.textPrimary, marginBottom: 2 },
+  addLabel: { fontSize: 11, fontWeight: '700', color: colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
+  amountInput: { width: 80, backgroundColor: colors.ground, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.sm, color: colors.textPrimary, fontSize: 18, fontWeight: '700', fontVariant: ['tabular-nums'], textAlign: 'center' },
   addBtn: { backgroundColor: colors.accent, borderRadius: radius.tile, paddingHorizontal: space.xl, paddingVertical: space.sm },
   addBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 15 },
   empty: { color: colors.textMuted, textAlign: 'center', paddingVertical: space.xl },

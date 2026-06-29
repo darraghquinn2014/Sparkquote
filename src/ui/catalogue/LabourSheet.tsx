@@ -4,7 +4,7 @@
  * rate changes) or Flat amount (a fixed labour charge).
  */
 import React, { useState } from 'react';
-import { Modal, Pressable, Text, TextInput, View, StyleSheet } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Currency } from '../../domain/types';
 import { colors, space, radius } from '../theme/tokens';
@@ -44,6 +44,7 @@ export function LabourSheet({ visible, hourlyRateMinor, currency, onAdd, onClose
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.scrim}>
         <Pressable style={styles.scrimTap} onPress={onClose} accessibilityLabel="Close" />
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.kavWrapper}>
         <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
           <View style={styles.grabber} />
           <Text style={styles.title}>Add labour</Text>
@@ -98,6 +99,7 @@ export function LabourSheet({ visible, hourlyRateMinor, currency, onAdd, onClose
             </Pressable>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -106,6 +108,7 @@ export function LabourSheet({ visible, hourlyRateMinor, currency, onAdd, onClose
 const styles = StyleSheet.create({
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   scrimTap: { flex: 1 },
+  kavWrapper: { width: '100%' },
   sheet: { backgroundColor: colors.ground, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: space.lg, paddingTop: space.sm },
   grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.hairline, marginBottom: space.md },
   title: { fontSize: 20, fontWeight: '800', color: colors.textPrimary, marginBottom: space.lg },
