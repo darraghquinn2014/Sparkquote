@@ -20,6 +20,10 @@ export default function SettingsScreen() {
         <Text style={styles.rowText}>Cloud backup</Text>
         <Text style={styles.chevron}>›</Text>
       </Pressable>
+      <Pressable style={styles.row} onPress={() => router.push('/profit-report' as any)}>
+        <Text style={styles.rowText}>Profit report</Text>
+        <Text style={styles.chevron}>›</Text>
+      </Pressable>
       <Pressable style={styles.row} onPress={() => router.push('/suppliers')}>
         <Text style={styles.rowText}>Manage price lists</Text>
         <Text style={styles.chevron}>›</Text>

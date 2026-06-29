@@ -1,14 +1,14 @@
 /**
  * Manage jobs — list all assemblies, toggle Quick-Quote favourites, delete,
- * and create new ones. Quick Quote shows only favourites; this is where you
- * curate them.
+ * and create/edit ones. Swipe right to edit, swipe left to delete.
  */
-import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, TextInput, Pressable, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { Alert, View, Text, TextInput, Pressable, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import type { Assembly, Material } from '@/src/domain/types';
-import { loadCatalogue, setAssemblyFavourite } from '@/src/data/catalogue-repo';
+import { loadCatalogue, setAssemblyFavourite, deleteAssembly } from '@/src/data/catalogue-repo';
 import { colors, space, radius, type as typo } from '@/src/ui/theme/tokens';
 import { AssemblyBuilder } from '@/src/ui/manage/AssemblyBuilder';
 import { CANONICAL_CATEGORIES } from '@/src/domain/categories';
@@ -19,7 +19,9 @@ export default function ManageJobsRoute() {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [builderOpen, setBuilderOpen] = useState(false);
+  const [editingAssembly, setEditingAssembly] = useState<Assembly | undefined>(undefined);
   const [query, setQuery] = useState('');
+  const swipeableRefs = useRef<Map<string, Swipeable | null>>(new Map());
 
   const reload = useCallback(async () => {
     const cat = await loadCatalogue();
@@ -30,9 +32,37 @@ export default function ManageJobsRoute() {
 
   useFocusEffect(useCallback(() => { reload(); }, [reload]));
 
+  const closeAllSwipeables = () => {
+    swipeableRefs.current.forEach((ref) => ref?.close());
+  };
+
   const toggleFav = async (a: Assembly) => {
+    closeAllSwipeables();
     await setAssemblyFavourite(a.id, a.quickQuoteRank != null ? null : 999);
     reload();
+  };
+
+  const openEdit = (a: Assembly) => {
+    closeAllSwipeables();
+    setEditingAssembly(a);
+    setBuilderOpen(true);
+  };
+
+  const confirmDelete = (a: Assembly) => {
+    Alert.alert(
+      'Delete job?',
+      `"${a.name}" will be permanently removed.`,
+      [
+        { text: 'Cancel', style: 'cancel', onPress: () => swipeableRefs.current.get(a.id)?.close() },
+        {
+          text: 'Delete', style: 'destructive',
+          onPress: async () => {
+            await deleteAssembly(a.id);
+            reload();
+          },
+        },
+      ],
+    );
   };
 
   const filteredAssemblies = useMemo(() => {
@@ -45,6 +75,17 @@ export default function ManageJobsRoute() {
     });
   }, [assemblies, query]);
 
+  const renderRightActions = (a: Assembly) => (
+    <Pressable style={styles.deleteAction} onPress={() => confirmDelete(a)}>
+      <Text style={styles.deleteActionText}>Delete</Text>
+    </Pressable>
+  );
+
+  const renderLeftActions = (a: Assembly) => (
+    <Pressable style={styles.editAction} onPress={() => openEdit(a)}>
+      <Text style={styles.editActionText}>Edit</Text>
+    </Pressable>
+  );
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -53,7 +94,7 @@ export default function ManageJobsRoute() {
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
         <Text style={styles.title}>Manage jobs</Text>
-        <Pressable style={styles.newBtn} onPress={() => setBuilderOpen(true)}>
+        <Pressable style={styles.newBtn} onPress={() => { setEditingAssembly(undefined); setBuilderOpen(true); }}>
           <Text style={styles.newText}>+ New</Text>
         </Pressable>
       </View>
@@ -71,6 +112,10 @@ export default function ManageJobsRoute() {
         </View>
       )}
 
+      {!loading && (
+        <Text style={styles.hint}>Swipe right to edit · Swipe left to delete</Text>
+      )}
+
       {loading ? (
         <ActivityIndicator color={colors.accent} style={{ marginTop: space.xxl }} />
       ) : (
@@ -82,18 +127,31 @@ export default function ManageJobsRoute() {
           renderItem={({ item }) => {
             const fav = item.quickQuoteRank != null;
             return (
-              <View style={styles.row}>
-                <Pressable onPress={() => toggleFav(item)} hitSlop={8} style={styles.star}>
-                  <Text style={[styles.starText, fav && styles.starTextActive]}>{fav ? '*' : '-'}</Text>
-                </Pressable>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.name}>{item.name}</Text>
-                  <Text style={styles.meta}>{item.category} · {item.baseLaborHours}h · {item.components.length} material{item.components.length === 1 ? '' : 's'}</Text>
+              <Swipeable
+                ref={(ref) => { swipeableRefs.current.set(item.id, ref); }}
+                friction={2}
+                leftThreshold={60}
+                rightThreshold={60}
+                renderLeftActions={() => renderLeftActions(item)}
+                renderRightActions={() => renderRightActions(item)}
+                onSwipeableOpen={(direction) => {
+                  if (direction === 'left') openEdit(item);
+                  if (direction === 'right') confirmDelete(item);
+                }}
+              >
+                <View style={styles.row}>
+                  <Pressable onPress={() => toggleFav(item)} hitSlop={8} style={styles.star}>
+                    <Text style={[styles.starText, fav && styles.starTextActive]}>{fav ? '*' : '-'}</Text>
+                  </Pressable>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.name}>{item.name}</Text>
+                    <Text style={styles.meta}>{item.category} · {item.baseLaborHours}h · {item.components.length} material{item.components.length === 1 ? '' : 's'}</Text>
+                  </View>
+                  <Pressable onPress={() => toggleFav(item)} hitSlop={8} style={[styles.visibilityBtn, fav ? styles.hideBtn : styles.showBtn]}>
+                    <Text style={[styles.visibilityText, fav ? styles.hideText : styles.showText]}>{fav ? 'Hide' : 'Show'}</Text>
+                  </Pressable>
                 </View>
-                <Pressable onPress={() => toggleFav(item)} hitSlop={8} style={[styles.visibilityBtn, fav ? styles.hideBtn : styles.showBtn]}>
-                  <Text style={[styles.visibilityText, fav ? styles.hideText : styles.showText]}>{fav ? 'Hide' : 'Show'}</Text>
-                </Pressable>
-              </View>
+              </Swipeable>
             );
           }}
         />
@@ -103,8 +161,9 @@ export default function ManageJobsRoute() {
         visible={builderOpen}
         materials={materials}
         categories={Array.from(new Set([...CANONICAL_CATEGORIES, ...assemblies.map((a) => a.category)]))}
-        onClose={() => setBuilderOpen(false)}
-        onCreated={() => { setBuilderOpen(false); reload(); }}
+        onClose={() => { setBuilderOpen(false); setEditingAssembly(undefined); }}
+        onCreated={() => { setBuilderOpen(false); setEditingAssembly(undefined); reload(); }}
+        assembly={editingAssembly}
       />
     </SafeAreaView>
   );
@@ -119,6 +178,7 @@ const styles = StyleSheet.create({
   newText: { color: colors.accentInk, fontWeight: '800', fontSize: 14 },
   searchWrap: { paddingHorizontal: space.lg, paddingTop: space.lg },
   search: { backgroundColor: colors.surface, borderRadius: radius.bar, paddingHorizontal: space.lg, paddingVertical: space.md, color: colors.textPrimary, fontSize: 16 },
+  hint: { color: colors.textMuted, fontSize: 11, textAlign: 'center', marginTop: space.sm, marginBottom: 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.surface, borderRadius: radius.tile, padding: space.md, marginBottom: space.sm },
   star: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   starText: { color: colors.textMuted, fontSize: 24, lineHeight: 28 },
@@ -132,9 +192,8 @@ const styles = StyleSheet.create({
   hideText: { color: colors.textSecondary },
   showText: { color: colors.accentInk },
   empty: { color: colors.textMuted, textAlign: 'center', marginTop: space.xxl, ...typo.body },
+  editAction: { backgroundColor: colors.accent, justifyContent: 'center', alignItems: 'center', width: 80, borderRadius: radius.tile, marginBottom: space.sm },
+  editActionText: { color: colors.accentInk, fontWeight: '800', fontSize: 14 },
+  deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 80, borderRadius: radius.tile, marginBottom: space.sm },
+  deleteActionText: { color: '#fff', fontWeight: '800', fontSize: 14 },
 });
-
-
-
-
-

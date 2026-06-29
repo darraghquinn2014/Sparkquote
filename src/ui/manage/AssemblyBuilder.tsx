@@ -3,15 +3,15 @@
  * Pick catalogue materials + quantities, set a name/category and labour hours.
  * Saved as a favourite so it appears on Quick Quote immediately.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Modal, Pressable, ScrollView, Text, TextInput, View, StyleSheet, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { Material } from '../../domain/types';
+import type { Assembly, Material } from '../../domain/types';
 import { colors, space, radius } from '../theme/tokens';
 import { formatMoney } from '../../domain/money';
-import { createAssembly } from '../../data/catalogue-repo';
+import { createAssembly, updateAssembly } from '../../data/catalogue-repo';
 import { MaterialPicker } from '../catalogue/MaterialPicker';
 
 interface DraftComponent {
@@ -25,9 +25,10 @@ interface Props {
   categories: string[];
   onClose: () => void;
   onCreated: () => void;
+  assembly?: Assembly;
 }
 
-export function AssemblyBuilder({ visible, materials, categories, onClose, onCreated }: Props) {
+export function AssemblyBuilder({ visible, materials, categories, onClose, onCreated, assembly }: Props) {
   const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
@@ -40,6 +41,20 @@ export function AssemblyBuilder({ visible, materials, categories, onClose, onCre
   const reset = () => {
     setName(''); setCategory(''); setHoursText(''); setComponents([]); setAddingCategory(false);
   };
+
+  useEffect(() => {
+    if (!visible || !assembly) return;
+    setName(assembly.name);
+    setCategory(assembly.category);
+    setHoursText(assembly.baseLaborHours > 0 ? String(assembly.baseLaborHours) : '');
+    const prefilled = assembly.components
+      .map((c) => {
+        const mat = materials.find((m) => m.id === c.materialId);
+        return mat ? { material: mat, quantity: c.quantity } : null;
+      })
+      .filter((c): c is DraftComponent => c !== null);
+    setComponents(prefilled);
+  }, [visible, assembly?.id]);
 
   const materialsCost = useMemo(
     () => components.reduce((sum, c) => sum + c.material.unitCostMinor * c.quantity, 0),
@@ -69,12 +84,13 @@ export function AssemblyBuilder({ visible, materials, categories, onClose, onCre
     try {
       setSaving(true);
       const hours = parseFloat(hoursText);
-      await createAssembly({
-        name: name.trim(),
-        category: category.trim() || 'Custom',
-        baseLaborHours: Number.isFinite(hours) && hours > 0 ? hours : 0,
-        components: components.map((c) => ({ materialId: c.material.id, quantity: c.quantity })),
-      });
+      const baseLaborHours = Number.isFinite(hours) && hours > 0 ? hours : 0;
+      const comps = components.map((c) => ({ materialId: c.material.id, quantity: c.quantity }));
+      if (assembly) {
+        await updateAssembly({ id: assembly.id, name: name.trim(), category: category.trim() || 'Custom', baseLaborHours, components: comps });
+      } else {
+        await createAssembly({ name: name.trim(), category: category.trim() || 'Custom', baseLaborHours, components: comps });
+      }
       reset();
       onCreated();
     } catch (e) {
@@ -91,7 +107,7 @@ export function AssemblyBuilder({ visible, materials, categories, onClose, onCre
           <View style={styles.grabber} />
           <View style={styles.headerRow}>
             <Pressable onPress={() => { reset(); onClose(); }}><Text style={styles.cancel}>Cancel</Text></Pressable>
-            <Text style={styles.title}>New job</Text>
+            <Text style={styles.title}>{assembly ? 'Edit job' : 'New job'}</Text>
             <Pressable onPress={save} disabled={!canSave || saving}>
               <Text style={[styles.save, (!canSave || saving) && styles.saveDisabled]}>Save</Text>
             </Pressable>
