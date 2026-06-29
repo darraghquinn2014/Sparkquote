@@ -18,6 +18,7 @@ import { loadLocation } from '@/src/data/project-repo';
 import { photosForLocation, addLocationPhoto, deleteLocationPhoto, updatePhotoCaption } from '@/src/data/photo-repo';
 import { saveCapture, deletePhoto } from '@/src/media/camera-service';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
+import * as Sharing from 'expo-sharing';
 
 const COLS = 3;
 const SCREEN_W = Dimensions.get('window').width;
@@ -124,6 +125,19 @@ export default function RoomScreen() {
     setCaptionText(lightboxPhoto.caption ?? '');
     setNoteText(lightboxPhoto.note ?? '');
     setCaptionModalOpen(true);
+  };
+
+  const sharePhoto = async (photo: Photo) => {
+    try {
+      const available = await Sharing.isAvailableAsync();
+      if (!available) {
+        Alert.alert('Sharing not available', 'Your device does not support sharing files.');
+        return;
+      }
+      await Sharing.shareAsync(photo.filePath, { mimeType: 'image/jpeg', UTI: 'public.image', dialogTitle: photo.caption ?? 'Share photo' });
+    } catch (e) {
+      Alert.alert('Share failed', String(e));
+    }
   };
 
   const saveCaptionEdit = async () => {
@@ -264,9 +278,14 @@ export default function RoomScreen() {
                       <Text style={styles.lightboxNote}>{lightboxPhoto.note}</Text>
                     ) : null}
                   </View>
-                  <Pressable onPress={openCaptionEdit} hitSlop={8}>
-                    <Text style={styles.lightboxEditBtn}>Edit</Text>
-                  </Pressable>
+                  <View style={styles.lightboxActions}>
+                    <Pressable onPress={() => sharePhoto(lightboxPhoto)} hitSlop={8}>
+                      <Text style={styles.lightboxShareBtn}>Share</Text>
+                    </Pressable>
+                    <Pressable onPress={openCaptionEdit} hitSlop={8}>
+                      <Text style={styles.lightboxEditBtn}>Edit</Text>
+                    </Pressable>
+                  </View>
                 </View>
               </SafeAreaView>
             </Pressable>
@@ -447,6 +466,8 @@ const styles = StyleSheet.create({
   lightboxCaption: { color: '#fff', fontSize: 15, fontWeight: '700' },
   lightboxCaptionEmpty: { color: 'rgba(255,255,255,0.4)', fontSize: 13, fontStyle: 'italic' },
   lightboxNote: { color: 'rgba(255,255,255,0.65)', fontSize: 13, marginTop: 2 },
+  lightboxActions: { flexDirection: 'row', gap: space.md, alignItems: 'center' },
+  lightboxShareBtn: { color: colors.textSecondary, fontSize: 14, fontWeight: '600' },
   lightboxEditBtn: { color: colors.accent, fontSize: 14, fontWeight: '700' },
 
   // Caption edit sheet
