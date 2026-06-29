@@ -8,8 +8,10 @@
  */
 import React, { useMemo, useState } from 'react';
 import {
-  KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, StyleSheet,
+  Dimensions, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, StyleSheet,
 } from 'react-native';
+
+const SHEET_HEIGHT = Dimensions.get('window').height * 0.85;
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Material, Currency } from '../../domain/types';
 import { colors, space, radius, type } from '../theme/tokens';
@@ -174,8 +176,8 @@ export function MaterialPicker({ visible, materials, currency, onAdd, onClose }:
 const styles = StyleSheet.create({
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   scrimTap: { flex: 1 },
-  kavWrapper: { width: '100%', maxHeight: '85%' },
-  sheet: { backgroundColor: colors.ground, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: space.lg, paddingTop: space.sm, flexDirection: 'column' },
+  kavWrapper: { width: '100%' },
+  sheet: { height: SHEET_HEIGHT, backgroundColor: colors.ground, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: space.lg, paddingTop: space.sm },
   grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.hairline, marginBottom: space.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.md },
   title: { fontSize: 20, fontWeight: '800', color: colors.textPrimary },
@@ -183,7 +185,7 @@ const styles = StyleSheet.create({
   toast: { backgroundColor: colors.catTesting, borderRadius: radius.tile, paddingVertical: space.sm, paddingHorizontal: space.md, marginBottom: space.sm },
   toastText: { color: colors.accentInk, fontWeight: '700', fontSize: 13 },
   search: { backgroundColor: colors.surface, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.md, color: colors.textPrimary, fontSize: 16, marginBottom: space.sm },
-  list: { flexGrow: 0 },
+  list: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: space.md, borderBottomWidth: 1, borderBottomColor: colors.hairline },
   rowActive: { backgroundColor: colors.surface, borderRadius: radius.tile, paddingHorizontal: space.md, borderBottomWidth: 0 },
   rowDesc: { fontSize: 15, fontWeight: '600', color: colors.textPrimary },
