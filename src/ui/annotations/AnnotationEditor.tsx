@@ -6,12 +6,13 @@
  * Pan gesture for real-time drawing. Strokes are saved as SVG path strings
  * via annotation-service.
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet, Modal, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedProps, runOnJS } from 'react-native-reanimated';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { saveAnnotations, type AnnotationStroke } from '@/src/media/annotation-service';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 
@@ -43,6 +44,17 @@ export function AnnotationEditor({ visible, photoUri, photoId, initialStrokes, o
   const [widthIdx, setWidthIdx] = useState(1);
   const [saving, setSaving] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
+
+  useEffect(() => {
+    if (visible) {
+      ScreenOrientation.unlockAsync().catch(() => {});
+    } else {
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+    }
+    return () => {
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+    };
+  }, [visible]);
 
   // Shared values for the in-progress stroke (UI thread)
   const currentPath = useSharedValue('');
