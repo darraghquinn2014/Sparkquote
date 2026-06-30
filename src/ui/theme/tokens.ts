@@ -15,20 +15,21 @@
  */
 
 export const colors = {
-  ground: '#14181F', // deep slate, primary background
-  surface: '#1E242E', // raised cards / tiles
-  surfacePressed: '#2A323F', // tile while pressed
-  hairline: '#2E3744', // dividers, 1px
-  textPrimary: '#F2F5F8',
-  textSecondary: '#9AA7B4',
-  textMuted: '#5E6B79',
-  accent: '#FFB020', // "live wire" amber — totals & active state ONLY
-  accentInk: '#14181F', // text on accent
-  // muted category hues — informational, never louder than the accent
-  catPower: '#5B8DEF',
-  catLighting: '#E0B341',
-  catDistribution: '#C56BD6',
-  catTesting: '#4FB286',
+  ground: '#07101E', // deep navy, primary background
+  surface: '#0C1928', // raised cards / tiles
+  surfacePressed: '#142035', // tile while pressed
+  hairline: '#1A3060', // dividers, blue-tinted
+  textPrimary: '#E8F1FF',
+  textSecondary: '#6B8DAE',
+  textMuted: '#334D6E',
+  accent: '#1B8FFF', // electric blue — totals & active state
+  accentSecondary: '#00C8FF', // cyan — badges & highlights
+  accentInk: '#FFFFFF', // text on accent buttons
+  // category hues
+  catPower: '#2B6EE8',
+  catLighting: '#F0B730',
+  catDistribution: '#9B5DE5',
+  catTesting: '#06D6A0',
   danger: '#E5564B',
 } as const;
 

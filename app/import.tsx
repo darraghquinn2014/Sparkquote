@@ -78,7 +78,7 @@ export default function ImportRoute() {
           value={supplierName}
           onChangeText={setSupplierName}
           placeholder="Supplier name"
-          placeholderTextColor="#5E6B79"
+          placeholderTextColor="#334D6E"
           style={styles.supplierInput}
           autoFocus
           returnKeyType="done"
@@ -101,7 +101,7 @@ export default function ImportRoute() {
   const catalogueId = supplierName.trim().toLowerCase().replace(/\s+/g, '-');
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#14181F' }} edges={['top', 'bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#07101E' }} edges={['top', 'bottom']}>
       <ColumnMappingScreen
         sheet={sheet}
         catalogueId={catalogueId}
@@ -140,7 +140,7 @@ export default function ImportRoute() {
       />
       {busy && (
         <View style={styles.overlay}>
-          <ActivityIndicator color="#FFB020" />
+          <ActivityIndicator color="#1B8FFF" />
           <Text style={styles.overlayText}>Importing…</Text>
         </View>
       )}
@@ -149,15 +149,15 @@ export default function ImportRoute() {
 }
 
 const styles = StyleSheet.create({
-  pickScreen: { flex: 1, backgroundColor: '#14181F', padding: 24, gap: 16, justifyContent: 'center' },
-  title: { fontSize: 24, fontWeight: '800', color: '#F2F5F8' },
-  sub: { fontSize: 15, color: '#9AA7B4', lineHeight: 22 },
-  pickBtn: { backgroundColor: '#FFB020', paddingVertical: 16, borderRadius: 14, alignItems: 'center', marginTop: 8 },
+  pickScreen: { flex: 1, backgroundColor: '#07101E', padding: 24, gap: 16, justifyContent: 'center' },
+  title: { fontSize: 24, fontWeight: '800', color: '#E8F1FF' },
+  sub: { fontSize: 15, color: '#6B8DAE', lineHeight: 22 },
+  pickBtn: { backgroundColor: '#1B8FFF', paddingVertical: 16, borderRadius: 14, alignItems: 'center', marginTop: 8 },
   pickBtnDisabled: { opacity: 0.4 },
-  pickText: { fontSize: 16, fontWeight: '800', color: '#1A1205' },
+  pickText: { fontSize: 16, fontWeight: '800', color: '#FFFFFF' },
   cancelBtn: { paddingVertical: 14, alignItems: 'center' },
-  cancelText: { fontSize: 15, color: '#9AA7B4', fontWeight: '600' },
-  supplierInput: { backgroundColor: '#1E242E', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, color: '#F2F5F8', fontSize: 18, fontWeight: '600' },
-  overlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.4)' },
-  overlayText: { color: '#FFB020', marginTop: 12, fontWeight: '700' },
+  cancelText: { fontSize: 15, color: '#6B8DAE', fontWeight: '600' },
+  supplierInput: { backgroundColor: '#0C1928', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, color: '#E8F1FF', fontSize: 18, fontWeight: '600', borderWidth: 1, borderColor: '#1A3060' },
+  overlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.6)' },
+  overlayText: { color: '#1B8FFF', marginTop: 12, fontWeight: '700' },
 });

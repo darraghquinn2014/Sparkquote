@@ -36,18 +36,18 @@ export default function HomeScreen() {
 
   if (error) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#14181F', padding: 24, justifyContent: 'center' }}>
-        <Text style={{ color: '#FF6B6B', fontWeight: '700', marginBottom: 8 }}>Database error</Text>
-        <Text style={{ color: '#9AA7B4' }}>{error}</Text>
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#07101E', padding: 24, justifyContent: 'center' }}>
+        <Text style={{ color: '#E5564B', fontWeight: '700', marginBottom: 8 }}>Database error</Text>
+        <Text style={{ color: '#6B8DAE' }}>{error}</Text>
       </SafeAreaView>
     );
   }
 
   if (!cat) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#14181F', alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color="#FFB020" />
-        <Text style={{ color: '#9AA7B4', marginTop: 12 }}>Loading…</Text>
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#07101E', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator color="#1B8FFF" />
+        <Text style={{ color: '#6B8DAE', marginTop: 12 }}>Loading…</Text>
       </SafeAreaView>
     );
   }

@@ -109,8 +109,8 @@ export default function ReviewRoute() {
           <Switch
             value={estimate.showLaborBreakdown ?? true}
             onValueChange={setShowLaborBreakdown}
-            trackColor={{ true: '#FFB020', false: '#2E3744' }}
-            thumbColor='#F2F5F8'
+            trackColor={{ true: '#1B8FFF', false: '#1A3060' }}
+            thumbColor='#E8F1FF'
           />
         </View>
       )}
@@ -124,11 +124,11 @@ export default function ReviewRoute() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#14181F' },
-  empty: { flex: 1, backgroundColor: '#14181F', alignItems: 'center', justifyContent: 'center', padding: 32 },
-  emptyText: { color: '#9AA7B4', fontSize: 16, textAlign: 'center' },
+  screen: { flex: 1, backgroundColor: '#07101E' },
+  empty: { flex: 1, backgroundColor: '#07101E', alignItems: 'center', justifyContent: 'center', padding: 32 },
+  emptyText: { color: '#6B8DAE', fontSize: 16, textAlign: 'center' },
   busy: { position: 'absolute', bottom: 24, left: 0, right: 0, alignItems: 'center' },
-  busyText: { color: '#FFB020', fontWeight: '700' },
+  busyText: { color: '#1B8FFF', fontWeight: '700' },
   printBtn: {
     alignSelf: 'flex-end',
     marginHorizontal: 16,
@@ -137,10 +137,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#2E3744',
+    borderColor: '#1A3060',
   },
-  printBtnText: { color: '#9AA7B4', fontSize: 13, fontWeight: '600' },
-  toggleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, backgroundColor: '#1E242E', marginHorizontal: 16, marginTop: 12, borderRadius: 14 },
-  toggleLabel: { color: '#F2F5F8', fontSize: 15, fontWeight: '600' },
-  toggleHint: { color: '#5E6B79', fontSize: 12, marginTop: 2 },
+  printBtnText: { color: '#6B8DAE', fontSize: 13, fontWeight: '600' },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, backgroundColor: '#0C1928', marginHorizontal: 16, marginTop: 12, borderRadius: 14, borderWidth: 1, borderColor: '#1A3060' },
+  toggleLabel: { color: '#E8F1FF', fontSize: 15, fontWeight: '600' },
+  toggleHint: { color: '#334D6E', fontSize: 12, marginTop: 2 },
 });

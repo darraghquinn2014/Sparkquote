@@ -87,6 +87,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.tile,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.hairline,
   },
   tilePressed: {
     backgroundColor: colors.surfacePressed,
@@ -142,7 +144,7 @@ const styles = StyleSheet.create({
     height: 24,
     paddingHorizontal: 6,
     borderRadius: radius.pill,
-    backgroundColor: colors.accent,
+    backgroundColor: colors.accentSecondary,
     alignItems: 'center',
     justifyContent: 'center',
   },

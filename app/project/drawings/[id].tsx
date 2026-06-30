@@ -1,23 +1,60 @@
 import React, { useCallback, useState } from 'react';
 import {
-  View, Text, Pressable, FlatList, StyleSheet, Alert, Modal, ActivityIndicator,
+  View, Text, Pressable, FlatList, StyleSheet, Alert, Modal, ActivityIndicator, Dimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
-import { WebView } from 'react-native-webview';
+import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { importDrawing, loadDrawings, deleteDrawing, type Drawing } from '@/src/media/drawing-service';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 
-export default function DrawingsScreen() {
+const isImage = (d: Drawing) => d.mimeType.startsWith('image/');
+
+const typeLabel = (mimeType: string) => {
+  if (mimeType === 'application/pdf') return 'PDF';
+  if (mimeType.startsWith('image/')) return 'IMG';
+  if (mimeType.includes('word') || mimeType.includes('document')) return 'DOC';
+  if (mimeType.includes('sheet') || mimeType.includes('excel') || mimeType.includes('csv')) return 'XLS';
+  return 'FILE';
+};
+
+const formatDate = (ts: number) =>
+  new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+export default function DocumentsScreen() {
   const router = useRouter();
   const { id: projectId } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const [drawings, setDrawings] = useState<Drawing[]>([]);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
-  const [viewing, setViewing] = useState<Drawing | null>(null);
+  const [viewingImage, setViewingImage] = useState<Drawing | null>(null);
+
+  // Pinch-to-zoom shared values
+  const scale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+
+  const pinchGesture = Gesture.Pinch()
+    .onStart(() => { savedScale.value = scale.value; })
+    .onUpdate((e) => { scale.value = Math.max(1, Math.min(5, savedScale.value * e.scale)); });
+
+  const doubleTap = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => { scale.value = withSpring(1); });
+
+  const zoomGesture = Gesture.Simultaneous(pinchGesture, doubleTap);
+
+  const imageAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const closeViewer = () => {
+    scale.value = 1;
+    setViewingImage(null);
+  };
 
   const reload = useCallback(async () => {
     if (!projectId) return;
@@ -31,7 +68,7 @@ export default function DrawingsScreen() {
     try {
       setImporting(true);
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf', 'image/*'],
+        type: ['*/*'],
         copyToCacheDirectory: true,
         multiple: true,
       });
@@ -41,7 +78,7 @@ export default function DrawingsScreen() {
           projectId!,
           asset.uri,
           asset.mimeType ?? 'application/octet-stream',
-          asset.name ?? 'Drawing',
+          asset.name ?? 'Document',
         );
       }
       reload();
@@ -52,21 +89,20 @@ export default function DrawingsScreen() {
     }
   };
 
-  const confirmDelete = (drawing: Drawing) => {
-    Alert.alert('Delete drawing?', `"${drawing.originalName}" will be removed.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive',
-        onPress: async () => { await deleteDrawing(drawing); reload(); },
-      },
-    ]);
+  const handleOpen = (item: Drawing) => {
+    if (isImage(item)) {
+      setViewingImage(item);
+    } else {
+      Sharing.shareAsync(item.filePath, { mimeType: item.mimeType, dialogTitle: item.originalName });
+    }
   };
 
-  const typeLabel = (mimeType: string) => mimeType === 'application/pdf' ? 'PDF' : 'IMG';
-  const isPdf = (d: Drawing) => d.mimeType === 'application/pdf';
-
-  const formatDate = (ts: number) =>
-    new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const confirmDelete = (drawing: Drawing) => {
+    Alert.alert('Delete document?', `"${drawing.originalName}" will be removed.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => { await deleteDrawing(drawing); reload(); } },
+    ]);
+  };
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -74,13 +110,13 @@ export default function DrawingsScreen() {
         <Pressable onPress={() => router.back()} hitSlop={12}>
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
-        <Text style={styles.title}>Drawings</Text>
+        <Text style={styles.title}>Documents</Text>
         <Pressable
           style={[styles.importBtn, importing && styles.importBtnBusy]}
           onPress={handleImport}
           disabled={importing}
         >
-          <Text style={styles.importBtnText}>{importing ? 'Importing…' : '+ Import'}</Text>
+          <Text style={styles.importBtnText}>{importing ? 'Importing…' : '+ Add'}</Text>
         </Pressable>
       </View>
 
@@ -93,62 +129,57 @@ export default function DrawingsScreen() {
           contentContainerStyle={{ padding: space.lg }}
           ListEmptyComponent={
             <Text style={styles.empty}>
-              No drawings yet.{'\n'}Tap + Import to add PDFs or images from the architect.
+              No documents yet.{'\n'}Tap + Add to import drawings, PDFs, photos or any project file.
             </Text>
           }
           renderItem={({ item }) => (
             <Pressable
               style={styles.row}
-              onPress={() => setViewing(item)}
+              onPress={() => handleOpen(item)}
               onLongPress={() => confirmDelete(item)}
             >
-              <View style={[styles.typeTag, isPdf(item) && styles.typeTagPdf]}>
+              <View style={[styles.typeTag, item.mimeType === 'application/pdf' && styles.typeTagPdf, isImage(item) && styles.typeTagImg]}>
                 <Text style={styles.typeText}>{typeLabel(item.mimeType)}</Text>
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.name} numberOfLines={2}>{item.originalName}</Text>
                 <Text style={styles.date}>{formatDate(item.importedAt)}</Text>
               </View>
-              <Pressable onPress={() => confirmDelete(item)} hitSlop={12} style={styles.deleteBtn}>
-                <Text style={styles.deleteText}>✕</Text>
-              </Pressable>
+              <Text style={styles.openHint}>{isImage(item) ? '›' : '↗'}</Text>
             </Pressable>
           )}
         />
       )}
 
-      {viewing && (
-        <Modal visible animationType="slide" onRequestClose={() => setViewing(null)}>
-          <View style={[styles.viewerScreen, { paddingTop: insets.top }]}>
+      {/* Image viewer modal — pinch to zoom, double-tap to reset */}
+      {viewingImage && (
+        <Modal visible animationType="fade" onRequestClose={closeViewer}>
+          <GestureHandlerRootView style={{ flex: 1 }}>
+          <View style={[styles.imageViewer, { paddingTop: insets.top }]}>
             <View style={styles.viewerToolbar}>
-              <Pressable onPress={() => setViewing(null)} style={styles.doneBtn}>
+              <Pressable onPress={closeViewer} style={styles.doneBtn}>
                 <Text style={styles.doneBtnText}>Done</Text>
               </Pressable>
-              <Text style={styles.viewerTitle} numberOfLines={1}>{viewing.originalName}</Text>
-              {isPdf(viewing) && (
-                <Pressable
-                  style={styles.openBtn}
-                  onPress={() => Sharing.shareAsync(viewing.filePath, { mimeType: viewing.mimeType, dialogTitle: viewing.originalName })}
-                >
-                  <Text style={styles.openBtnText}>Open in…</Text>
-                </Pressable>
-              )}
-              {!isPdf(viewing) && <View style={{ width: 72 }} />}
+              <Text style={styles.viewerTitle} numberOfLines={1}>{viewingImage.originalName}</Text>
+              <Pressable
+                style={styles.shareBtn}
+                onPress={() => Sharing.shareAsync(viewingImage.filePath, { mimeType: viewingImage.mimeType })}
+              >
+                <Text style={styles.shareBtnText}>Share</Text>
+              </Pressable>
             </View>
-            <WebView
-              source={{ uri: viewing.filePath }}
-              style={styles.webview}
-              scalesPageToFit={!isPdf(viewing)}
-              startInLoadingState
-              renderLoading={() => <ActivityIndicator color={colors.accent} style={{ flex: 1 }} />}
-              onError={() => {
-                if (isPdf(viewing)) {
-                  Sharing.shareAsync(viewing.filePath, { mimeType: viewing.mimeType, dialogTitle: viewing.originalName });
-                  setViewing(null);
-                }
-              }}
-            />
+            <View style={styles.imageContainer}>
+              <GestureDetector gesture={zoomGesture}>
+                <Animated.Image
+                  source={{ uri: viewingImage.filePath }}
+                  style={[styles.fullImage, imageAnimStyle]}
+                  resizeMode="contain"
+                />
+              </GestureDetector>
+              <Text style={styles.zoomHint}>Pinch to zoom  •  Double-tap to reset</Text>
+            </View>
           </View>
+          </GestureHandlerRootView>
         </Modal>
       )}
     </SafeAreaView>
@@ -171,16 +202,19 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row', alignItems: 'center', gap: space.md,
     backgroundColor: colors.surface, borderRadius: radius.tile,
+    borderWidth: 1, borderColor: colors.hairline,
     padding: space.md, marginBottom: space.sm,
   },
-  typeTag: { backgroundColor: colors.ground, borderRadius: 6, paddingHorizontal: space.sm, paddingVertical: 4, minWidth: 36, alignItems: 'center' },
-  typeTagPdf: { backgroundColor: '#3B1F0A' },
+  typeTag: { backgroundColor: colors.ground, borderRadius: 6, paddingHorizontal: space.sm, paddingVertical: 4, minWidth: 40, alignItems: 'center' },
+  typeTagPdf: { backgroundColor: '#1A0A00' },
+  typeTagImg: { backgroundColor: '#001A2E' },
   typeText: { color: colors.accent, fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
   name: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
   date: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
-  deleteBtn: { padding: space.xs },
-  deleteText: { color: colors.textMuted, fontSize: 16 },
-  viewerScreen: { flex: 1, backgroundColor: '#000' },
+  openHint: { color: colors.textSecondary, fontSize: 18 },
+  imageViewer: { flex: 1, backgroundColor: '#000' },
+  imageContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  zoomHint: { position: 'absolute', bottom: 24, color: 'rgba(255,255,255,0.35)', fontSize: 12, fontWeight: '500' },
   viewerToolbar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: space.md, paddingVertical: space.sm,
@@ -189,7 +223,7 @@ const styles = StyleSheet.create({
   doneBtn: { backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.sm, minWidth: 64, alignItems: 'center' },
   doneBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 14 },
   viewerTitle: { flex: 1, color: colors.textPrimary, fontSize: 14, fontWeight: '600', textAlign: 'center', marginHorizontal: space.sm },
-  openBtn: { backgroundColor: colors.surface, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.hairline, minWidth: 72, alignItems: 'center' },
-  openBtnText: { color: colors.textSecondary, fontWeight: '700', fontSize: 13 },
-  webview: { flex: 1 },
+  shareBtn: { borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.hairline, minWidth: 64, alignItems: 'center' },
+  shareBtnText: { color: colors.textSecondary, fontWeight: '700', fontSize: 13 },
+  fullImage: { width: Dimensions.get('window').width, height: Dimensions.get('window').height - 60 },
 });

@@ -194,6 +194,31 @@ export default function ProjectDetailScreen() {
     ]);
   };
 
+  const openOverflow = () => {
+    if (!project) return;
+    Alert.alert(project.name, undefined, [
+      { text: 'Documents', onPress: () => router.push(`/project/drawings/${id}` as any) },
+      { text: 'Delete project', style: 'destructive', onPress: confirmDeleteProject },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const longPressFloor = (floor: Location) => {
+    Alert.alert(floor.name, undefined, [
+      { text: 'Rename', onPress: () => startEdit(floor.id, floor.name) },
+      { text: 'Delete floor', style: 'destructive', onPress: () => confirmDeleteLocation(floor) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const longPressRoom = (room: Location) => {
+    Alert.alert(room.name, undefined, [
+      { text: 'Rename', onPress: () => startEdit(room.id, room.name) },
+      { text: 'Delete room', style: 'destructive', onPress: () => confirmDeleteLocation(room) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
   if (loading) {
     return <SafeAreaView style={styles.screen}><ActivityIndicator color={colors.accent} style={{ marginTop: space.xxl }} /></SafeAreaView>;
   }
@@ -211,17 +236,16 @@ export default function ProjectDetailScreen() {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12}><Text style={styles.back}>‹ Back</Text></Pressable>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
           <Pressable style={styles.quoteBtn} onPress={() => router.push(`/project/quote/${id}` as any)} hitSlop={8}>
             <Text style={styles.quoteBtnText}>Quote</Text>
           </Pressable>
-          <Pressable style={styles.drawingsBtn} onPress={() => router.push(`/project/drawings/${id}` as any)} hitSlop={8}>
-            <Text style={styles.drawingsBtnText}>Drawings</Text>
+          <Pressable style={styles.reportBtn} onPress={generateReport} disabled={reportBusy} hitSlop={8}>
+            <Text style={styles.reportBtnText}>{reportBusy ? '…' : 'Report'}</Text>
           </Pressable>
-          <Pressable style={styles.reportBtn} onPress={generateReport} hitSlop={8}>
-            <Text style={styles.reportBtnText}>Report</Text>
+          <Pressable onPress={openOverflow} hitSlop={12}>
+            <Text style={styles.moreBtn}>•••</Text>
           </Pressable>
-          <Pressable onPress={confirmDeleteProject} hitSlop={12}><Text style={{ color: colors.danger, fontWeight: '700' }}>Delete</Text></Pressable>
         </View>
       </View>
 
@@ -268,7 +292,7 @@ export default function ProjectDetailScreen() {
 
         {floors.map((floor) => (
           <View key={floor.id} style={styles.floorBlock}>
-            <View style={styles.floorRow}>
+            <Pressable onLongPress={() => longPressFloor(floor)} style={styles.floorRow}>
               {editingId === floor.id ? (
                 <>
                   <TextInput value={editName} onChangeText={setEditName} style={[styles.editInput, { flex: 1 }]} autoFocus onSubmitEditing={() => commitEditLocation(floor.id)} />
@@ -282,16 +306,20 @@ export default function ProjectDetailScreen() {
                       <Text style={styles.floorTotalText}>{formatMoney(floorTotal(floor.id), 'GBP')}</Text>
                     )}
                   </View>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
-                    <Pressable onPress={() => startEdit(floor.id, floor.name)} hitSlop={8}><Text style={styles.editBtn}>Edit</Text></Pressable>
-                    <Pressable onPress={() => confirmDeleteLocation(floor)} hitSlop={8}><Text style={{ color: colors.textMuted, fontSize: 13 }}>Delete</Text></Pressable>
-                  </View>
+                  <Pressable onPress={() => startEdit(floor.id, floor.name)} hitSlop={8}>
+                    <Text style={styles.editBtn}>Edit</Text>
+                  </Pressable>
                 </>
               )}
-            </View>
+            </Pressable>
 
             {roomsOf(floor.id).map((room) => (
-              <View key={room.id} style={styles.roomRow}>
+              <Pressable
+                key={room.id}
+                style={styles.roomRow}
+                onPress={() => router.push(`/project/room/${room.id}` as any)}
+                onLongPress={() => longPressRoom(room)}
+              >
                 {editingId === room.id ? (
                   <>
                     <TextInput value={editName} onChangeText={setEditName} style={[styles.editInput, { flex: 1 }]} autoFocus onSubmitEditing={() => commitEditLocation(room.id)} />
@@ -299,20 +327,16 @@ export default function ProjectDetailScreen() {
                   </>
                 ) : (
                   <>
-                    <Pressable style={{ flex: 1 }} onPress={() => router.push(`/project/room/${room.id}` as any)}>
+                    <View style={{ flex: 1 }}>
                       <Text style={styles.roomName}>{room.name}</Text>
                       {(roomTotals.get(room.id) ?? 0) > 0 && (
                         <Text style={styles.roomTotalText}>{formatMoney(roomTotals.get(room.id)!, 'GBP')}</Text>
                       )}
-                    </Pressable>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
-                      <Pressable onPress={() => startEdit(room.id, room.name)} hitSlop={8}><Text style={styles.editBtn}>Edit</Text></Pressable>
-                      <Pressable onPress={() => confirmDeleteLocation(room)} hitSlop={8}><Text style={{ color: colors.textMuted, fontSize: 13 }}>Delete</Text></Pressable>
-                      <Text style={{ color: colors.textMuted }}>›</Text>
                     </View>
+                    <Text style={styles.roomChevron}>›</Text>
                   </>
                 )}
-              </View>
+              </Pressable>
             ))}
 
             {addingTo === floor.id ? (
@@ -350,15 +374,14 @@ export default function ProjectDetailScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ground },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.lg, paddingVertical: space.md },
+  back: { color: colors.textSecondary, fontSize: 16, fontWeight: '600' },
   quoteBtn: { backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.sm },
   quoteBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 13 },
-  drawingsBtn: { backgroundColor: colors.surface, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.hairline },
-  drawingsBtnText: { color: colors.textSecondary, fontWeight: '700', fontSize: 13 },
   reportBtn: { borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.hairline },
   reportBtnText: { color: colors.textSecondary, fontWeight: '700', fontSize: 13 },
-  busyOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(20,24,31,0.82)', alignItems: 'center', justifyContent: 'center', gap: space.md },
+  moreBtn: { color: colors.textSecondary, fontSize: 20, fontWeight: '700', letterSpacing: 2 },
+  busyOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(7,16,30,0.88)', alignItems: 'center', justifyContent: 'center', gap: space.md },
   busyText: { color: colors.accent, fontWeight: '700', fontSize: 15 },
-  back: { color: colors.textSecondary, fontSize: 16, fontWeight: '600' },
   nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   editBtn: { color: colors.accent, fontWeight: '700', fontSize: 13 },
   editRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
@@ -370,13 +393,14 @@ const styles = StyleSheet.create({
   addFloorBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: space.md, paddingVertical: space.sm, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.hairline },
   addFloorText: { color: colors.accent, fontWeight: '700', fontSize: 13 },
   noFloors: { color: colors.textMuted, fontSize: 14, fontStyle: 'italic', marginTop: space.sm },
-  floorBlock: { backgroundColor: colors.surface, borderRadius: radius.tile, padding: space.md, marginBottom: space.md },
+  floorBlock: { backgroundColor: colors.surface, borderRadius: radius.tile, borderWidth: 1, borderColor: colors.hairline, padding: space.md, marginBottom: space.md },
   floorRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.sm },
   floorName: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
   floorTotalText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'], marginTop: 1 },
   roomRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.ground, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.md, marginBottom: space.xs },
   roomName: { color: colors.textPrimary, fontSize: 15 },
   roomTotalText: { color: colors.accent, fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'], marginTop: 1 },
+  roomChevron: { color: colors.textMuted, fontSize: 20 },
   addRoomBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: space.sm, marginTop: space.xs },
   addRoomText: { color: colors.textSecondary, fontWeight: '600', fontSize: 13 },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.sm, marginBottom: space.sm },

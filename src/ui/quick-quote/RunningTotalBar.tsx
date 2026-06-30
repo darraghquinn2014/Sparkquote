@@ -73,8 +73,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.lg,
     backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.hairline,
+    borderTopWidth: 2,
+    borderTopColor: colors.accent,
     paddingHorizontal: space.lg,
     paddingTop: space.md,
     paddingBottom: space.xl, // safe-area cushion

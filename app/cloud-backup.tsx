@@ -52,7 +52,7 @@ export default function CloudBackupRoute() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#14181F' }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#07101E' }} edges={['top']}>
       <CloudBackupScreen
         exporting={exporting}
         restoring={restoring}
