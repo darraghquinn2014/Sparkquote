@@ -16,7 +16,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedProps, runOnJS } from 'react-native-reanimated';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
-import * as ScreenOrientation from 'expo-screen-orientation';
 import { saveAnnotations, type AnnotationStroke, type PlacedSymbol, type SymbolType } from '@/src/media/annotation-service';
 import { PlacedSymbolGroup, SYMBOL_TYPES, SYMBOL_LABELS } from './symbols';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
@@ -75,17 +74,8 @@ export function AnnotationEditor({
   const svColor = useSharedValue(COLORS[0].hex);
   const svWidth = useSharedValue(WIDTHS[1]);
 
-  // Unlock orientation when editor opens; restore portrait on close/unmount
-  useEffect(() => {
-    if (visible) {
-      ScreenOrientation.unlockAsync().catch(() => {});
-    } else {
-      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
-    }
-    return () => {
-      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
-    };
-  }, [visible]);
+  // Orientation unlock lives in the standalone/preview build (expo-screen-orientation
+  // native module). No-op here so the dev client doesn't crash.
 
   // Reset history when initial data changes (new photo opened)
   useEffect(() => {
