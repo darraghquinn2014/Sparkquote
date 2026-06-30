@@ -12,16 +12,19 @@ import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Image } from 'expo-image';
 import * as FileSystem from 'expo-file-system/legacy';
+import Svg, { Path } from 'react-native-svg';
 import type { Location } from '@/src/domain/types';
 import type { Photo } from '@/src/media/media-types';
 import { loadLocation } from '@/src/data/project-repo';
 import { photosForLocation, addLocationPhoto, deleteLocationPhoto, updatePhotoCaption } from '@/src/data/photo-repo';
 import { saveCapture, deletePhoto } from '@/src/media/camera-service';
+import { loadAnnotations, hasAnnotations, deleteAnnotations, type AnnotationStroke } from '@/src/media/annotation-service';
+import { AnnotationEditor } from '@/src/ui/annotations/AnnotationEditor';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import * as Sharing from 'expo-sharing';
 
 const COLS = 3;
-const SCREEN_W = Dimensions.get('window').width;
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const THUMB = (SCREEN_W - space.lg * 2 - space.xs * (COLS - 1)) / COLS;
 
 const mediaPaths = {
@@ -46,6 +49,9 @@ export default function RoomScreen() {
 
   const [permission, requestPermission] = useCameraPermissions();
   const [lightboxPhoto, setLightboxPhoto] = useState<Photo | null>(null);
+  const [lightboxStrokes, setLightboxStrokes] = useState<AnnotationStroke[]>([]);
+  const [annotatedIds, setAnnotatedIds] = useState<Set<string>>(new Set());
+  const [annotatorOpen, setAnnotatorOpen] = useState(false);
 
   const [captionModalOpen, setCaptionModalOpen] = useState(false);
   const [captionText, setCaptionText] = useState('');
@@ -55,7 +61,12 @@ export default function RoomScreen() {
     if (!id) return;
     const loc = await loadLocation(id);
     setLocation(loc);
-    setPhotos(await photosForLocation(id));
+    const ps = await photosForLocation(id);
+    setPhotos(ps);
+    // Check which photos have saved annotations
+    const ids = new Set<string>();
+    await Promise.all(ps.map(async (p) => { if (await hasAnnotations(p.id)) ids.add(p.id); }));
+    setAnnotatedIds(ids);
     setLoading(false);
   }, [id]);
 
@@ -120,6 +131,12 @@ export default function RoomScreen() {
     setCameraState('live');
   };
 
+  const openLightbox = async (photo: Photo) => {
+    const strokes = await loadAnnotations(photo.id);
+    setLightboxStrokes(strokes);
+    setLightboxPhoto(photo);
+  };
+
   const openCaptionEdit = () => {
     if (!lightboxPhoto) return;
     setCaptionText(lightboxPhoto.caption ?? '');
@@ -164,6 +181,7 @@ export default function RoomScreen() {
           onPress: async () => {
             await deleteLocationPhoto(photo.id);
             await deletePhoto(photo);
+            await deleteAnnotations(photo.id);
             reload();
           },
         },
@@ -219,7 +237,7 @@ export default function RoomScreen() {
               <Pressable
                 key={photo.id}
                 style={styles.thumb}
-                onPress={() => setLightboxPhoto(photo)}
+                onPress={() => openLightbox(photo)}
                 onLongPress={() => confirmDelete(photo)}
                 delayLongPress={400}
               >
@@ -234,6 +252,11 @@ export default function RoomScreen() {
                     <Text style={styles.thumbCaptionText} numberOfLines={1}>{photo.caption}</Text>
                   </View>
                 ) : null}
+                {annotatedIds.has(photo.id) && (
+                  <View style={styles.annotationBadge}>
+                    <Text style={styles.annotationBadgeText}>✏</Text>
+                  </View>
+                )}
               </Pressable>
             ))}
           </View>
@@ -259,6 +282,14 @@ export default function RoomScreen() {
               contentFit="contain"
             />
           )}
+          {/* Annotation overlay */}
+          {lightboxStrokes.length > 0 && (
+            <Svg width={SCREEN_W} height={SCREEN_H} style={StyleSheet.absoluteFillObject} pointerEvents="none">
+              {lightboxStrokes.map((s, i) => (
+                <Path key={i} d={s.path} stroke={s.color} strokeWidth={s.width} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              ))}
+            </Svg>
+          )}
           <SafeAreaView style={styles.lightboxClose} edges={['top']}>
             <Pressable onPress={() => setLightboxPhoto(null)} hitSlop={16}>
               <Text style={styles.lightboxCloseText}>✕</Text>
@@ -282,6 +313,9 @@ export default function RoomScreen() {
                     <Pressable onPress={() => sharePhoto(lightboxPhoto)} hitSlop={8}>
                       <Text style={styles.lightboxShareBtn}>Share</Text>
                     </Pressable>
+                    <Pressable onPress={() => setAnnotatorOpen(true)} hitSlop={8}>
+                      <Text style={styles.lightboxAnnotateBtn}>Annotate</Text>
+                    </Pressable>
                     <Pressable onPress={openCaptionEdit} hitSlop={8}>
                       <Text style={styles.lightboxEditBtn}>Edit</Text>
                     </Pressable>
@@ -292,6 +326,27 @@ export default function RoomScreen() {
           )}
         </Pressable>
       </Modal>
+
+      {/* Annotation editor */}
+      {lightboxPhoto && (
+        <AnnotationEditor
+          visible={annotatorOpen}
+          photoUri={lightboxPhoto.filePath}
+          photoId={lightboxPhoto.id}
+          initialStrokes={lightboxStrokes}
+          onClose={() => setAnnotatorOpen(false)}
+          onSaved={(strokes) => {
+            setLightboxStrokes(strokes);
+            setAnnotatedIds((prev) => {
+              const next = new Set(prev);
+              if (strokes.length > 0) next.add(lightboxPhoto.id);
+              else next.delete(lightboxPhoto.id);
+              return next;
+            });
+            setAnnotatorOpen(false);
+          }}
+        />
+      )}
 
       {/* Caption / note edit sheet */}
       <Modal
@@ -468,7 +523,14 @@ const styles = StyleSheet.create({
   lightboxNote: { color: 'rgba(255,255,255,0.65)', fontSize: 13, marginTop: 2 },
   lightboxActions: { flexDirection: 'row', gap: space.md, alignItems: 'center' },
   lightboxShareBtn: { color: colors.textSecondary, fontSize: 14, fontWeight: '600' },
+  lightboxAnnotateBtn: { color: '#06D6A0', fontSize: 14, fontWeight: '700' },
   lightboxEditBtn: { color: colors.accent, fontSize: 14, fontWeight: '700' },
+  annotationBadge: {
+    position: 'absolute', top: 4, right: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 8,
+    paddingHorizontal: 4, paddingVertical: 1,
+  },
+  annotationBadgeText: { color: '#06D6A0', fontSize: 10 },
 
   // Caption edit sheet
   captionOverlay: { flex: 1, justifyContent: 'flex-end' },
