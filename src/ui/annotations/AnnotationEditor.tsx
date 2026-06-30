@@ -1,19 +1,24 @@
 /**
  * AnnotationEditor — full-screen photo markup tool.
  *
- * Draw cable routes, faults, and notes directly on a room photo.
- * Uses react-native-svg for path rendering and react-native-gesture-handler
- * Pan gesture for real-time drawing. Strokes are saved as SVG path strings
- * via annotation-service.
+ * Two modes:
+ *  • Draw — freehand cable routes / faults / notes (existing behaviour)
+ *  • Symbol — tap to stamp an electrical symbol (socket, switch, CU…)
+ *
+ * Strokes and symbols share a single undo history so ↩ always removes
+ * the last thing added regardless of type.
  */
 import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, Modal, Image } from 'react-native';
+import {
+  View, Text, Pressable, StyleSheet, Modal, Image, ScrollView,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedProps, runOnJS } from 'react-native-reanimated';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as ScreenOrientation from 'expo-screen-orientation';
-import { saveAnnotations, type AnnotationStroke } from '@/src/media/annotation-service';
+import { saveAnnotations, type AnnotationStroke, type PlacedSymbol, type SymbolType } from '@/src/media/annotation-service';
+import { PlacedSymbolGroup, SYMBOL_TYPES, SYMBOL_LABELS } from './symbols';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
@@ -28,23 +33,49 @@ const COLORS = [
 
 const WIDTHS = [2, 4, 7];
 
+type DrawMode = 'draw' | 'symbol';
+type HistoryItem =
+  | { kind: 'stroke'; data: AnnotationStroke }
+  | { kind: 'symbol'; data: PlacedSymbol };
+
 interface Props {
   visible: boolean;
   photoUri: string;
   photoId: string;
   initialStrokes: AnnotationStroke[];
+  initialSymbols: PlacedSymbol[];
   onClose: () => void;
-  onSaved: (strokes: AnnotationStroke[]) => void;
+  onSaved: (strokes: AnnotationStroke[], symbols: PlacedSymbol[]) => void;
 }
 
-export function AnnotationEditor({ visible, photoUri, photoId, initialStrokes, onClose, onSaved }: Props) {
+export function AnnotationEditor({
+  visible, photoUri, photoId,
+  initialStrokes, initialSymbols,
+  onClose, onSaved,
+}: Props) {
   const insets = useSafeAreaInsets();
-  const [strokes, setStrokes] = useState<AnnotationStroke[]>(initialStrokes);
+
+  // Unified undo history — strokes and symbols in insertion order
+  const [history, setHistory] = useState<HistoryItem[]>(() => [
+    ...initialStrokes.map(s => ({ kind: 'stroke' as const, data: s })),
+    ...initialSymbols.map(s => ({ kind: 'symbol' as const, data: s })),
+  ]);
+
+  const strokes = history.filter(h => h.kind === 'stroke').map(h => h.data as AnnotationStroke);
+  const symbols = history.filter(h => h.kind === 'symbol').map(h => h.data as PlacedSymbol);
+
+  const [drawMode, setDrawMode] = useState<DrawMode>('draw');
+  const [selectedSymbol, setSelectedSymbol] = useState<SymbolType>('socket');
   const [colorIdx, setColorIdx] = useState(0);
   const [widthIdx, setWidthIdx] = useState(1);
   const [saving, setSaving] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
 
+  const currentPath = useSharedValue('');
+  const svColor = useSharedValue(COLORS[0].hex);
+  const svWidth = useSharedValue(WIDTHS[1]);
+
+  // Unlock orientation when editor opens; restore portrait on close/unmount
   useEffect(() => {
     if (visible) {
       ScreenOrientation.unlockAsync().catch(() => {});
@@ -56,23 +87,36 @@ export function AnnotationEditor({ visible, photoUri, photoId, initialStrokes, o
     };
   }, [visible]);
 
-  // Shared values for the in-progress stroke (UI thread)
-  const currentPath = useSharedValue('');
-  const svColor = useSharedValue(COLORS[0].hex);
-  const svWidth = useSharedValue(WIDTHS[1]);
+  // Reset history when initial data changes (new photo opened)
+  useEffect(() => {
+    setHistory([
+      ...initialStrokes.map(s => ({ kind: 'stroke' as const, data: s })),
+      ...initialSymbols.map(s => ({ kind: 'symbol' as const, data: s })),
+    ]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photoId]);
 
   const commitStroke = (path: string, color: string, width: number) => {
     if (path.length < 4) return;
-    setStrokes((prev) => [...prev, { color, width, path }]);
+    setHistory(prev => [...prev, { kind: 'stroke', data: { color, width, path } }]);
+  };
+
+  const placeSymbol = (x: number, y: number) => {
+    const id = `sym_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    setHistory(prev => [
+      ...prev,
+      { kind: 'symbol', data: { id, type: selectedSymbol, x, y, color: COLORS[colorIdx].hex } },
+    ]);
   };
 
   const panGesture = Gesture.Pan()
+    .enabled(drawMode === 'draw')
     .minDistance(0)
     .onStart((e) => {
       currentPath.value = `M ${e.x.toFixed(1)} ${e.y.toFixed(1)}`;
     })
     .onUpdate((e) => {
-      currentPath.value = currentPath.value + ` L ${e.x.toFixed(1)} ${e.y.toFixed(1)}`;
+      currentPath.value = `${currentPath.value} L ${e.x.toFixed(1)} ${e.y.toFixed(1)}`;
     })
     .onEnd(() => {
       const path = currentPath.value;
@@ -82,9 +126,15 @@ export function AnnotationEditor({ visible, photoUri, photoId, initialStrokes, o
       currentPath.value = '';
     });
 
-  const animatedProps = useAnimatedProps(() => ({
-    d: currentPath.value,
-  }));
+  const tapGesture = Gesture.Tap()
+    .enabled(drawMode === 'symbol')
+    .onEnd((e) => {
+      runOnJS(placeSymbol)(e.x, e.y);
+    });
+
+  const gesture = Gesture.Exclusive(panGesture, tapGesture);
+
+  const animatedProps = useAnimatedProps(() => ({ d: currentPath.value }));
 
   const handleColorChange = (idx: number) => {
     setColorIdx(idx);
@@ -96,22 +146,24 @@ export function AnnotationEditor({ visible, photoUri, photoId, initialStrokes, o
     svWidth.value = WIDTHS[idx];
   };
 
-  const undo = () => setStrokes((prev) => prev.slice(0, -1));
-  const clear = () => setStrokes([]);
+  const undo = () => setHistory(prev => prev.slice(0, -1));
+  const clear = () => setHistory([]);
 
   const handleDone = async () => {
     setSaving(true);
     try {
-      await saveAnnotations(photoId, strokes);
-      onSaved(strokes);
+      await saveAnnotations(photoId, strokes, symbols);
+      onSaved(strokes, symbols);
     } finally {
       setSaving(false);
     }
   };
 
   const handleClose = () => {
-    // Reset to initial on cancel
-    setStrokes(initialStrokes);
+    setHistory([
+      ...initialStrokes.map(s => ({ kind: 'stroke' as const, data: s })),
+      ...initialSymbols.map(s => ({ kind: 'symbol' as const, data: s })),
+    ]);
     currentPath.value = '';
     onClose();
   };
@@ -126,12 +178,35 @@ export function AnnotationEditor({ visible, photoUri, photoId, initialStrokes, o
             <Pressable onPress={handleClose} hitSlop={12}>
               <Text style={styles.headerCancel}>Cancel</Text>
             </Pressable>
-            <View style={styles.headerRight}>
-              <Pressable onPress={undo} disabled={strokes.length === 0} hitSlop={12} style={styles.headerIconBtn}>
-                <Text style={[styles.headerIcon, strokes.length === 0 && styles.actionDisabled]}>↩</Text>
+
+            {/* Draw / Symbol mode toggle */}
+            <View style={styles.modeToggle}>
+              <Pressable
+                style={[styles.modeBtn, drawMode === 'draw' && styles.modeBtnActive]}
+                onPress={() => setDrawMode('draw')}
+                hitSlop={8}
+              >
+                <Text style={[styles.modeBtnText, drawMode === 'draw' && styles.modeBtnTextActive]}>
+                  Draw
+                </Text>
               </Pressable>
-              <Pressable onPress={clear} disabled={strokes.length === 0} hitSlop={12} style={styles.headerIconBtn}>
-                <Text style={[styles.headerIcon, strokes.length === 0 && styles.actionDisabled]}>✕</Text>
+              <Pressable
+                style={[styles.modeBtn, drawMode === 'symbol' && styles.modeBtnActive]}
+                onPress={() => setDrawMode('symbol')}
+                hitSlop={8}
+              >
+                <Text style={[styles.modeBtnText, drawMode === 'symbol' && styles.modeBtnTextActive]}>
+                  Symbol
+                </Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.headerRight}>
+              <Pressable onPress={undo} disabled={history.length === 0} hitSlop={12} style={styles.headerIconBtn}>
+                <Text style={[styles.headerIcon, history.length === 0 && styles.actionDisabled]}>↩</Text>
+              </Pressable>
+              <Pressable onPress={clear} disabled={history.length === 0} hitSlop={12} style={styles.headerIconBtn}>
+                <Text style={[styles.headerIcon, history.length === 0 && styles.actionDisabled]}>✕</Text>
               </Pressable>
               <Pressable onPress={handleDone} disabled={saving} hitSlop={12}>
                 <Text style={[styles.headerDone, saving && { opacity: 0.5 }]}>
@@ -141,11 +216,13 @@ export function AnnotationEditor({ visible, photoUri, photoId, initialStrokes, o
             </View>
           </View>
 
-          {/* Canvas — flex:1 fills space between header and toolbar */}
-          <GestureDetector gesture={panGesture}>
+          {/* Canvas */}
+          <GestureDetector gesture={gesture}>
             <View
               style={styles.canvas}
-              onLayout={(e) => setCanvasSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
+              onLayout={(e) =>
+                setCanvasSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })
+              }
             >
               <Image
                 source={{ uri: photoUri }}
@@ -168,6 +245,9 @@ export function AnnotationEditor({ visible, photoUri, photoId, initialStrokes, o
                     strokeLinejoin="round"
                   />
                 ))}
+                {symbols.map((sym) => (
+                  <PlacedSymbolGroup key={sym.id} symbol={sym} />
+                ))}
                 <AnimatedPath
                   animatedProps={animatedProps}
                   stroke={COLORS[colorIdx].hex}
@@ -180,39 +260,67 @@ export function AnnotationEditor({ visible, photoUri, photoId, initialStrokes, o
             </View>
           </GestureDetector>
 
-          {/* Toolbar — sits below canvas, never overlapped */}
+          {/* Toolbar */}
           <View style={[styles.toolbar, { paddingBottom: insets.bottom + space.sm }]}>
-            {/* Colour swatches */}
-            <View style={styles.toolRow}>
-              {COLORS.map((c, i) => (
-                <Pressable
-                  key={c.hex}
-                  onPress={() => handleColorChange(i)}
-                  style={[
-                    styles.swatch,
-                    { backgroundColor: c.hex },
-                    i === colorIdx && styles.swatchActive,
-                  ]}
-                />
-              ))}
-
-              <View style={styles.toolDivider} />
-
-              {/* Stroke width */}
-              {WIDTHS.map((w, i) => (
-                <Pressable
-                  key={w}
-                  onPress={() => handleWidthChange(i)}
-                  style={[styles.widthBtn, i === widthIdx && styles.widthBtnActive]}
+            {drawMode === 'draw' ? (
+              <>
+                <View style={styles.toolRow}>
+                  {COLORS.map((c, i) => (
+                    <Pressable
+                      key={c.hex}
+                      onPress={() => handleColorChange(i)}
+                      style={[styles.swatch, { backgroundColor: c.hex }, i === colorIdx && styles.swatchActive]}
+                    />
+                  ))}
+                  <View style={styles.toolDivider} />
+                  {WIDTHS.map((w, i) => (
+                    <Pressable
+                      key={w}
+                      onPress={() => handleWidthChange(i)}
+                      style={[styles.widthBtn, i === widthIdx && styles.widthBtnActive]}
+                    >
+                      <View style={[styles.widthDot, { width: w * 2.5, height: w * 2.5, borderRadius: w * 2.5 }]} />
+                    </Pressable>
+                  ))}
+                </View>
+                <Text style={styles.toolHint}>{COLORS[colorIdx].label}</Text>
+              </>
+            ) : (
+              <>
+                {/* Symbol palette */}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.symbolRow}
                 >
-                  <View style={[styles.widthDot, { width: w * 2.5, height: w * 2.5, borderRadius: w * 2.5 }]} />
-                </Pressable>
-              ))}
-
-            </View>
-
-            {/* Colour label */}
-            <Text style={styles.colorLabel}>{COLORS[colorIdx].label}</Text>
+                  {SYMBOL_TYPES.map((type) => (
+                    <Pressable
+                      key={type}
+                      style={[styles.symbolBtn, selectedSymbol === type && styles.symbolBtnActive]}
+                      onPress={() => setSelectedSymbol(type)}
+                      hitSlop={4}
+                    >
+                      <Text style={[styles.symbolBtnText, selectedSymbol === type && styles.symbolBtnTextActive]}>
+                        {SYMBOL_LABELS[type]}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                {/* Colour row — symbols take the active colour */}
+                <View style={[styles.toolRow, { marginTop: space.xs }]}>
+                  {COLORS.map((c, i) => (
+                    <Pressable
+                      key={c.hex}
+                      onPress={() => handleColorChange(i)}
+                      style={[styles.swatch, { backgroundColor: c.hex }, i === colorIdx && styles.swatchActive]}
+                    />
+                  ))}
+                </View>
+                <Text style={styles.toolHint}>
+                  Tap photo to place · {COLORS[colorIdx].label}
+                </Text>
+              </>
+            )}
           </View>
 
         </View>
@@ -224,6 +332,7 @@ export function AnnotationEditor({ visible, photoUri, photoId, initialStrokes, o
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#000', flexDirection: 'column' },
   canvas: { flex: 1 },
+
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -234,12 +343,29 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.hairline,
   },
-  headerCancel: { color: colors.textSecondary, fontSize: 15, fontWeight: '600' },
-  headerTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '800' },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  headerCancel: { color: colors.textSecondary, fontSize: 15, fontWeight: '600', width: 56 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: space.md, width: 56, justifyContent: 'flex-end' },
   headerIconBtn: { padding: 2 },
   headerIcon: { color: '#fff', fontSize: 20, fontWeight: '700' },
   headerDone: { color: colors.accent, fontSize: 15, fontWeight: '800' },
+  actionDisabled: { opacity: 0.3 },
+
+  // Draw / Symbol mode toggle
+  modeToggle: {
+    flexDirection: 'row',
+    backgroundColor: colors.ground,
+    borderRadius: radius.pill,
+    padding: 3,
+  },
+  modeBtn: {
+    paddingHorizontal: space.md,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+  },
+  modeBtnActive: { backgroundColor: colors.accent },
+  modeBtnText: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
+  modeBtnTextActive: { color: colors.accentInk },
+
   toolbar: {
     backgroundColor: colors.surface,
     borderTopWidth: 1,
@@ -247,11 +373,16 @@ const styles = StyleSheet.create({
     paddingTop: space.md,
     paddingHorizontal: space.lg,
   },
-  toolRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
+  toolRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  toolHint: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: space.xs,
+    letterSpacing: 0.5,
   },
+
   swatch: {
     width: 28,
     height: 28,
@@ -259,10 +390,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'transparent',
   },
-  swatchActive: {
-    borderColor: '#fff',
-    transform: [{ scale: 1.2 }],
-  },
+  swatchActive: { borderColor: '#fff', transform: [{ scale: 1.2 }] },
+
   toolDivider: {
     width: 1,
     height: 28,
@@ -275,21 +404,24 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'transparent',
   },
-  widthBtnActive: {
-    backgroundColor: colors.hairline,
+  widthBtnActive: { backgroundColor: colors.hairline },
+  widthDot: { backgroundColor: '#fff' },
+
+  // Symbol palette
+  symbolRow: {
+    flexDirection: 'row',
+    gap: space.sm,
+    paddingBottom: space.xs,
   },
-  widthDot: {
-    backgroundColor: '#fff',
+  symbolBtn: {
+    paddingHorizontal: space.md,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.hairline,
   },
-  actionDisabled: { opacity: 0.3 },
-  colorLabel: {
-    color: colors.textMuted,
-    fontSize: 11,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginTop: space.xs,
-    letterSpacing: 0.5,
-  },
+  symbolBtnActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  symbolBtnText: { color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
+  symbolBtnTextActive: { color: colors.accentInk },
 });

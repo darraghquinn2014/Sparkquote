@@ -18,8 +18,9 @@ import type { Photo } from '@/src/media/media-types';
 import { loadLocation } from '@/src/data/project-repo';
 import { photosForLocation, addLocationPhoto, deleteLocationPhoto, updatePhotoCaption } from '@/src/data/photo-repo';
 import { saveCapture, deletePhoto } from '@/src/media/camera-service';
-import { loadAnnotations, hasAnnotations, deleteAnnotations, type AnnotationStroke } from '@/src/media/annotation-service';
+import { loadAnnotations, hasAnnotations, deleteAnnotations, type AnnotationStroke, type PlacedSymbol } from '@/src/media/annotation-service';
 import { AnnotationEditor } from '@/src/ui/annotations/AnnotationEditor';
+import { PlacedSymbolGroup } from '@/src/ui/annotations/symbols';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import * as Sharing from 'expo-sharing';
 
@@ -50,6 +51,7 @@ export default function RoomScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [lightboxPhoto, setLightboxPhoto] = useState<Photo | null>(null);
   const [lightboxStrokes, setLightboxStrokes] = useState<AnnotationStroke[]>([]);
+  const [lightboxSymbols, setLightboxSymbols] = useState<PlacedSymbol[]>([]);
   const [annotatedIds, setAnnotatedIds] = useState<Set<string>>(new Set());
   const [annotatorOpen, setAnnotatorOpen] = useState(false);
 
@@ -132,8 +134,9 @@ export default function RoomScreen() {
   };
 
   const openLightbox = async (photo: Photo) => {
-    const strokes = await loadAnnotations(photo.id);
+    const { strokes, symbols } = await loadAnnotations(photo.id);
     setLightboxStrokes(strokes);
+    setLightboxSymbols(symbols);
     setLightboxPhoto(photo);
   };
 
@@ -282,11 +285,14 @@ export default function RoomScreen() {
               contentFit="contain"
             />
           )}
-          {/* Annotation overlay */}
-          {lightboxStrokes.length > 0 && (
+          {/* Annotation overlay — strokes + symbols */}
+          {(lightboxStrokes.length > 0 || lightboxSymbols.length > 0) && (
             <Svg width={SCREEN_W} height={SCREEN_H} style={StyleSheet.absoluteFillObject} pointerEvents="none">
               {lightboxStrokes.map((s, i) => (
                 <Path key={i} d={s.path} stroke={s.color} strokeWidth={s.width} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              ))}
+              {lightboxSymbols.map((sym) => (
+                <PlacedSymbolGroup key={sym.id} symbol={sym} />
               ))}
             </Svg>
           )}
@@ -334,12 +340,14 @@ export default function RoomScreen() {
           photoUri={lightboxPhoto.filePath}
           photoId={lightboxPhoto.id}
           initialStrokes={lightboxStrokes}
+          initialSymbols={lightboxSymbols}
           onClose={() => setAnnotatorOpen(false)}
-          onSaved={(strokes) => {
+          onSaved={(strokes, symbols) => {
             setLightboxStrokes(strokes);
+            setLightboxSymbols(symbols);
             setAnnotatedIds((prev) => {
               const next = new Set(prev);
-              if (strokes.length > 0) next.add(lightboxPhoto.id);
+              if (strokes.length > 0 || symbols.length > 0) next.add(lightboxPhoto.id);
               else next.delete(lightboxPhoto.id);
               return next;
             });
