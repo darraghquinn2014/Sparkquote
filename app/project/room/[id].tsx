@@ -16,13 +16,17 @@ import Svg, { Path } from 'react-native-svg';
 import type { Location } from '@/src/domain/types';
 import type { Photo } from '@/src/media/media-types';
 import { loadLocation } from '@/src/data/project-repo';
-import { photosForLocation, addLocationPhoto, deleteLocationPhoto, updatePhotoCaption } from '@/src/data/photo-repo';
+import { photosForLocation, addLocationPhoto, deleteLocationPhoto, updatePhotoDetails } from '@/src/data/photo-repo';
 import { saveCapture, deletePhoto } from '@/src/media/camera-service';
 import { loadAnnotations, hasAnnotations, deleteAnnotations, type AnnotationStroke, type PlacedSymbol } from '@/src/media/annotation-service';
 import { AnnotationEditor } from '@/src/ui/annotations/AnnotationEditor';
 import { PlacedSymbolGroup } from '@/src/ui/annotations/symbols';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import * as Sharing from 'expo-sharing';
+import type { PhotoStage } from '@/src/media/media-types';
+
+const STAGE_LABELS: Record<PhotoStage, string> = { before: 'Before', during: 'During', after: 'After' };
+const STAGE_COLORS: Record<PhotoStage, string> = { before: '#3B82F6', during: '#FFB020', after: '#06D6A0' };
 
 const COLS = 3;
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -58,6 +62,8 @@ export default function RoomScreen() {
   const [captionModalOpen, setCaptionModalOpen] = useState(false);
   const [captionText, setCaptionText] = useState('');
   const [noteText, setNoteText] = useState('');
+  const [selectedStage, setSelectedStage] = useState<PhotoStage | null>(null);
+  const [stageFilter, setStageFilter] = useState<PhotoStage | 'all'>('all');
 
   const reload = useCallback(async () => {
     if (!id) return;
@@ -144,6 +150,7 @@ export default function RoomScreen() {
     if (!lightboxPhoto) return;
     setCaptionText(lightboxPhoto.caption ?? '');
     setNoteText(lightboxPhoto.note ?? '');
+    setSelectedStage(lightboxPhoto.stage ?? null);
     setCaptionModalOpen(true);
   };
 
@@ -164,10 +171,12 @@ export default function RoomScreen() {
     if (!lightboxPhoto) return;
     const trimCaption = captionText.trim();
     const trimNote = noteText.trim();
-    await updatePhotoCaption(lightboxPhoto.id, trimCaption, trimNote);
+    await updatePhotoDetails(lightboxPhoto.id, trimCaption, trimNote, selectedStage);
     setCaptionModalOpen(false);
     setLightboxPhoto(prev =>
-      prev ? { ...prev, caption: trimCaption || undefined, note: trimNote || undefined } : null,
+      prev
+        ? { ...prev, caption: trimCaption || undefined, note: trimNote || undefined, stage: selectedStage ?? undefined }
+        : null,
     );
     reload();
   };
@@ -228,15 +237,43 @@ export default function RoomScreen() {
         <Text style={styles.roomName}>{location.name}</Text>
         <Text style={styles.subtitle}>Reference photos</Text>
 
+        {/* Stage filter bar */}
+        {photos.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterBar} contentContainerStyle={styles.filterBarContent}>
+            {(['all', 'before', 'during', 'after'] as const).map((f) => {
+              const active = stageFilter === f;
+              const count = f === 'all' ? photos.length : photos.filter(p => p.stage === f).length;
+              const color = f === 'all' ? colors.textSecondary : STAGE_COLORS[f];
+              return (
+                <Pressable
+                  key={f}
+                  style={[styles.filterChip, active && { backgroundColor: f === 'all' ? colors.surface : color }]}
+                  onPress={() => setStageFilter(f)}
+                  hitSlop={4}
+                >
+                  <Text style={[styles.filterChipText, active && { color: f === 'all' ? colors.textPrimary : '#000' }]}>
+                    {f === 'all' ? 'All' : STAGE_LABELS[f]} {count > 0 ? `(${count})` : ''}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
+
         {photos.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>[  ]</Text>
             <Text style={styles.emptyText}>No photos yet.</Text>
             <Text style={styles.emptyHint}>Tap "+ Add photo" to capture the room.</Text>
           </View>
+        ) : photos.filter(p => stageFilter === 'all' || p.stage === stageFilter).length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>No {stageFilter} photos.</Text>
+            <Text style={styles.emptyHint}>Tag a photo as "{STAGE_LABELS[stageFilter as PhotoStage]}" in its Edit sheet.</Text>
+          </View>
         ) : (
           <View style={styles.grid}>
-            {photos.map((photo) => (
+            {photos.filter(p => stageFilter === 'all' || p.stage === stageFilter).map((photo) => (
               <Pressable
                 key={photo.id}
                 style={styles.thumb}
@@ -250,6 +287,11 @@ export default function RoomScreen() {
                   contentFit="cover"
                   transition={150}
                 />
+                {photo.stage && (
+                  <View style={[styles.stageBadge, { backgroundColor: STAGE_COLORS[photo.stage] }]}>
+                    <Text style={styles.stageBadgeText}>{STAGE_LABELS[photo.stage]}</Text>
+                  </View>
+                )}
                 {photo.caption ? (
                   <View style={styles.thumbCaption}>
                     <Text style={styles.thumbCaptionText} numberOfLines={1}>{photo.caption}</Text>
@@ -370,6 +412,24 @@ export default function RoomScreen() {
           <Pressable style={styles.captionBackdrop} onPress={() => setCaptionModalOpen(false)} />
           <View style={styles.captionSheet}>
             <Text style={styles.captionSheetTitle}>Photo details</Text>
+            <Text style={styles.captionLabel}>Stage</Text>
+            <View style={styles.stageRow}>
+              {(['before', 'during', 'after'] as const).map((s) => {
+                const active = selectedStage === s;
+                return (
+                  <Pressable
+                    key={s}
+                    style={[styles.stageChip, active && { backgroundColor: STAGE_COLORS[s] }]}
+                    onPress={() => setSelectedStage(active ? null : s)}
+                    hitSlop={4}
+                  >
+                    <Text style={[styles.stageChipText, active && styles.stageChipTextActive]}>
+                      {STAGE_LABELS[s]}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
             <Text style={styles.captionLabel}>Name</Text>
             <TextInput
               style={styles.captionInput}
@@ -506,6 +566,39 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   thumbCaptionText: { color: '#fff', fontSize: 9, fontWeight: '600' },
+
+  stageBadge: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  stageBadgeText: { color: '#000', fontSize: 9, fontWeight: '800' },
+
+  filterBar: { marginBottom: space.md },
+  filterBarContent: { gap: space.xs, paddingBottom: 2 },
+  filterChip: {
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    paddingHorizontal: space.md,
+    paddingVertical: 5,
+  },
+  filterChipText: { color: colors.textMuted, fontSize: 13, fontWeight: '600' },
+
+  stageRow: { flexDirection: 'row', gap: space.sm, marginBottom: space.md },
+  stageChip: {
+    flex: 1,
+    borderRadius: radius.tile,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    paddingVertical: space.sm,
+    alignItems: 'center',
+  },
+  stageChipText: { color: colors.textSecondary, fontSize: 14, fontWeight: '600' },
+  stageChipTextActive: { color: '#000' },
 
   // Lightbox
   lightbox: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },

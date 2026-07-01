@@ -8,7 +8,9 @@
 import { Q } from '@nozbe/watermelondb';
 import { database } from './database';
 import { PhotoModel } from './models';
-import type { ImageQuality, Photo } from '../media/media-types';
+import type { ImageQuality, Photo, PhotoStage } from '../media/media-types';
+
+const STAGES: readonly PhotoStage[] = ['before', 'during', 'after'];
 
 function toPhoto(r: PhotoModel): Photo {
   const photo: Photo = {
@@ -25,6 +27,9 @@ function toPhoto(r: PhotoModel): Photo {
   if (r.locationId != null) photo.locationId = r.locationId;
   if (r.caption != null) photo.caption = r.caption;
   if (r.note != null) photo.note = r.note;
+  if (r.stage != null && (STAGES as readonly string[]).includes(r.stage)) {
+    photo.stage = r.stage as PhotoStage;
+  }
   return photo;
 }
 
@@ -60,13 +65,19 @@ export async function photosForLocation(locationId: string): Promise<Photo[]> {
   return rows.map(toPhoto).sort((a, b) => b.capturedAt - a.capturedAt);
 }
 
-/** Update the caption and note for a photo. Pass empty strings to clear. */
-export async function updatePhotoCaption(id: string, caption: string, note: string): Promise<void> {
+/** Update caption, note, and stage for a photo. Pass empty strings to clear text fields. */
+export async function updatePhotoDetails(
+  id: string,
+  caption: string,
+  note: string,
+  stage: PhotoStage | null,
+): Promise<void> {
   await database.write(async () => {
     const row = await database.get<PhotoModel>('photos').find(id);
     await row.update((r) => {
       r.caption = caption || null;
       r.note = note || null;
+      r.stage = stage;
     });
   });
 }

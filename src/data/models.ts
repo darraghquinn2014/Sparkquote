@@ -107,6 +107,7 @@ export class PhotoModel extends Model {
   @field('captured_at') capturedAt!: number;
   @text('caption') caption!: string | null;
   @text('note') note!: string | null;
+  @text('stage') stage!: string | null;
 }
 
 export class SyncQueueModel extends Model {

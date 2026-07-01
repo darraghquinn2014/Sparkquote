@@ -9,6 +9,8 @@
 
 export type ImageQuality = 'low' | 'medium' | 'high';
 
+export type PhotoStage = 'before' | 'during' | 'after';
+
 /** Photos are always internal — the type makes the alternative unrepresentable. */
 export type PhotoVisibility = 'internal';
 
@@ -44,6 +46,7 @@ export interface Photo {
   capturedAt: number;
   caption?: string;
   note?: string;
+  stage?: PhotoStage;
 }
 
 /** Root of app-private storage (set by the app from FileSystem.documentDirectory). */

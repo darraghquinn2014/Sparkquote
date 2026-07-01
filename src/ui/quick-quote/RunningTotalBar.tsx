@@ -12,6 +12,7 @@
 
 import React from 'react';
 import { Pressable, Text, View, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, space, radius, type } from '../theme/tokens';
 import { formatMoney } from '../../domain/money';
 
@@ -36,9 +37,10 @@ function RunningTotalBarBase({
   onReview,
 }: Props) {
   const empty = lineCount === 0;
+  const insets = useSafeAreaInsets();
 
   return (
-    <View style={styles.bar}>
+    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, space.xl) }]}>
       <View style={styles.totals}>
         <Text style={styles.label}>
           {empty
@@ -77,7 +79,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.accent,
     paddingHorizontal: space.lg,
     paddingTop: space.md,
-    paddingBottom: space.xl, // safe-area cushion
+    paddingBottom: space.xl, // overridden at runtime with insets.bottom
   },
   totals: {
     flex: 1,

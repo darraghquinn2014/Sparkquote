@@ -14,10 +14,10 @@ export default function TabLayout() {
         headerShown: false,
         tabBarButton: HapticTab,
       }}>
-      <Tabs.Screen name="index" options={{ title: 'Quick Quote', tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} /> }} />
-      <Tabs.Screen name="estimate" options={{ title: 'Estimate', tabBarIcon: ({ color }) => <IconSymbol size={28} name="list.bullet" color={color} /> }} />
+      <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} /> }} />
       <Tabs.Screen name="projects" options={{ title: 'Projects', tabBarIcon: ({ color }) => <IconSymbol size={28} name="square.grid.2x2.fill" color={color} /> }} />
       <Tabs.Screen name="settings" options={{ title: 'Settings', tabBarIcon: ({ color }) => <IconSymbol size={28} name="gearshape.fill" color={color} /> }} />
+      <Tabs.Screen name="estimate" options={{ href: null }} />
     </Tabs>
   );
 }

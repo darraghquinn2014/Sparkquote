@@ -244,6 +244,14 @@ export async function loadSuppliers(): Promise<SupplierSummary[]> {
     }));
 }
 
+/** Update the unit cost of a single material by its WatermelonDB id. */
+export async function updateMaterialPrice(id: string, unitCostMinor: number): Promise<void> {
+  await database.write(async () => {
+    const row = await database.get<MaterialModel>('materials').find(id);
+    await row.update((r) => { r.unitCostMinor = unitCostMinor; });
+  });
+}
+
 /** Delete all materials belonging to a supplier. Seed rows are left untouched. */
 export async function deleteSupplierPrices(catalogueId: string): Promise<void> {
   await database.write(async () => {
