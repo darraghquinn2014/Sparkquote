@@ -90,7 +90,7 @@ export interface RawEstimate {
 
 const TOGGLE_TYPES: readonly LaborToggleType[] = ['percentage', 'flatMultiplier', 'timeBuffer'];
 const MODES: readonly EstimateMode[] = ['quick', 'project'];
-const STATUSES: readonly EstimateStatus[] = ['draft', 'sent', 'signed'];
+const STATUSES: readonly EstimateStatus[] = ['draft', 'sent', 'approved', 'declined', 'signed'];
 const CURRENCIES: readonly Currency[] = ['GBP', 'EUR'];
 
 function assertOneOf<T extends string>(value: string, allowed: readonly T[], field: string): T {
