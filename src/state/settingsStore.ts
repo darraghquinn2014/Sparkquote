@@ -7,6 +7,7 @@ interface SettingsData {
   vatRatePct: number;
   currency: Currency;
   catalogueUpdatedAt: number | null;
+  showLaborBreakdown: boolean;
 }
 
 const DEFAULTS: SettingsData = {
@@ -14,6 +15,7 @@ const DEFAULTS: SettingsData = {
   vatRatePct: 20,
   currency: 'GBP',
   catalogueUpdatedAt: null,
+  showLaborBreakdown: true,
 };
 
 const settingsPath = () =>
@@ -41,6 +43,7 @@ interface SettingsStore extends SettingsData {
   setVatRate: (pct: number) => void;
   setCurrency: (c: Currency) => void;
   setCatalogueUpdatedAt: (ts: number) => void;
+  setShowLaborBreakdown: (show: boolean) => void;
 }
 
 function snapshot(s: SettingsStore): SettingsData {
@@ -49,6 +52,7 @@ function snapshot(s: SettingsStore): SettingsData {
     vatRatePct: s.vatRatePct,
     currency: s.currency,
     catalogueUpdatedAt: s.catalogueUpdatedAt,
+    showLaborBreakdown: s.showLaborBreakdown,
   };
 }
 
@@ -80,5 +84,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   setCatalogueUpdatedAt: (ts) => {
     set({ catalogueUpdatedAt: ts });
     saveToDisk({ ...snapshot(get()), catalogueUpdatedAt: ts });
+  },
+
+  setShowLaborBreakdown: (show) => {
+    set({ showLaborBreakdown: show });
+    saveToDisk({ ...snapshot(get()), showLaborBreakdown: show });
   },
 }));

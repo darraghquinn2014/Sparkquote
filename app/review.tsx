@@ -9,6 +9,7 @@ import { priceEstimate } from '@/src/domain/pricing';
 import { toLaborToggle } from '@/src/data/mappers';
 import { seedLaborToggles } from '@/src/data/seed/assemblies';
 import { useEstimateStore } from '@/src/state/estimateStore';
+import { useSettingsStore } from '@/src/state/settingsStore';
 import { loadProjectEstimate } from '@/src/data/project-estimate-repo';
 import { loadProjects } from '@/src/data/project-repo';
 import type { Estimate, Project } from '@/src/domain/types';
@@ -29,9 +30,10 @@ export default function ReviewRoute() {
   const [logoDataUri, setLogoDataUri] = useState<string | null>(null);
 
   const activeEstimate = useEstimateStore((s) => s.estimate);
-  const setShowLaborBreakdown = useEstimateStore((s) => s.setShowLaborBreakdown);
+  const showLaborBreakdown = useSettingsStore((s) => s.showLaborBreakdown);
+  const setShowLaborBreakdown = useSettingsStore((s) => s.setShowLaborBreakdown);
 
-  const estimate = projectEstimate ?? activeEstimate;
+  const estimate = { ...(projectEstimate ?? activeEstimate), showLaborBreakdown };
 
   useEffect(() => {
     loadBusinessProfile().then(setProfile).catch(console.error);
@@ -108,7 +110,7 @@ export default function ReviewRoute() {
             <Text style={styles.toggleHint}>Adds an "includes labour" line for the client</Text>
           </View>
           <Switch
-            value={estimate.showLaborBreakdown ?? true}
+            value={showLaborBreakdown}
             onValueChange={setShowLaborBreakdown}
             trackColor={{ true: colors.accent, false: colors.hairline }}
             thumbColor={colors.textPrimary}
