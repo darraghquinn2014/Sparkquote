@@ -110,6 +110,16 @@ export class PhotoModel extends Model {
   @text('stage') stage!: string | null;
 }
 
+export class SnagItemModel extends Model {
+  static table = 'snag_items';
+  @text('project_id') projectId!: string;
+  @text('description') description!: string;
+  @field('resolved') resolved!: boolean;
+  @text('photo_path') photoPath!: string | null;
+  @field('sort_order') sortOrder!: number;
+  @field('created_at') createdAt!: number;
+}
+
 export class SyncQueueModel extends Model {
   static table = 'sync_queue';
   @text('entity_type') entityType!: string;

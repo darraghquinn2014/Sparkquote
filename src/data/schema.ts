@@ -13,7 +13,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 6,
+  version: 7,
   tables: [
     // ── Catalogue ────────────────────────────────────────────────────────
     tableSchema({
@@ -137,6 +137,19 @@ export const schema = appSchema({
         { name: 'caption', type: 'string', isOptional: true },
         { name: 'note', type: 'string', isOptional: true },
         { name: 'stage', type: 'string', isOptional: true },
+      ],
+    }),
+
+    // ── Snag items: punch list per project ───────────────────────────────
+    tableSchema({
+      name: 'snag_items',
+      columns: [
+        { name: 'project_id', type: 'string', isIndexed: true },
+        { name: 'description', type: 'string' },
+        { name: 'resolved', type: 'boolean' },
+        { name: 'photo_path', type: 'string', isOptional: true },
+        { name: 'sort_order', type: 'number' },
+        { name: 'created_at', type: 'number' },
       ],
     }),
 

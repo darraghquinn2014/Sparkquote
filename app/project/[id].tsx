@@ -240,6 +240,9 @@ export default function ProjectDetailScreen() {
           <Pressable style={styles.quoteBtn} onPress={() => router.push(`/project/quote/${id}` as any)} hitSlop={8}>
             <Text style={styles.quoteBtnText}>Quote</Text>
           </Pressable>
+          <Pressable style={styles.reportBtn} onPress={() => router.push(`/project/snag/${id}` as any)} hitSlop={8}>
+            <Text style={styles.reportBtnText}>Snags</Text>
+          </Pressable>
           <Pressable style={styles.reportBtn} onPress={generateReport} disabled={reportBusy} hitSlop={8}>
             <Text style={styles.reportBtnText}>{reportBusy ? '…' : 'Report'}</Text>
           </Pressable>

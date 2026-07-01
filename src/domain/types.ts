@@ -136,6 +136,16 @@ export type EstimateMode = 'quick' | 'project';
 // parentId === undefined means the node sits at the project root.
 // ─────────────────────────────────────────────────────────────────────────
 
+export interface SnagItem {
+  id: string;
+  projectId: string;
+  description: string;
+  resolved: boolean;
+  photoPath?: string;
+  sortOrder: number;
+  createdAt: number;
+}
+
 export interface Project {
   id: string;
   name: string;

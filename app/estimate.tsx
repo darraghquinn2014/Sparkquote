@@ -17,6 +17,7 @@ import { loadBusinessProfile, readLogoDataUri } from '@/src/data/business-profil
 import { toClientEstimate } from '@/src/pdf/client-view-model';
 import { renderEstimateHtml } from '@/src/pdf/render-html';
 import { PdfPreviewModal } from '@/src/ui/pdf/PdfPreviewModal';
+import { ShoppingListSheet } from '@/src/ui/estimate/ShoppingListSheet';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 
 const allToggles = seedLaborToggles.map(toLaborToggle);
@@ -41,6 +42,7 @@ export default function EstimateScreen() {
   const [rateText, setRateText] = useState('');
   const [previewing, setPreviewing] = useState(false);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [shoppingOpen, setShoppingOpen] = useState(false);
   const breakdown = priceEstimate(estimate, allToggles);
   const swipeableRefs = useRef<Map<string, Swipeable>>(new Map());
 
@@ -86,7 +88,10 @@ export default function EstimateScreen() {
           <Text style={styles.addItemText}>+ Labour</Text>
         </Pressable>
         <Pressable style={styles.addItemBtn} onPress={() => setPickerOpen(true)}>
-          <Text style={styles.addItemText}>+ Add item</Text>
+          <Text style={styles.addItemText}>+ Material</Text>
+        </Pressable>
+        <Pressable style={styles.addItemBtn} onPress={() => setShoppingOpen(true)}>
+          <Text style={styles.addItemText}>Shopping list</Text>
         </Pressable>
       </View>
 
@@ -203,6 +208,11 @@ export default function EstimateScreen() {
         visible={previewHtml != null}
         html={previewHtml}
         onClose={() => setPreviewHtml(null)}
+      />
+      <ShoppingListSheet
+        visible={shoppingOpen}
+        estimate={estimate}
+        onClose={() => setShoppingOpen(false)}
       />
     </SafeAreaView>
   );
