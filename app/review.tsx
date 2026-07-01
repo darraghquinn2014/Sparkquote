@@ -32,10 +32,12 @@ export default function ReviewRoute() {
   const activeEstimate = useEstimateStore((s) => s.estimate);
   const showLaborBreakdown = useSettingsStore((s) => s.showLaborBreakdown);
   const setShowLaborBreakdown = useSettingsStore((s) => s.setShowLaborBreakdown);
+  const hydrateSettings = useSettingsStore((s) => s.hydrate);
 
   const estimate = { ...(projectEstimate ?? activeEstimate), showLaborBreakdown };
 
   useEffect(() => {
+    hydrateSettings();
     loadBusinessProfile().then(setProfile).catch(console.error);
     readLogoDataUri().then(setLogoDataUri).catch(console.error);
     if (!projectId) return;

@@ -10,6 +10,7 @@ import { formatMoney } from '@/src/domain/money';
 import { toLaborToggle } from '@/src/data/mappers';
 import { seedLaborToggles } from '@/src/data/seed/assemblies';
 import type { EstimateStatus, LineItem, Material } from '@/src/domain/types';
+import { useSettingsStore } from '@/src/state/settingsStore';
 import { MaterialPicker } from '@/src/ui/catalogue/MaterialPicker';
 import { LabourSheet } from '@/src/ui/catalogue/LabourSheet';
 import { loadCatalogue } from '@/src/data/catalogue-repo';
@@ -50,6 +51,7 @@ export default function EstimateScreen() {
   const setHourlyRate = useEstimateStore((s) => s.setHourlyRate);
   const addLabour = useEstimateStore((s) => s.addLabour);
   const setStatus = useEstimateStore((s) => s.setStatus);
+  const showLaborBreakdown = useSettingsStore((s) => s.showLaborBreakdown);
   const [editing, setEditing] = useState<LineItem | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [labourOpen, setLabourOpen] = useState(false);
@@ -80,7 +82,7 @@ export default function EstimateScreen() {
         dateIso: new Date().toISOString(),
       };
       const priced = priceEstimate(estimate, allToggles);
-      const client = toClientEstimate(estimate, priced, meta);
+      const client = toClientEstimate({ ...estimate, showLaborBreakdown }, priced, meta);
       setPreviewHtml(renderEstimateHtml(client));
     } catch (e) {
       Alert.alert('Preview error', String(e));
