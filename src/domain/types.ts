@@ -127,7 +127,7 @@ export interface LineItem {
   appliedLaborToggleIds: string[];
 }
 
-export type EstimateStatus = 'draft' | 'sent' | 'signed';
+export type EstimateStatus = 'draft' | 'sent' | 'approved' | 'declined' | 'signed';
 export type EstimateMode = 'quick' | 'project';
 
 // ─────────────────────────────────────────────────────────────────────────

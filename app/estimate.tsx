@@ -9,7 +9,7 @@ import { priceLine, priceEstimate } from '@/src/domain/pricing';
 import { formatMoney } from '@/src/domain/money';
 import { toLaborToggle } from '@/src/data/mappers';
 import { seedLaborToggles } from '@/src/data/seed/assemblies';
-import type { LineItem, Material } from '@/src/domain/types';
+import type { EstimateStatus, LineItem, Material } from '@/src/domain/types';
 import { MaterialPicker } from '@/src/ui/catalogue/MaterialPicker';
 import { LabourSheet } from '@/src/ui/catalogue/LabourSheet';
 import { loadCatalogue } from '@/src/data/catalogue-repo';
@@ -21,6 +21,21 @@ import { ShoppingListSheet } from '@/src/ui/estimate/ShoppingListSheet';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 
 const allToggles = seedLaborToggles.map(toLaborToggle);
+
+const STATUS_LABELS: Record<string, string> = {
+  draft: 'Draft',
+  sent: 'Sent',
+  approved: 'Approved',
+  declined: 'Declined',
+  signed: 'Signed',
+};
+const STATUS_COLORS: Record<string, string> = {
+  draft:    '#6B8DAE',
+  sent:     '#1B8FFF',
+  approved: '#06D6A0',
+  declined: '#E5564B',
+  signed:   '#9B5DE5',
+};
 const toggleIndex = new Map(allToggles.map((t) => [t.id, t]));
 
 export default function EstimateScreen() {
@@ -34,6 +49,7 @@ export default function EstimateScreen() {
   const addMaterial = useEstimateStore((s) => s.addMaterial);
   const setHourlyRate = useEstimateStore((s) => s.setHourlyRate);
   const addLabour = useEstimateStore((s) => s.addLabour);
+  const setStatus = useEstimateStore((s) => s.setStatus);
   const [editing, setEditing] = useState<LineItem | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [labourOpen, setLabourOpen] = useState(false);
@@ -83,6 +99,25 @@ export default function EstimateScreen() {
         <Pressable onPress={() => setShoppingOpen(true)} hitSlop={8}>
           <Text style={styles.shoppingLink}>Shopping list</Text>
         </Pressable>
+      </View>
+
+      {/* Status pills */}
+      <View style={styles.statusRow}>
+        {([ 'draft', 'sent', 'approved', 'declined'] as EstimateStatus[]).map((s) => {
+          const active = estimate.status === s;
+          const color = STATUS_COLORS[s];
+          return (
+            <Pressable
+              key={s}
+              style={[styles.statusPill, active && { backgroundColor: color, borderColor: color }]}
+              onPress={() => setStatus(s)}
+            >
+              <Text style={[styles.statusPillText, active && styles.statusPillTextActive]}>
+                {STATUS_LABELS[s]}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       <View style={styles.headerBtns}>
@@ -227,6 +262,14 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: '800', color: colors.textPrimary },
   addItemBtn: { backgroundColor: colors.surface, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.hairline },
   addItemText: { color: colors.accent, fontWeight: '700', fontSize: 14 },
+  statusRow: { flexDirection: 'row', gap: space.sm, marginBottom: space.md },
+  statusPill: {
+    flex: 1, paddingVertical: 7, borderRadius: radius.pill,
+    borderWidth: 1, borderColor: colors.hairline,
+    alignItems: 'center',
+  },
+  statusPillText: { fontSize: 12, fontWeight: '700', color: colors.textMuted },
+  statusPillTextActive: { color: '#fff' },
   headerBtns: { flexDirection: 'row', gap: space.sm, marginBottom: space.lg },
   empty: { color: colors.textMuted, textAlign: 'center', marginTop: 40, fontSize: 15 },
   row: {

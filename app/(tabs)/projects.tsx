@@ -6,25 +6,37 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, Pressable, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
-import type { Project } from '@/src/domain/types';
+import type { EstimateStatus, Project } from '@/src/domain/types';
 import { loadProjects, loadLocations } from '@/src/data/project-repo';
+import { loadProjectEstimate } from '@/src/data/project-estimate-repo';
 import { colors, space, radius, type as typo } from '@/src/ui/theme/tokens';
+
+const STATUS_LABELS: Record<string, string> = {
+  draft: 'Draft', sent: 'Sent', approved: 'Approved', declined: 'Declined', signed: 'Signed',
+};
+const STATUS_COLORS: Record<string, string> = {
+  draft: '#6B8DAE', sent: '#1B8FFF', approved: '#06D6A0', declined: '#E5564B', signed: '#9B5DE5',
+};
 
 export default function ProjectsScreen() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [roomCounts, setRoomCounts] = useState<Record<string, number>>({});
+  const [statuses, setStatuses] = useState<Record<string, EstimateStatus>>({});
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
     const ps = await loadProjects();
     setProjects(ps);
     const counts: Record<string, number> = {};
+    const sts: Record<string, EstimateStatus> = {};
     for (const p of ps) {
-      const locs = await loadLocations(p.id);
+      const [locs, est] = await Promise.all([loadLocations(p.id), loadProjectEstimate(p.id)]);
       counts[p.id] = locs.length;
+      if (est) sts[p.id] = est.status;
     }
     setRoomCounts(counts);
+    setStatuses(sts);
     setLoading(false);
   }, []);
 
@@ -56,7 +68,16 @@ export default function ProjectsScreen() {
           renderItem={({ item }) => (
             <Pressable style={styles.row} onPress={() => router.push(`/project/${item.id}` as any)}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.name}>{item.name}</Text>
+                <View style={styles.nameRow}>
+                  <Text style={styles.name}>{item.name}</Text>
+                  {statuses[item.id] && (
+                    <View style={[styles.badge, { backgroundColor: STATUS_COLORS[statuses[item.id]] + '22', borderColor: STATUS_COLORS[statuses[item.id]] + '55' }]}>
+                      <Text style={[styles.badgeText, { color: STATUS_COLORS[statuses[item.id]] }]}>
+                        {STATUS_LABELS[statuses[item.id]]}
+                      </Text>
+                    </View>
+                  )}
+                </View>
                 <Text style={styles.meta}>
                   {item.clientName ? `${item.clientName} · ` : ''}
                   {roomCounts[item.id] ?? 0} room{(roomCounts[item.id] ?? 0) === 1 ? '' : 's'}
@@ -81,7 +102,10 @@ const styles = StyleSheet.create({
   newBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.accent, paddingHorizontal: space.md, paddingVertical: space.sm, borderRadius: radius.pill },
   newText: { color: colors.accentInk, fontWeight: '800', fontSize: 14 },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.surface, borderRadius: radius.tile, padding: space.lg, marginBottom: space.sm },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginBottom: 2 },
   name: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
+  badge: { borderRadius: radius.pill, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 2 },
+  badgeText: { fontSize: 11, fontWeight: '700' },
   meta: { color: colors.textMuted, fontSize: 13, marginTop: 2 },
   date: { color: colors.textMuted, fontSize: 12, marginTop: 3, opacity: 0.7 },
   empty: { alignItems: 'center', marginTop: space.xxl * 2, paddingHorizontal: space.xl, gap: space.sm },
