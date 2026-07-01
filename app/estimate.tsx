@@ -80,7 +80,9 @@ export default function EstimateScreen() {
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
         <Text style={styles.title}>Current estimate</Text>
-        <View style={{ width: 60 }} />
+        <Pressable onPress={() => setShoppingOpen(true)} hitSlop={8}>
+          <Text style={styles.shoppingLink}>Shopping list</Text>
+        </Pressable>
       </View>
 
       <View style={styles.headerBtns}>
@@ -122,9 +124,6 @@ export default function EstimateScreen() {
               disabled={previewing}
             >
               <Text style={styles.previewBtnText}>{previewing ? 'Building…' : 'Preview PDF quote'}</Text>
-            </Pressable>
-            <Pressable style={styles.shoppingBtn} onPress={() => setShoppingOpen(true)}>
-              <Text style={styles.shoppingBtnText}>Shopping list</Text>
             </Pressable>
             <Pressable style={styles.rateRow} onPress={() => { setRateText(String(estimate.hourlyRateMinor / 100)); setRateEditing(true); }}>
               <Text style={styles.rateLabel}>Labour rate</Text>
@@ -242,8 +241,7 @@ const styles = StyleSheet.create({
   previewBtn: { backgroundColor: colors.accent, borderRadius: radius.pill, paddingVertical: 12, alignItems: 'center', marginBottom: space.sm },
   previewBtnBusy: { opacity: 0.6 },
   previewBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 15 },
-  shoppingBtn: { borderRadius: radius.pill, paddingVertical: 10, alignItems: 'center', marginBottom: space.lg, borderWidth: 1, borderColor: colors.hairline },
-  shoppingBtnText: { color: colors.textSecondary, fontWeight: '700', fontSize: 14 },
+  shoppingLink: { color: colors.accent, fontWeight: '700', fontSize: 13 },
   rateRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.tile, padding: space.lg, marginBottom: space.lg, borderWidth: 1, borderColor: colors.hairline },
   rateLabel: { fontSize: 15, color: colors.textSecondary, fontWeight: '600' },
   rateValue: { fontSize: 17, color: colors.accent, fontWeight: '700' },
