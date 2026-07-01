@@ -15,6 +15,7 @@ import type { Estimate, Project } from '@/src/domain/types';
 import { loadBusinessProfile, readLogoDataUri, type BusinessProfile } from '@/src/data/business-profile';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { colors, space, radius } from '@/src/ui/theme/tokens';
 
 const toggles = seedLaborToggles.map(toLaborToggle);
 
@@ -109,8 +110,8 @@ export default function ReviewRoute() {
           <Switch
             value={estimate.showLaborBreakdown ?? true}
             onValueChange={setShowLaborBreakdown}
-            trackColor={{ true: '#1B8FFF', false: '#1A3060' }}
-            thumbColor='#E8F1FF'
+            trackColor={{ true: colors.accent, false: colors.hairline }}
+            thumbColor={colors.textPrimary}
           />
         </View>
       )}
@@ -124,23 +125,28 @@ export default function ReviewRoute() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#07101E' },
-  empty: { flex: 1, backgroundColor: '#07101E', alignItems: 'center', justifyContent: 'center', padding: 32 },
-  emptyText: { color: '#6B8DAE', fontSize: 16, textAlign: 'center' },
+  screen: { flex: 1, backgroundColor: colors.ground },
+  empty: { flex: 1, backgroundColor: colors.ground, alignItems: 'center', justifyContent: 'center', padding: space.xxl },
+  emptyText: { color: colors.textSecondary, fontSize: 16, textAlign: 'center' },
   busy: { position: 'absolute', bottom: 24, left: 0, right: 0, alignItems: 'center' },
-  busyText: { color: '#1B8FFF', fontWeight: '700' },
+  busyText: { color: colors.accent, fontWeight: '700' },
   printBtn: {
     alignSelf: 'flex-end',
-    marginHorizontal: 16,
-    marginTop: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 999,
+    marginHorizontal: space.lg,
+    marginTop: space.md,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.sm,
+    borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: '#1A3060',
+    borderColor: colors.hairline,
   },
-  printBtnText: { color: '#6B8DAE', fontSize: 13, fontWeight: '600' },
-  toggleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, backgroundColor: '#0C1928', marginHorizontal: 16, marginTop: 12, borderRadius: 14, borderWidth: 1, borderColor: '#1A3060' },
-  toggleLabel: { color: '#E8F1FF', fontSize: 15, fontWeight: '600' },
-  toggleHint: { color: '#334D6E', fontSize: 12, marginTop: 2 },
+  printBtnText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
+  toggleRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: space.xl, paddingVertical: space.md,
+    backgroundColor: colors.surface, marginHorizontal: space.lg, marginTop: space.md,
+    borderRadius: radius.tile, borderWidth: 1, borderColor: colors.hairline,
+  },
+  toggleLabel: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  toggleHint: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
 });

@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { useSettingsStore } from '@/src/state/settingsStore';
+import { colors, space, radius } from '@/src/ui/theme/tokens';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -150,33 +151,33 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#07101E' },
-  title: { fontSize: 24, fontWeight: '800', color: '#E8F1FF', marginBottom: 8, paddingHorizontal: 16, paddingTop: 8 },
+  screen: { flex: 1, backgroundColor: colors.ground },
+  title: { fontSize: 28, fontWeight: '800', color: colors.textPrimary, marginBottom: space.sm, paddingHorizontal: space.lg, paddingTop: space.sm },
   sectionHeader: {
-    fontSize: 11, fontWeight: '700', color: '#334D6E', letterSpacing: 1.2,
-    paddingHorizontal: 16, paddingTop: 20, paddingBottom: 8,
+    fontSize: 11, fontWeight: '700', color: colors.textMuted, letterSpacing: 1.2,
+    paddingHorizontal: space.lg, paddingTop: space.xl, paddingBottom: space.sm,
   },
   row: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: '#0C1928', marginHorizontal: 16, marginBottom: 8,
-    borderRadius: 14, padding: 18, borderWidth: 1, borderColor: '#1A3060',
+    backgroundColor: colors.surface, marginHorizontal: space.lg, marginBottom: space.sm,
+    borderRadius: radius.tile, padding: 18, borderWidth: 1, borderColor: colors.hairline,
   },
-  rowText: { fontSize: 16, color: '#E8F1FF', fontWeight: '600' },
-  rowValue: { fontSize: 16, color: '#1B8FFF', fontWeight: '700' },
-  chevron: { fontSize: 22, color: '#1B8FFF' },
+  rowText: { fontSize: 16, color: colors.textPrimary, fontWeight: '600' },
+  rowValue: { fontSize: 16, color: colors.accent, fontWeight: '700' },
+  chevron: { fontSize: 22, color: colors.accent },
   inlineEdit: { flexDirection: 'row', alignItems: 'center' },
-  inlineSymbol: { fontSize: 17, color: '#E8F1FF', fontWeight: '700' },
+  inlineSymbol: { fontSize: 17, color: colors.textPrimary, fontWeight: '700' },
   inlineInput: {
-    fontSize: 17, color: '#E8F1FF', fontWeight: '700',
+    fontSize: 17, color: colors.textPrimary, fontWeight: '700',
     minWidth: 70, paddingHorizontal: 4, textAlign: 'right',
   },
-  inlineUnit: { fontSize: 14, color: '#6B8DAE', marginLeft: 2 },
-  currencyRow: { flexDirection: 'row', gap: 8 },
+  inlineUnit: { fontSize: 14, color: colors.textSecondary, marginLeft: 2 },
+  currencyRow: { flexDirection: 'row', gap: space.sm },
   currencyChip: {
-    borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6,
-    borderWidth: 1, borderColor: '#1A3060', backgroundColor: '#07101E',
+    borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: 6,
+    borderWidth: 1, borderColor: colors.hairline, backgroundColor: colors.ground,
   },
-  currencyChipActive: { backgroundColor: '#1B8FFF', borderColor: '#1B8FFF' },
-  currencyChipText: { color: '#6B8DAE', fontWeight: '700', fontSize: 13 },
-  currencyChipTextActive: { color: '#FFFFFF' },
+  currencyChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  currencyChipText: { color: colors.textSecondary, fontWeight: '700', fontSize: 13 },
+  currencyChipTextActive: { color: colors.accentInk },
 });
