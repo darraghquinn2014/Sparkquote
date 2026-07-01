@@ -70,7 +70,10 @@ export default function ReviewRoute() {
     try {
       setBusy(true);
       // For project estimates use projectEstimate; for quick quotes use live store state.
-      const liveEstimate = projectEstimate ?? useEstimateStore.getState().estimate;
+      const liveEstimate = {
+        ...(projectEstimate ?? useEstimateStore.getState().estimate),
+        showLaborBreakdown,
+      };
       const livePriced = priceEstimate(liveEstimate, toggles);
       const liveClient = toClientEstimate(liveEstimate, livePriced, meta);
       const html = renderEstimateHtml(liveClient, {
