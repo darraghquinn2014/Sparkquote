@@ -111,7 +111,6 @@ export default function SnagListScreen() {
                 autoFocus
                 returnKeyType="done"
                 onSubmitEditing={commitAdd}
-                onBlur={commitAdd}
               />
               <Pressable style={styles.addConfirm} onPress={commitAdd}>
                 <Text style={styles.addConfirmText}>Add</Text>

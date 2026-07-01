@@ -20,6 +20,7 @@ import {
   EstimateModel,
   LineItemModel,
   PhotoModel,
+  SnagItemModel,
   SyncQueueModel,
 } from './models';
 
@@ -44,6 +45,7 @@ export const database = new Database({
     EstimateModel,
     LineItemModel,
     PhotoModel,
+    SnagItemModel,
     SyncQueueModel,
   ],
 });
