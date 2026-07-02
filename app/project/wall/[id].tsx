@@ -1,17 +1,18 @@
 /**
- * Wall detail — capture/view the wall's one reference photo, and see the
- * electrical symbols tagged for this wall (from the floor plan) rendered
- * automatically at the matching horizontal position on the photo. The
- * vertical position is photo-only (the plan is top-down) — drag a symbol
- * up/down to nudge it; tap (without dragging) to remove it.
+ * Wall detail — attach the wall's one reference photo (camera or library),
+ * and place electrical symbols directly on that photo to jog your memory of
+ * what's on this wall/ceiling. Tagged symbols persist as WallSymbol rows
+ * (positionAlongWall/photoY, both normalized 0-1 within the photo); drag one
+ * up/down to nudge its height, tap (without dragging) to remove it.
  */
 import React, { useCallback, useRef, useState } from 'react';
 import {
-  View, Text, Pressable, StyleSheet, Alert, ActivityIndicator, Modal, TextInput,
+  View, Text, Pressable, StyleSheet, Alert, ActivityIndicator, Modal, TextInput, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as DocumentPicker from 'expo-document-picker';
 import { Image } from 'expo-image';
 import * as FileSystem from 'expo-file-system/legacy';
 import Svg from 'react-native-svg';
@@ -19,15 +20,16 @@ import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-g
 import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
 import type { Location, Wall, WallSymbol } from '@/src/domain/types';
 import type { Photo } from '@/src/media/media-types';
+import type { SymbolType } from '@/src/media/annotation-service';
 import { loadLocation } from '@/src/data/project-repo';
 import { loadPhoto, addLocationPhoto, deleteLocationPhoto } from '@/src/data/photo-repo';
 import { saveCapture, deletePhoto } from '@/src/media/camera-service';
 import {
   loadWall, loadWallSymbols, renameWall, setWallPhoto, clearWallPhoto,
-  updateWallSymbolPhotoY, deleteWallSymbol, deleteWall,
+  addWallSymbol, updateWallSymbolPhotoY, deleteWallSymbol, deleteWall,
 } from '@/src/data/floor-plan-repo';
 import { symbolPhotoX } from '@/src/domain/wall-geometry';
-import { PlacedSymbolGroup } from '@/src/ui/annotations/symbols';
+import { PlacedSymbolGroup, SYMBOL_TYPES, SYMBOL_LABELS, SYMBOL_TYPE_COLORS } from '@/src/ui/annotations/symbols';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 
 const mediaPaths = {
@@ -38,12 +40,13 @@ const mediaPaths = {
 type CameraState = 'live' | 'preview';
 
 function DraggableSymbol({
-  symbol, x, baseY, containerHeight, onDragEnd, onTap,
+  symbol, x, baseY, containerHeight, enabled, onDragEnd, onTap,
 }: {
   symbol: WallSymbol;
   x: number;
   baseY: number;
   containerHeight: number;
+  enabled: boolean;
   onDragEnd: (photoY: number) => void;
   onTap: () => void;
 }) {
@@ -55,6 +58,7 @@ function DraggableSymbol({
   };
 
   const panGesture = Gesture.Pan()
+    .enabled(enabled)
     .minDistance(10)
     .onUpdate((e) => { dragOffset.value = e.translationY; })
     .onEnd((e) => {
@@ -62,7 +66,7 @@ function DraggableSymbol({
       dragOffset.value = 0;
     });
 
-  const tapGesture = Gesture.Tap().onEnd(() => { runOnJS(onTap)(); });
+  const tapGesture = Gesture.Tap().enabled(enabled).onEnd(() => { runOnJS(onTap)(); });
 
   const gesture = Gesture.Exclusive(tapGesture, panGesture);
 
@@ -103,6 +107,10 @@ export default function WallScreen() {
 
   const [editingLabel, setEditingLabel] = useState(false);
   const [labelText, setLabelText] = useState('');
+
+  const [addingSymbol, setAddingSymbol] = useState(false);
+  const [pendingTap, setPendingTap] = useState<{ x: number; y: number } | null>(null);
+  const [selectedSymbolType, setSelectedSymbolType] = useState<SymbolType>('socket');
 
   const reload = useCallback(async () => {
     if (!wallId) return;
@@ -155,27 +163,47 @@ export default function WallScreen() {
     }
   };
 
+  const attachPhoto = async (sourceUri: string) => {
+    if (!wall || !room) return;
+    const newPhoto = await saveCapture({
+      sourceUri,
+      paths: mediaPaths,
+      projectId: room.projectId,
+      locationId: wall.locationId,
+      quality: 'medium',
+    });
+    // addLocationPhoto's return value is the REAL WatermelonDB row id — newPhoto.id
+    // is only a client-side placeholder saveCapture used to build the file path
+    // before the row existed, and does not match any row in the photos table.
+    const photoId = await addLocationPhoto(room.projectId, wall.locationId, newPhoto.filePath, newPhoto.quality, newPhoto.capturedAt);
+    await setWallPhoto(wall.id, photoId);
+    await reload();
+  };
+
   const confirmPhoto = async () => {
-    if (!capturedUri || !wall) return;
+    if (!capturedUri) return;
     setSaving(true);
     try {
-      if (!room) return;
-      const newPhoto = await saveCapture({
-        sourceUri: capturedUri,
-        paths: mediaPaths,
-        projectId: room.projectId,
-        locationId: wall.locationId,
-        quality: 'medium',
-      });
-      await addLocationPhoto(room.projectId, wall.locationId, newPhoto.filePath, newPhoto.quality, newPhoto.capturedAt);
-      await setWallPhoto(wall.id, newPhoto.id);
-      await reload();
+      await attachPhoto(capturedUri);
     } catch {
       Alert.alert('Save failed', 'Could not save the photo. Please try again.');
     } finally {
       setSaving(false);
       setCameraOpen(false);
       setCapturedUri(null);
+    }
+  };
+
+  const pickFromLibrary = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: ['image/*'], copyToCacheDirectory: true });
+      if (result.canceled || !result.assets.length) return;
+      setSaving(true);
+      await attachPhoto(result.assets[0]!.uri);
+    } catch {
+      Alert.alert('Save failed', 'Could not save the photo. Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -236,7 +264,13 @@ export default function WallScreen() {
   const openOverflow = () => {
     Alert.alert(wall?.label || 'Wall', undefined, [
       { text: 'Rename', onPress: startEditLabel },
-      ...(photo ? [{ text: 'Retake photo', onPress: openCamera }, { text: 'Remove photo', style: 'destructive' as const, onPress: confirmRemovePhoto }] : []),
+      ...(photo
+        ? [
+            { text: 'Retake photo', onPress: openCamera },
+            { text: 'Choose different photo', onPress: pickFromLibrary },
+            { text: 'Remove photo', style: 'destructive' as const, onPress: confirmRemovePhoto },
+          ]
+        : []),
       { text: 'Delete wall', style: 'destructive', onPress: confirmDeleteWall },
       { text: 'Cancel', style: 'cancel' as const },
     ]);
@@ -252,6 +286,26 @@ export default function WallScreen() {
   const handleSymbolDragEnd = async (symbol: WallSymbol, photoY: number) => {
     setSymbols((prev) => prev.map((s) => (s.id === symbol.id ? { ...s, photoY } : s)));
     await updateWallSymbolPhotoY(symbol.id, photoY);
+  };
+
+  // ── Add symbol (tap the photo while in "adding" mode) ────────────────────
+
+  const handlePlaceTap = (containerX: number, containerY: number) => {
+    if (!renderedRect) return;
+    setPendingTap({ x: containerX, y: containerY });
+  };
+
+  const placeTapGesture = Gesture.Tap()
+    .enabled(addingSymbol)
+    .onEnd((e) => { runOnJS(handlePlaceTap)(e.x, e.y); });
+
+  const commitSymbol = async () => {
+    if (!wall || !pendingTap || !renderedRect) return;
+    const positionAlongWall = Math.max(0, Math.min(1, (pendingTap.x - renderedRect.offsetX) / renderedRect.width));
+    const photoY = Math.max(0, Math.min(1, (pendingTap.y - renderedRect.offsetY) / renderedRect.height));
+    await addWallSymbol(wall.id, selectedSymbolType, positionAlongWall, photoY, SYMBOL_TYPE_COLORS[selectedSymbolType]);
+    setPendingTap(null);
+    reload();
   };
 
   if (loading) {
@@ -293,45 +347,103 @@ export default function WallScreen() {
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No photo yet.</Text>
             <Text style={styles.emptyHint}>
-              {symbols.length > 0
-                ? `${symbols.length} symbol${symbols.length === 1 ? '' : 's'} tagged on the plan — attach a photo to see them placed.`
-                : "Attach a reference photo of this wall."}
+              Attach a photo of this wall or ceiling so you can mark what's on it while it's fresh in your memory.
             </Text>
-            <Pressable style={styles.addBtn} onPress={openCamera}>
-              <Text style={styles.addBtnText}>+ Take photo</Text>
-            </Pressable>
+            <View style={styles.emptyBtnRow}>
+              <Pressable style={styles.addBtn} onPress={openCamera}>
+                <Text style={styles.addBtnText}>Take photo</Text>
+              </Pressable>
+              <Pressable style={styles.addBtnSecondary} onPress={pickFromLibrary}>
+                <Text style={styles.addBtnSecondaryText}>Choose from library</Text>
+              </Pressable>
+            </View>
           </View>
         ) : (
-          <View
-            style={styles.photoWrap}
-            onLayout={(e) => setContainerSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
-          >
-            <Image
-              source={{ uri: photo.filePath }}
-              style={StyleSheet.absoluteFill}
-              contentFit="contain"
-              onLoad={(e) => setNaturalSize({ width: e.source.width, height: e.source.height })}
-            />
-            {renderedRect && symbols.map((symbol) => {
-              const x = renderedRect.offsetX + symbolPhotoX(symbol.positionAlongWall, renderedRect.width);
-              const y = renderedRect.offsetY + symbol.photoY * renderedRect.height;
-              return (
-                <DraggableSymbol
-                  key={symbol.id}
-                  symbol={symbol}
-                  x={x}
-                  baseY={y}
-                  containerHeight={containerSize.height}
-                  onDragEnd={(photoY) => handleSymbolDragEnd(symbol, photoY)}
-                  onTap={() => confirmRemoveSymbol(symbol)}
+          <>
+            <View style={styles.symbolModeToggle}>
+              <Pressable
+                style={[styles.symbolModeBtn, addingSymbol && styles.symbolModeBtnActive]}
+                onPress={() => setAddingSymbol((v) => !v)}
+                hitSlop={6}
+              >
+                <Text style={[styles.symbolModeBtnText, addingSymbol && styles.symbolModeBtnTextActive]}>
+                  {addingSymbol ? 'Done adding' : '+ Add symbol'}
+                </Text>
+              </Pressable>
+            </View>
+
+            <GestureDetector gesture={placeTapGesture}>
+              <View
+                style={styles.photoWrap}
+                onLayout={(e) => setContainerSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
+              >
+                <Image
+                  source={{ uri: photo.filePath }}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="contain"
+                  onLoad={(e) => setNaturalSize({ width: e.source.width, height: e.source.height })}
                 />
-              );
-            })}
-          </View>
+                {renderedRect && symbols.map((symbol) => {
+                  const x = renderedRect.offsetX + symbolPhotoX(symbol.positionAlongWall, renderedRect.width);
+                  const y = renderedRect.offsetY + symbol.photoY * renderedRect.height;
+                  return (
+                    <DraggableSymbol
+                      key={symbol.id}
+                      symbol={symbol}
+                      x={x}
+                      baseY={y}
+                      containerHeight={containerSize.height}
+                      enabled={!addingSymbol}
+                      onDragEnd={(photoY) => handleSymbolDragEnd(symbol, photoY)}
+                      onTap={() => confirmRemoveSymbol(symbol)}
+                    />
+                  );
+                })}
+              </View>
+            </GestureDetector>
+          </>
         )}
 
-        {photo && <Text style={styles.hint}>Drag a symbol to adjust height · Tap to remove</Text>}
+        {photo && (
+          <Text style={styles.hint}>
+            {addingSymbol ? 'Tap the photo to place a symbol' : 'Drag a symbol to adjust height · Tap to remove'}
+          </Text>
+        )}
       </SafeAreaView>
+
+      {/* Symbol palette — after tapping the photo while adding a symbol.
+          Modal, not an inline sibling View: an inline flex:1 sibling of the
+          SafeAreaView above would split the screen's height with it as soon
+          as it appears, shrinking the photo container and changing its
+          onLayout size AFTER pendingTap was captured — corrupting the
+          coordinate math in commitSymbol and pushing every placement down. */}
+      <Modal visible={pendingTap != null} transparent animationType="fade" onRequestClose={() => setPendingTap(null)}>
+        <Pressable style={styles.sheetOverlay} onPress={() => setPendingTap(null)}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <Text style={styles.sheetTitle}>What symbol is this?</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.symbolRow}>
+              {SYMBOL_TYPES.map((type) => (
+                <Pressable
+                  key={type}
+                  style={[styles.symbolBtn, selectedSymbolType === type && styles.symbolBtnActive]}
+                  onPress={() => setSelectedSymbolType(type)}
+                  hitSlop={4}
+                >
+                  <Text style={[styles.symbolBtnText, selectedSymbolType === type && styles.symbolBtnTextActive]}>
+                    {SYMBOL_LABELS[type]}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <Pressable style={styles.sheetConfirm} onPress={commitSymbol}>
+              <Text style={styles.sheetConfirmText}>Place {SYMBOL_LABELS[selectedSymbolType]}</Text>
+            </Pressable>
+            <Pressable onPress={() => setPendingTap(null)} style={styles.sheetCancel}>
+              <Text style={styles.sheetCancelText}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Rename sheet */}
       <Modal visible={editingLabel} transparent animationType="fade" onRequestClose={() => setEditingLabel(false)}>
@@ -411,11 +523,20 @@ const styles = StyleSheet.create({
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.xl },
   emptyText: { color: colors.textSecondary, fontSize: 17, fontWeight: '700', marginBottom: space.xs },
   emptyHint: { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginBottom: space.xl, lineHeight: 19 },
-  addBtn: { backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: space.xl, paddingVertical: space.md },
+  emptyBtnRow: { flexDirection: 'row', gap: space.md },
+  addBtn: { backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: space.lg, paddingVertical: space.md },
   addBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 15 },
+  addBtnSecondary: { borderRadius: radius.pill, paddingHorizontal: space.lg, paddingVertical: space.md, borderWidth: 1, borderColor: colors.hairline },
+  addBtnSecondaryText: { color: colors.textSecondary, fontWeight: '700', fontSize: 15 },
 
   photoWrap: { flex: 1, position: 'relative', backgroundColor: '#000' },
   hint: { color: colors.textMuted, fontSize: 12, textAlign: 'center', paddingVertical: space.md },
+
+  symbolModeToggle: { alignItems: 'center', paddingVertical: space.sm },
+  symbolModeBtn: { borderRadius: radius.pill, paddingHorizontal: space.lg, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.hairline },
+  symbolModeBtnActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  symbolModeBtnText: { color: colors.accent, fontWeight: '700', fontSize: 13 },
+  symbolModeBtnTextActive: { color: colors.accentInk },
 
   sheetOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
   sheet: {
@@ -429,6 +550,17 @@ const styles = StyleSheet.create({
   },
   sheetConfirm: { backgroundColor: colors.accent, borderRadius: radius.tile, paddingVertical: space.md, alignItems: 'center', marginTop: space.md },
   sheetConfirmText: { color: colors.accentInk, fontWeight: '800', fontSize: 15 },
+  sheetCancel: { alignItems: 'center', paddingTop: space.md },
+  sheetCancelText: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
+
+  symbolRow: { gap: space.sm, paddingBottom: space.xs },
+  symbolBtn: {
+    paddingHorizontal: space.md, paddingVertical: 6, borderRadius: radius.pill,
+    borderWidth: 1, borderColor: colors.hairline,
+  },
+  symbolBtnActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  symbolBtnText: { color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
+  symbolBtnTextActive: { color: colors.accentInk },
 
   cameraScreen: { flex: 1, backgroundColor: '#000' },
   camera: { flex: 1 },

@@ -1,22 +1,28 @@
 /**
- * Floor-plan viewer, wall tracer, and symbol tagger.
+ * Floor-plan viewer and wall tracer.
  *
- * Route id = the FLOOR's location id (a top-level Location). Three modes:
- *  - View: pinch-zoom/pan the imported plan image; tap a wall to open it.
+ * Route id = the FLOOR's location id (a top-level Location). Two modes:
+ *  - View: pinch-zoom/pan the imported plan image; tap a wall to open its
+ *    detail screen (attach/view its photo, place electrical symbols there —
+ *    see app/project/wall/[id].tsx).
  *  - Trace walls: tap two points to trace a wall, assign it to a room.
- *  - Tag symbols: tap near a wall (snaps to the nearest one) to tag an
- *    electrical symbol already drawn on the plan; it then auto-renders on
- *    that wall's photo (see app/project/wall/[id].tsx).
+ *
+ * Wall selection is handled entirely inside the shared tap gesture (not a
+ * nested Pressable) — a native Pressable nested inside a GestureDetector's
+ * target view competes with that detector's own recognizers (here, the
+ * pinch/double-tap-reset gestures active in View mode) for the same
+ * touches, which made wall taps register unreliably. Routing every tap
+ * through one gesture-driven handler avoids that.
  *
  * Pinch-zoom is only enabled in View mode and reset to scale=1 whenever
- * leaving it — Trace/Tag tap math assumes the container is unscaled, and
+ * leaving it — Trace tap math assumes the container is unscaled, and
  * gesture-handler's e.x/e.y are relative to the view's untransformed layout,
  * not its visually zoomed size, so combining live zoom with precise tap
- * placement would misplace every wall/symbol.
+ * placement would misplace every wall.
  */
 import React, { useCallback, useState } from 'react';
 import {
-  View, Text, Pressable, StyleSheet, Alert, ActivityIndicator, ScrollView,
+  View, Text, Pressable, StyleSheet, Alert, ActivityIndicator, ScrollView, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -27,20 +33,18 @@ import Svg from 'react-native-svg';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, runOnJS } from 'react-native-reanimated';
 import type { Location, Wall, WallSymbol } from '@/src/domain/types';
-import type { SymbolType } from '@/src/media/annotation-service';
 import { loadLocation, loadLocations } from '@/src/data/project-repo';
 import {
   loadFloorPlanForLocation, addFloorPlan, updateFloorPlanFile, deleteFloorPlan,
-  addWall, loadWallsForFloorPlan,
-  addWallSymbol, loadWallSymbolsForFloorPlan,
+  addWall, loadWallsForFloorPlan, loadWallSymbolsForFloorPlan,
 } from '@/src/data/floor-plan-repo';
 import { importFloorPlanImage, deleteFloorPlanImage } from '@/src/media/floor-plan-service';
 import {
-  containerPointToImageNorm, imageNormToContainerPoint, pixelToPlan,
-  findNearestWall, wallPointAt, NEAREST_WALL_MAX_DISTANCE, DEFAULT_PHOTO_Y,
+  containerPointToImageNorm, imageNormToContainerPoint,
+  findNearestWall, wallPointAt, NEAREST_WALL_MAX_DISTANCE,
   type Point,
 } from '@/src/domain/wall-geometry';
-import { PlacedSymbolGroup, SYMBOL_TYPES, SYMBOL_LABELS } from '@/src/ui/annotations/symbols';
+import { PlacedSymbolGroup } from '@/src/ui/annotations/symbols';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 
 const mediaPaths = {
@@ -48,15 +52,7 @@ const mediaPaths = {
   cacheDir: FileSystem.cacheDirectory ?? '',
 };
 
-const SYMBOL_COLORS = [
-  { hex: '#FF3B30', label: 'Red' },
-  { hex: '#1B8FFF', label: 'Blue' },
-  { hex: '#06D6A0', label: 'Green' },
-  { hex: '#F0B730', label: 'Amber' },
-  { hex: '#FFFFFF', label: 'White' },
-];
-
-type Mode = 'view' | 'trace' | 'tag';
+type Mode = 'view' | 'trace';
 
 function Dot({ point, color }: { point: Point; color: string }) {
   return (
@@ -67,11 +63,7 @@ function Dot({ point, color }: { point: Point; color: string }) {
   );
 }
 
-function WallLine({
-  start, end, onPress,
-}: {
-  start: Point; end: Point; onPress?: () => void;
-}) {
+function WallLine({ start, end }: { start: Point; end: Point }) {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   const len = Math.hypot(dx, dy);
@@ -80,22 +72,20 @@ function WallLine({
   const midY = (start.y + end.y) / 2;
 
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={!onPress}
-      hitSlop={10}
+    <View
+      pointerEvents="none"
       style={{
         position: 'absolute',
         left: midX - len / 2,
-        top: midY - 12,
+        top: midY - 1.5,
         width: len,
-        height: 24,
-        justifyContent: 'center',
+        height: 3,
+        backgroundColor: colors.accent,
+        opacity: 0.9,
+        borderRadius: 1.5,
         transform: [{ rotate: `${angle}deg` }],
       }}
-    >
-      <View style={{ height: 3, backgroundColor: colors.accent, opacity: 0.9, borderRadius: 1.5 }} />
-    </Pressable>
+    />
   );
 }
 
@@ -119,11 +109,6 @@ export default function FloorPlanScreen() {
   // Trace-walls state
   const [pendingStart, setPendingStart] = useState<Point | null>(null);
   const [roomPicker, setRoomPicker] = useState<{ start: Point; end: Point } | null>(null);
-
-  // Tag-symbols state
-  const [symbolPicker, setSymbolPicker] = useState<{ wall: Wall; positionAlongWall: number } | null>(null);
-  const [selectedSymbolType, setSelectedSymbolType] = useState<SymbolType>('socket');
-  const [colorIdx, setColorIdx] = useState(0);
 
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
@@ -231,8 +216,7 @@ export default function FloorPlanScreen() {
 
   // ── Trace walls ──────────────────────────────────────────────────────────
 
-  const handleTraceTap = (containerX: number, containerY: number) => {
-    const norm = containerPointToImageNorm({ x: containerX, y: containerY }, containerSize, imageSize);
+  const handleTraceTap = (norm: Point) => {
     if (!pendingStart) {
       setPendingStart(norm);
     } else {
@@ -244,41 +228,28 @@ export default function FloorPlanScreen() {
   const commitWall = async (roomId: string) => {
     if (!floorPlan || !roomPicker) return;
     const label = `Wall ${walls.length + 1}`;
-    await addWall(floorPlan.id, roomId, roomPicker.start, roomPicker.end, label);
+    const newWallId = await addWall(floorPlan.id, roomId, roomPicker.start, roomPicker.end, label);
     setRoomPicker(null);
-    reload();
+    // Straight to the photo-attach prompt — no separate trip back through
+    // View mode to find and tap the wall you just traced.
+    router.push(`/project/wall/${newWallId}` as any);
   };
 
-  // ── Tag symbols ──────────────────────────────────────────────────────────
+  // ── View mode: tap a wall to open it ─────────────────────────────────────
 
-  const handleTagTap = (containerX: number, containerY: number) => {
-    const norm = containerPointToImageNorm({ x: containerX, y: containerY }, containerSize, imageSize);
+  const handleViewTap = (norm: Point) => {
     const nearest = findNearestWall(norm, walls);
-    if (!nearest || nearest.distance > NEAREST_WALL_MAX_DISTANCE) {
-      Alert.alert('No wall nearby', 'Trace a wall here first, then tag its symbols.');
-      return;
+    if (nearest && nearest.distance <= NEAREST_WALL_MAX_DISTANCE) {
+      router.push(`/project/wall/${nearest.wall.id}` as any);
     }
-    setSymbolPicker({ wall: nearest.wall, positionAlongWall: nearest.positionAlongWall });
-  };
-
-  const commitSymbol = async () => {
-    if (!symbolPicker) return;
-    await addWallSymbol(
-      symbolPicker.wall.id,
-      selectedSymbolType,
-      symbolPicker.positionAlongWall,
-      DEFAULT_PHOTO_Y,
-      SYMBOL_COLORS[colorIdx]!.hex,
-    );
-    setSymbolPicker(null);
-    reload();
   };
 
   // ── Gestures ─────────────────────────────────────────────────────────────
 
-  const handleTap = (x: number, y: number) => {
-    if (mode === 'trace') handleTraceTap(x, y);
-    else if (mode === 'tag') handleTagTap(x, y);
+  const handleTap = (containerX: number, containerY: number) => {
+    const norm = containerPointToImageNorm({ x: containerX, y: containerY }, containerSize, imageSize);
+    if (mode === 'trace') handleTraceTap(norm);
+    else handleViewTap(norm);
   };
 
   const pinchGesture = Gesture.Pinch()
@@ -292,7 +263,6 @@ export default function FloorPlanScreen() {
     .onEnd(() => { scale.value = withSpring(1); });
 
   const singleTap = Gesture.Tap()
-    .enabled(mode !== 'view')
     .onEnd((e) => { runOnJS(handleTap)(e.x, e.y); });
 
   const gesture = Gesture.Exclusive(Gesture.Simultaneous(pinchGesture, doubleTap), singleTap);
@@ -338,7 +308,7 @@ export default function FloorPlanScreen() {
         {!floorPlan ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No floor plan yet.</Text>
-            <Text style={styles.emptyHint}>Import an image of this floor's plan to trace walls and tag symbols.</Text>
+            <Text style={styles.emptyHint}>Import an image of this floor's plan to trace its walls.</Text>
             <Pressable style={styles.importBtn} onPress={pickAndImportPlan} disabled={importing}>
               <Text style={styles.importBtnText}>{importing ? 'Importing…' : 'Import floor plan'}</Text>
             </Pressable>
@@ -346,7 +316,7 @@ export default function FloorPlanScreen() {
         ) : (
           <>
             <View style={styles.modeToggle}>
-              {(['view', 'trace', 'tag'] as const).map((m) => (
+              {(['view', 'trace'] as const).map((m) => (
                 <Pressable
                   key={m}
                   style={[styles.modeBtn, mode === m && styles.modeBtnActive]}
@@ -354,7 +324,7 @@ export default function FloorPlanScreen() {
                   hitSlop={6}
                 >
                   <Text style={[styles.modeBtnText, mode === m && styles.modeBtnTextActive]}>
-                    {m === 'view' ? 'View' : m === 'trace' ? 'Trace walls' : 'Tag symbols'}
+                    {m === 'view' ? 'View' : 'Trace walls'}
                   </Text>
                 </Pressable>
               ))}
@@ -386,21 +356,13 @@ export default function FloorPlanScreen() {
                     })}
                   </Svg>
 
-                  {/* Wall lines + tap targets — inside the zoom transform so they stay
-                      visually aligned with the image at any pinch-zoom scale. Pressable
-                      hit-testing is transform-aware, so tap-to-navigate still works. */}
-                  {walls.map((wall) => {
-                    const start = imageNormToContainerPoint(wall.start, containerSize, imageSize);
-                    const end = imageNormToContainerPoint(wall.end, containerSize, imageSize);
-                    return (
-                      <WallLine
-                        key={wall.id}
-                        start={start}
-                        end={end}
-                        onPress={mode === 'view' ? () => router.push(`/project/wall/${wall.id}` as any) : undefined}
-                      />
-                    );
-                  })}
+                  {walls.map((wall) => (
+                    <WallLine
+                      key={wall.id}
+                      start={imageNormToContainerPoint(wall.start, containerSize, imageSize)}
+                      end={imageNormToContainerPoint(wall.end, containerSize, imageSize)}
+                    />
+                  ))}
 
                   {pendingStart && (
                     <Dot point={imageNormToContainerPoint(pendingStart, containerSize, imageSize)} color={colors.accent} />
@@ -410,19 +372,20 @@ export default function FloorPlanScreen() {
             </GestureDetector>
 
             <Text style={styles.hint}>
-              {mode === 'view' && 'Pinch to zoom · Tap a wall to open its photo'}
+              {mode === 'view' && 'Pinch to zoom · Tap a wall to attach/view its photo'}
               {mode === 'trace' && (pendingStart ? 'Tap the wall\'s other end' : 'Tap one end of a wall')}
-              {mode === 'tag' && 'Tap near a wall where a symbol is drawn on the plan'}
             </Text>
           </>
         )}
       </SafeAreaView>
 
-      {/* Room picker — after tracing a wall */}
-      {roomPicker && (
-        <View style={styles.sheetOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setRoomPicker(null)} />
-          <View style={styles.sheet}>
+      {/* Room picker — after tracing a wall. Modal, not an inline sibling
+          View: a flex:1 sibling of the SafeAreaView above would split the
+          screen's height with it as soon as it appears, squeezing the plan
+          canvas underneath. */}
+      <Modal visible={roomPicker != null} transparent animationType="fade" onRequestClose={() => setRoomPicker(null)}>
+        <Pressable style={styles.sheetOverlay} onPress={() => setRoomPicker(null)}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
             <Text style={styles.sheetTitle}>Which room is this wall in?</Text>
             {rooms.length === 0 ? (
               <Text style={styles.emptyHint}>No rooms under this floor yet — add one from the project screen first.</Text>
@@ -438,48 +401,9 @@ export default function FloorPlanScreen() {
             <Pressable onPress={() => setRoomPicker(null)} style={styles.sheetCancel}>
               <Text style={styles.sheetCancelText}>Cancel</Text>
             </Pressable>
-          </View>
-        </View>
-      )}
-
-      {/* Symbol palette — after tapping near a wall in Tag mode */}
-      {symbolPicker && (
-        <View style={styles.sheetOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setSymbolPicker(null)} />
-          <View style={styles.sheet}>
-            <Text style={styles.sheetTitle}>What symbol is this?</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.symbolRow}>
-              {SYMBOL_TYPES.map((type) => (
-                <Pressable
-                  key={type}
-                  style={[styles.symbolBtn, selectedSymbolType === type && styles.symbolBtnActive]}
-                  onPress={() => setSelectedSymbolType(type)}
-                  hitSlop={4}
-                >
-                  <Text style={[styles.symbolBtnText, selectedSymbolType === type && styles.symbolBtnTextActive]}>
-                    {SYMBOL_LABELS[type]}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-            <View style={styles.toolRow}>
-              {SYMBOL_COLORS.map((c, i) => (
-                <Pressable
-                  key={c.hex}
-                  onPress={() => setColorIdx(i)}
-                  style={[styles.swatch, { backgroundColor: c.hex }, i === colorIdx && styles.swatchActive]}
-                />
-              ))}
-            </View>
-            <Pressable style={styles.sheetConfirm} onPress={commitSymbol}>
-              <Text style={styles.sheetConfirmText}>Tag {SYMBOL_LABELS[selectedSymbolType]}</Text>
-            </Pressable>
-            <Pressable onPress={() => setSymbolPicker(null)} style={styles.sheetCancel}>
-              <Text style={styles.sheetCancelText}>Cancel</Text>
-            </Pressable>
-          </View>
-        </View>
-      )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </GestureHandlerRootView>
   );
 }
@@ -528,19 +452,4 @@ const styles = StyleSheet.create({
   sheetRowText: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
   sheetCancel: { alignItems: 'center', paddingTop: space.md },
   sheetCancelText: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
-  sheetConfirm: { backgroundColor: colors.accent, borderRadius: radius.tile, paddingVertical: space.md, alignItems: 'center', marginTop: space.md },
-  sheetConfirmText: { color: colors.accentInk, fontWeight: '800', fontSize: 15 },
-
-  symbolRow: { gap: space.sm, paddingBottom: space.xs },
-  symbolBtn: {
-    paddingHorizontal: space.md, paddingVertical: 6, borderRadius: radius.pill,
-    borderWidth: 1, borderColor: colors.hairline,
-  },
-  symbolBtnActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  symbolBtnText: { color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
-  symbolBtnTextActive: { color: colors.accentInk },
-
-  toolRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.md },
-  swatch: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: 'transparent' },
-  swatchActive: { borderColor: '#fff', transform: [{ scale: 1.2 }] },
 });
