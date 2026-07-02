@@ -32,7 +32,9 @@ export default function ProjectsScreen() {
     const sts: Record<string, EstimateStatus> = {};
     for (const p of ps) {
       const [locs, est] = await Promise.all([loadLocations(p.id), loadProjectEstimate(p.id)]);
-      counts[p.id] = locs.length;
+      // Only count actual rooms (nested locations) — loadLocations also
+      // returns top-level floors, which aren't rooms.
+      counts[p.id] = locs.filter((l) => l.parentId != null).length;
       if (est) sts[p.id] = est.status;
     }
     setRoomCounts(counts);
