@@ -6,7 +6,7 @@
 import { Q } from '@nozbe/watermelondb';
 import type { Model } from '@nozbe/watermelondb';
 import { database } from './database';
-import { ProjectModel, LocationModel } from './models';
+import { ProjectModel, LocationModel, FloorPlanModel, WallModel, WallSymbolModel } from './models';
 import type { Project, Location } from '../domain/types';
 
 function toProject(r: ProjectModel): Project {
@@ -115,16 +115,63 @@ export async function renameLocation(id: string, name: string): Promise<void> {
   });
 }
 
-/** Delete a location and any child locations under it. */
+/**
+ * Delete a location and any child locations under it. Also cascades any
+ * walls/wall_symbols belonging to this location (if it's a room) and any
+ * floor_plans/walls/wall_symbols belonging to this location (if it's a
+ * floor) — WatermelonDB has no FK constraints, so this is manual, mirroring
+ * the wall/floor-plan cascades in floor-plan-repo.ts. File cleanup (photo
+ * binaries, floor-plan images) is out of scope here, matching this
+ * function's existing behaviour of never touching FileSystem.
+ */
 export async function deleteLocation(id: string): Promise<void> {
   await database.write(async () => {
+    const batch: Model[] = [];
+
+    // Floor plans belonging to this location (only floors have one).
+    const floorPlans = await database
+      .get<FloorPlanModel>('floor_plans')
+      .query(Q.where('location_id', id))
+      .fetch();
+    for (const plan of floorPlans) {
+      const planWalls = await database
+        .get<WallModel>('walls')
+        .query(Q.where('floor_plan_id', plan.id))
+        .fetch();
+      for (const wall of planWalls) {
+        const wallSymbols = await database
+          .get<WallSymbolModel>('wall_symbols')
+          .query(Q.where('wall_id', wall.id))
+          .fetch();
+        batch.push(...wallSymbols.map((s) => s.prepareDestroyPermanently()));
+        batch.push(wall.prepareDestroyPermanently());
+      }
+      batch.push(plan.prepareDestroyPermanently());
+    }
+
+    // Walls belonging to this location (only rooms have these).
+    const walls = await database
+      .get<WallModel>('walls')
+      .query(Q.where('location_id', id))
+      .fetch();
+    for (const wall of walls) {
+      const wallSymbols = await database
+        .get<WallSymbolModel>('wall_symbols')
+        .query(Q.where('wall_id', wall.id))
+        .fetch();
+      batch.push(...wallSymbols.map((s) => s.prepareDestroyPermanently()));
+      batch.push(wall.prepareDestroyPermanently());
+    }
+
     const children = await database
       .get<LocationModel>('locations')
       .query(Q.where('parent_id', id))
       .fetch();
-    const batch: Model[] = children.map((c) => c.prepareDestroyPermanently());
+    batch.push(...children.map((c) => c.prepareDestroyPermanently()));
+
     const loc = await database.get<LocationModel>('locations').find(id);
     batch.push(loc.prepareDestroyPermanently());
+
     await database.batch(...batch);
   });
 }

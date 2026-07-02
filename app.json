@@ -10,7 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.dqm79.sparkquoteapp"
+      "bundleIdentifier": "com.dqm79.sparkquoteapp",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -43,15 +46,26 @@
       ],
       "expo-secure-store",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow SparkQuote to access your camera to capture reference photos for rooms.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
         "@morrowdigital/watermelondb-expo-plugin",
-        { "disableJsi": false }
+        {
+          "disableJsi": false
+        }
       ],
       [
         "expo-build-properties",
         {
           "android": {
             "packagingOptions": {
-              "pickFirst": ["**/libc++_shared.so"]
+              "pickFirst": [
+                "**/libc++_shared.so"
+              ]
             }
           }
         }

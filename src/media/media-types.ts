@@ -67,6 +67,16 @@ export function originalPhotoPath(paths: MediaPaths, projectId: string, photoId:
   return joinPath(projectMediaDir(paths, projectId), `${safeSegment(photoId)}.jpg`);
 }
 
+/** Directory holding a project's floor-plan images (one per floor). */
+export function floorPlansDir(paths: MediaPaths, projectId: string): string {
+  return joinPath(paths.documentDir, `projects/${safeSegment(projectId)}/floor-plans`);
+}
+
+/** Full path for a floor plan's stored image. */
+export function floorPlanPath(paths: MediaPaths, projectId: string, floorPlanId: string): string {
+  return joinPath(floorPlansDir(paths, projectId), `${safeSegment(floorPlanId)}.jpg`);
+}
+
 /** Directory for derived thumbnails (safe to clear — regenerated on demand). */
 export function thumbnailDir(paths: MediaPaths): string {
   return joinPath(paths.cacheDir, 'thumbnails');

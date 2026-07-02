@@ -65,6 +65,16 @@ export async function photosForLocation(locationId: string): Promise<Photo[]> {
   return rows.map(toPhoto).sort((a, b) => b.capturedAt - a.capturedAt);
 }
 
+/** Load a single photo by id, or null if it doesn't exist (e.g. was deleted). */
+export async function loadPhoto(id: string): Promise<Photo | null> {
+  try {
+    const row = await database.get<PhotoModel>('photos').find(id);
+    return toPhoto(row);
+  } catch {
+    return null;
+  }
+}
+
 /** Update caption, note, and stage for a photo. Pass empty strings to clear text fields. */
 export async function updatePhotoDetails(
   id: string,

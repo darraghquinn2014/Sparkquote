@@ -59,5 +59,47 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 8,
+      steps: [
+        createTable({
+          name: 'floor_plans',
+          columns: [
+            { name: 'project_id', type: 'string', isIndexed: true },
+            { name: 'location_id', type: 'string', isIndexed: true },
+            { name: 'file_path', type: 'string' },
+            { name: 'width', type: 'number' },
+            { name: 'height', type: 'number' },
+            { name: 'created_at', type: 'number' },
+          ],
+        }),
+        createTable({
+          name: 'walls',
+          columns: [
+            { name: 'floor_plan_id', type: 'string', isIndexed: true },
+            { name: 'location_id', type: 'string', isIndexed: true },
+            { name: 'start_x', type: 'number' },
+            { name: 'start_y', type: 'number' },
+            { name: 'end_x', type: 'number' },
+            { name: 'end_y', type: 'number' },
+            { name: 'label', type: 'string', isOptional: true },
+            { name: 'photo_id', type: 'string', isOptional: true, isIndexed: true },
+            { name: 'sort_order', type: 'number' },
+            { name: 'created_at', type: 'number' },
+          ],
+        }),
+        createTable({
+          name: 'wall_symbols',
+          columns: [
+            { name: 'wall_id', type: 'string', isIndexed: true },
+            { name: 'type', type: 'string' },
+            { name: 'position_along_wall', type: 'number' },
+            { name: 'photo_y', type: 'number' },
+            { name: 'color', type: 'string', isOptional: true },
+            { name: 'created_at', type: 'number' },
+          ],
+        }),
+      ],
+    },
   ],
 });

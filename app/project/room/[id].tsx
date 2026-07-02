@@ -13,10 +13,11 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Image } from 'expo-image';
 import * as FileSystem from 'expo-file-system/legacy';
 import Svg, { Path } from 'react-native-svg';
-import type { Location } from '@/src/domain/types';
+import type { Location, Wall } from '@/src/domain/types';
 import type { Photo } from '@/src/media/media-types';
 import { loadLocation } from '@/src/data/project-repo';
 import { photosForLocation, addLocationPhoto, deleteLocationPhoto, updatePhotoDetails } from '@/src/data/photo-repo';
+import { loadWallsForLocation } from '@/src/data/floor-plan-repo';
 import { saveCapture, deletePhoto } from '@/src/media/camera-service';
 import { loadAnnotations, hasAnnotations, deleteAnnotations, type AnnotationStroke, type PlacedSymbol } from '@/src/media/annotation-service';
 import { AnnotationEditor } from '@/src/ui/annotations/AnnotationEditor';
@@ -44,6 +45,7 @@ export default function RoomScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [location, setLocation] = useState<Location | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
+  const [walls, setWalls] = useState<Wall[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -71,6 +73,7 @@ export default function RoomScreen() {
     setLocation(loc);
     const ps = await photosForLocation(id);
     setPhotos(ps);
+    setWalls(await loadWallsForLocation(id));
     // Check which photos have saved annotations
     const ids = new Set<string>();
     await Promise.all(ps.map(async (p) => { if (await hasAnnotations(p.id)) ids.add(p.id); }));
@@ -309,6 +312,37 @@ export default function RoomScreen() {
 
         {photos.length > 0 && (
           <Text style={styles.hint}>Tap to view / name  ·  Hold to delete</Text>
+        )}
+
+        <Text style={[styles.subtitle, styles.wallsSubtitle]}>Walls</Text>
+        {walls.length === 0 ? (
+          <View style={styles.wallsEmpty}>
+            <Text style={styles.emptyHint}>No walls traced yet.</Text>
+            {location.parentId && (
+              <Pressable onPress={() => router.push(`/project/plan/${location.parentId}` as any)}>
+                <Text style={styles.wallsEmptyLink}>Trace walls from the floor plan ›</Text>
+              </Pressable>
+            )}
+          </View>
+        ) : (
+          walls.map((wall) => {
+            const wallPhoto = wall.photoId ? photos.find((p) => p.id === wall.photoId) : undefined;
+            return (
+              <Pressable
+                key={wall.id}
+                style={styles.wallRow}
+                onPress={() => router.push(`/project/wall/${wall.id}` as any)}
+              >
+                {wallPhoto ? (
+                  <Image source={{ uri: wallPhoto.filePath }} style={styles.wallThumb} contentFit="cover" />
+                ) : (
+                  <View style={styles.wallThumbEmpty} />
+                )}
+                <Text style={styles.wallRowText}>{wall.label || 'Wall'}</Text>
+                <Text style={styles.wallChevron}>›</Text>
+              </Pressable>
+            );
+          })
         )}
       </ScrollView>
 
@@ -555,6 +589,19 @@ const styles = StyleSheet.create({
   emptyText: { color: colors.textSecondary, fontSize: 16, fontWeight: '600', marginBottom: space.xs },
   emptyHint: { color: colors.textMuted, fontSize: 13 },
   empty: { color: colors.textMuted, textAlign: 'center', marginTop: space.xxl },
+
+  wallsSubtitle: { marginTop: space.xl, marginBottom: space.md },
+  wallsEmpty: { alignItems: 'flex-start' },
+  wallsEmptyLink: { color: colors.accent, fontSize: 13, fontWeight: '700', marginTop: space.xs },
+  wallRow: {
+    flexDirection: 'row', alignItems: 'center', gap: space.md,
+    backgroundColor: colors.surface, borderRadius: radius.tile,
+    padding: space.sm, marginBottom: space.xs,
+  },
+  wallThumb: { width: 44, height: 44, borderRadius: radius.tile / 2 },
+  wallThumbEmpty: { width: 44, height: 44, borderRadius: radius.tile / 2, backgroundColor: colors.ground },
+  wallRowText: { flex: 1, color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  wallChevron: { color: colors.textMuted, fontSize: 20 },
 
   thumbCaption: {
     position: 'absolute',

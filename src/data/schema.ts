@@ -13,7 +13,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 7,
+  version: 8,
   tables: [
     // ── Catalogue ────────────────────────────────────────────────────────
     tableSchema({
@@ -137,6 +137,45 @@ export const schema = appSchema({
         { name: 'caption', type: 'string', isOptional: true },
         { name: 'note', type: 'string', isOptional: true },
         { name: 'stage', type: 'string', isOptional: true },
+      ],
+    }),
+
+    // ── Floor plans, traced walls, and tagged electrical symbols ─────────
+    tableSchema({
+      name: 'floor_plans',
+      columns: [
+        { name: 'project_id', type: 'string', isIndexed: true },
+        { name: 'location_id', type: 'string', isIndexed: true }, // the FLOOR (top-level location)
+        { name: 'file_path', type: 'string' },
+        { name: 'width', type: 'number' },
+        { name: 'height', type: 'number' },
+        { name: 'created_at', type: 'number' },
+      ],
+    }),
+    tableSchema({
+      name: 'walls',
+      columns: [
+        { name: 'floor_plan_id', type: 'string', isIndexed: true },
+        { name: 'location_id', type: 'string', isIndexed: true }, // the ROOM
+        { name: 'start_x', type: 'number' }, // normalized 0-1, fraction of plan image width
+        { name: 'start_y', type: 'number' },
+        { name: 'end_x', type: 'number' },
+        { name: 'end_y', type: 'number' },
+        { name: 'label', type: 'string', isOptional: true },
+        { name: 'photo_id', type: 'string', isOptional: true, isIndexed: true }, // the ONE reference photo
+        { name: 'sort_order', type: 'number' },
+        { name: 'created_at', type: 'number' },
+      ],
+    }),
+    tableSchema({
+      name: 'wall_symbols',
+      columns: [
+        { name: 'wall_id', type: 'string', isIndexed: true },
+        { name: 'type', type: 'string' }, // SymbolType
+        { name: 'position_along_wall', type: 'number' }, // 0-1, shared plan/photo horizontal
+        { name: 'photo_y', type: 'number' }, // 0-1, photo-only vertical
+        { name: 'color', type: 'string', isOptional: true },
+        { name: 'created_at', type: 'number' },
       ],
     }),
 

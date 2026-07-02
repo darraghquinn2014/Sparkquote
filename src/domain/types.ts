@@ -5,6 +5,8 @@
  * Per spec §1.4: all money is integer MINOR units (pence / cent). Never floats.
  */
 
+import type { SymbolType } from '../media/annotation-service';
+
 /** Integer minor units of currency (pence or cent). e.g. 1250 = £12.50 */
 export type MinorUnits = number;
 
@@ -161,6 +163,55 @@ export interface Location {
   name: string;
   /** Ordering among siblings. */
   sortOrder: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Floor plans, traced walls, and tagged electrical symbols.
+// A FloorPlan is one imported image per floor (top-level Location). A Wall
+// is a line segment traced on that plan, belonging to a room (nested
+// Location) and pointing at its one reference Photo. A WallSymbol is a
+// tagged electrical symbol on a wall, positioned normalized (0-1) along the
+// wall (shared between the plan and the wall's photo) and, separately, at a
+// normalized (0-1) vertical position within the photo only (the plan is
+// top-down and carries no height information).
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface FloorPlan {
+  id: string;
+  projectId: string;
+  /** The floor (top-level Location) this plan belongs to. */
+  locationId: string;
+  filePath: string;
+  width: number;
+  height: number;
+  createdAt: number;
+}
+
+export interface Wall {
+  id: string;
+  floorPlanId: string;
+  /** The room (nested Location) this wall belongs to. */
+  locationId: string;
+  /** Normalized 0-1 endpoints on the floor plan image. */
+  start: { x: number; y: number };
+  end: { x: number; y: number };
+  label?: string;
+  /** The one reference photo for this wall, once captured. */
+  photoId?: string;
+  sortOrder: number;
+  createdAt: number;
+}
+
+export interface WallSymbol {
+  id: string;
+  wallId: string;
+  type: SymbolType;
+  /** 0-1 position along the wall, shared/projected between plan and photo. */
+  positionAlongWall: number;
+  /** 0-1 vertical position within the wall's photo only. */
+  photoY: number;
+  color?: string;
+  createdAt: number;
 }
 
 export interface Estimate {

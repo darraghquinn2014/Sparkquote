@@ -110,6 +110,40 @@ export class PhotoModel extends Model {
   @text('stage') stage!: string | null;
 }
 
+export class FloorPlanModel extends Model {
+  static table = 'floor_plans';
+  @text('project_id') projectId!: string;
+  @text('location_id') locationId!: string;
+  @text('file_path') filePath!: string;
+  @field('width') width!: number;
+  @field('height') height!: number;
+  @field('created_at') createdAt!: number;
+}
+
+export class WallModel extends Model {
+  static table = 'walls';
+  @text('floor_plan_id') floorPlanId!: string;
+  @text('location_id') locationId!: string;
+  @field('start_x') startX!: number;
+  @field('start_y') startY!: number;
+  @field('end_x') endX!: number;
+  @field('end_y') endY!: number;
+  @text('label') label!: string | null;
+  @text('photo_id') photoId!: string | null;
+  @field('sort_order') sortOrder!: number;
+  @field('created_at') createdAt!: number;
+}
+
+export class WallSymbolModel extends Model {
+  static table = 'wall_symbols';
+  @text('wall_id') wallId!: string;
+  @text('type') type!: string;
+  @field('position_along_wall') positionAlongWall!: number;
+  @field('photo_y') photoY!: number;
+  @text('color') color!: string | null;
+  @field('created_at') createdAt!: number;
+}
+
 export class SnagItemModel extends Model {
   static table = 'snag_items';
   @text('project_id') projectId!: string;

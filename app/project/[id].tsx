@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import type { Project, Location } from '@/src/domain/types';
 import { loadProjects, loadLocations, addLocation, deleteLocation, deleteProject, renameProject, renameLocation } from '@/src/data/project-repo';
+import { loadFloorPlanForLocation, loadWallsForFloorPlan } from '@/src/data/floor-plan-repo';
 import { loadProjectEstimate } from '@/src/data/project-estimate-repo';
 import { photosForLocation } from '@/src/data/photo-repo';
 import { loadBusinessProfile, readLogoDataUri } from '@/src/data/business-profile';
@@ -32,6 +33,7 @@ export default function ProjectDetailScreen() {
   const [project, setProject] = useState<Project | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
   const [roomTotals, setRoomTotals] = useState<Map<string, number>>(new Map());
+  const [planInfo, setPlanInfo] = useState<Map<string, { hasPlan: boolean; wallCount: number }>>(new Map());
   const [loading, setLoading] = useState(true);
   const [reportBusy, setReportBusy] = useState(false);
 
@@ -50,6 +52,15 @@ export default function ProjectDetailScreen() {
     ]);
     setProject(ps.find((p) => p.id === id) ?? null);
     setLocations(locs);
+
+    const floorLocs = locs.filter((l) => l.parentId == null);
+    const planEntries = await Promise.all(floorLocs.map(async (floor): Promise<[string, { hasPlan: boolean; wallCount: number }]> => {
+      const plan = await loadFloorPlanForLocation(floor.id);
+      const wallCount = plan ? (await loadWallsForFloorPlan(plan.id)).length : 0;
+      return [floor.id, { hasPlan: plan != null, wallCount }];
+    }));
+    setPlanInfo(new Map(planEntries));
+
     if (estimate) {
       const priced = priceEstimate(estimate, allToggles);
       const lineTotals = new Map(priced.lines.map((l) => [l.lineId, l.lineTotalMinor]));
@@ -309,9 +320,22 @@ export default function ProjectDetailScreen() {
                       <Text style={styles.floorTotalText}>{formatMoney(floorTotal(floor.id), 'GBP')}</Text>
                     )}
                   </View>
-                  <Pressable onPress={() => startEdit(floor.id, floor.name)} hitSlop={8}>
-                    <Text style={styles.editBtn}>Edit</Text>
-                  </Pressable>
+                  <View style={styles.floorRowActions}>
+                    <Pressable
+                      style={styles.planBtn}
+                      onPress={() => router.push(`/project/plan/${floor.id}` as any)}
+                      hitSlop={8}
+                    >
+                      <Text style={styles.planBtnText}>
+                        {planInfo.get(floor.id)?.hasPlan
+                          ? `Plan (${planInfo.get(floor.id)?.wallCount} wall${planInfo.get(floor.id)?.wallCount === 1 ? '' : 's'})`
+                          : 'Plan'}
+                      </Text>
+                    </Pressable>
+                    <Pressable onPress={() => startEdit(floor.id, floor.name)} hitSlop={8}>
+                      <Text style={styles.editBtn}>Edit</Text>
+                    </Pressable>
+                  </View>
                 </>
               )}
             </Pressable>
@@ -398,6 +422,9 @@ const styles = StyleSheet.create({
   noFloors: { color: colors.textMuted, fontSize: 14, fontStyle: 'italic', marginTop: space.sm },
   floorBlock: { backgroundColor: colors.surface, borderRadius: radius.tile, borderWidth: 1, borderColor: colors.hairline, padding: space.md, marginBottom: space.md },
   floorRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.sm },
+  floorRowActions: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  planBtn: { borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: 5, borderWidth: 1, borderColor: colors.hairline },
+  planBtnText: { color: colors.accent, fontWeight: '700', fontSize: 12 },
   floorName: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
   floorTotalText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'], marginTop: 1 },
   roomRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.ground, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.md, marginBottom: space.xs },
