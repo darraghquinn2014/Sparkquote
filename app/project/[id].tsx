@@ -21,6 +21,7 @@ import { renderProjectReportHtml } from '@/src/pdf/render-project-report';
 import type { ReportFloor, ReportRoom, ReportPhoto } from '@/src/pdf/render-project-report';
 import { priceEstimate } from '@/src/domain/pricing';
 import { formatMoney } from '@/src/domain/money';
+import { COMMON_FLOOR_NAMES } from '@/src/domain/floor-names';
 import { toLaborToggle } from '@/src/data/mappers';
 import { seedLaborToggles } from '@/src/data/seed/assemblies';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
@@ -40,6 +41,7 @@ export default function ProjectDetailScreen() {
   // inline-add state: which parent we're adding to (null = adding a floor)
   const [addingTo, setAddingTo] = useState<string | 'floor' | null>(null);
   const [draftName, setDraftName] = useState('');
+  const [customFloor, setCustomFloor] = useState(false);
   const [editingId, setEditingId] = useState<string | 'project' | null>(null);
   const [editName, setEditName] = useState('');
 
@@ -170,6 +172,15 @@ export default function ProjectDetailScreen() {
     await addLocation(id, name, parentId);
     setDraftName('');
     setAddingTo(null);
+    setCustomFloor(false);
+    reload();
+  };
+
+  const quickAddFloor = async (name: string) => {
+    if (!id) return;
+    await addLocation(id, name, undefined);
+    setAddingTo(null);
+    setCustomFloor(false);
     reload();
   };
 
@@ -279,7 +290,7 @@ export default function ProjectDetailScreen() {
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Floors & rooms</Text>
-          <Pressable style={styles.addFloorBtn} onPress={() => { setAddingTo('floor'); setDraftName(''); }}>
+          <Pressable style={styles.addFloorBtn} onPress={() => { setAddingTo('floor'); setDraftName(''); setCustomFloor(false); }}>
             
             <Text style={styles.addFloorText}>+ Add floor</Text>
           </Pressable>
@@ -289,12 +300,25 @@ export default function ProjectDetailScreen() {
           <Text style={styles.noFloors}>No floors yet. Add a floor, then add rooms to it.</Text>
         )}
 
-        {addingTo === 'floor' && (
+        {addingTo === 'floor' && !customFloor && (
+          <View style={styles.floorChipRow}>
+            {COMMON_FLOOR_NAMES.map((name) => (
+              <Pressable key={name} style={styles.floorChip} onPress={() => quickAddFloor(name)}>
+                <Text style={styles.floorChipText}>{name}</Text>
+              </Pressable>
+            ))}
+            <Pressable style={styles.floorChip} onPress={() => setCustomFloor(true)}>
+              <Text style={styles.floorChipText}>+ Custom</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {addingTo === 'floor' && customFloor && (
           <View style={styles.addRow}>
             <TextInput
               value={draftName}
               onChangeText={setDraftName}
-              placeholder="Floor name (e.g. Ground Floor)"
+              placeholder="Floor name (e.g. Mezzanine)"
               placeholderTextColor={colors.textMuted}
               style={styles.addInput}
               autoFocus
@@ -433,6 +457,9 @@ const styles = StyleSheet.create({
   roomChevron: { color: colors.textMuted, fontSize: 20 },
   addRoomBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: space.sm, marginTop: space.xs },
   addRoomText: { color: colors.textSecondary, fontWeight: '600', fontSize: 13 },
+  floorChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.sm, marginBottom: space.sm },
+  floorChip: { borderRadius: radius.pill, borderWidth: 1, borderColor: colors.hairline, paddingHorizontal: space.md, paddingVertical: space.sm },
+  floorChipText: { color: colors.textSecondary, fontWeight: '600', fontSize: 13 },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.sm, marginBottom: space.sm },
   addInput: { flex: 1, backgroundColor: colors.ground, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.sm, color: colors.textPrimary, fontSize: 15 },
   addConfirm: { backgroundColor: colors.accent, borderRadius: radius.tile, paddingHorizontal: space.lg, paddingVertical: space.sm },
