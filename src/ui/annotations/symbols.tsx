@@ -31,91 +31,110 @@ export const SYMBOL_LABELS: Record<SymbolType, string> = {
   fan: 'Fan',
 };
 
+/** One fixed colour per symbol type — no per-placement colour choice. */
+export const SYMBOL_TYPE_COLORS: Record<SymbolType, string> = {
+  socket: '#FFFFFF',
+  switch: '#1B8FFF',
+  ceiling_rose: '#F0B730',
+  downlight: '#FFD166',
+  consumer_unit: '#FF3B30',
+  junction_box: '#9B5DE5',
+  smoke_detector: '#FF7043',
+  fan: '#06D6A0',
+};
+
 // All symbols drawn centered at origin in a ~40×40 dp coordinate space.
+//
+// Matched to the graphical symbols commonly used on UK/Ireland M&E
+// (mechanical & electrical) installation layout drawings — the pictograms
+// an electrician would recognise on a real floor plan (circuit/schematic
+// diagrams have their own separate, formally standardised symbol set under
+// BS EN 60617/IEC 60617, which this is NOT — there is no single mandated
+// icon set for floor-plan annotation, so this follows widely-used common
+// practice rather than a specific numbered clause).
 function SymbolElements({ type, color }: { type: SymbolType; color: string }) {
   const s = { stroke: color, strokeWidth: 2, fill: 'none', strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
 
   switch (type) {
     case 'socket':
-      // UK BS 1363: outer box, earth pin slot at top, live/neutral holes below
+      // Outlet circle with two prong marks — twin-socket silhouette
       return (
         <G>
-          <Rect x={-16} y={-12} width={32} height={26} rx={2} {...s} />
-          <Rect x={-4} y={-20} width={8} height={10} {...s} />
-          <Rect x={-18} y={-2} width={8} height={6} {...s} />
-          <Rect x={10} y={-2} width={8} height={6} {...s} />
+          <Circle cx={0} cy={0} r={13} {...s} />
+          <Line x1={13} y1={-6} x2={22} y2={-14} {...s} />
+          <Line x1={13} y1={6} x2={22} y2={14} {...s} />
         </G>
       );
 
     case 'switch':
-      // Rectangle body with diagonal actuator line
+      // Single flag off a circle — one-way switch drop point
       return (
         <G>
-          <Rect x={-16} y={-10} width={32} height={20} rx={2} {...s} />
-          <Line x1={-16} y1={8} x2={16} y2={-8} {...s} />
+          <Circle cx={0} cy={0} r={11} {...s} />
+          <Line x1={11} y1={0} x2={22} y2={0} {...s} />
         </G>
       );
 
     case 'ceiling_rose':
-      // Circle with cross — four conductors entering
+      // Ceiling light point — circle with crossed diagonals
       return (
         <G>
-          <Circle cx={0} cy={0} r={16} {...s} />
-          <Line x1={0} y1={-16} x2={0} y2={16} {...s} />
-          <Line x1={-16} y1={0} x2={16} y2={0} {...s} />
+          <Circle cx={0} cy={0} r={15} {...s} />
+          <Line x1={-10.5} y1={-10.5} x2={10.5} y2={10.5} {...s} />
+          <Line x1={-10.5} y1={10.5} x2={10.5} y2={-10.5} {...s} />
         </G>
       );
 
     case 'downlight':
-      // Concentric circles — recessed fitting
+      // Recessed fitting — solid inner disc inside an outline
       return (
         <G>
-          <Circle cx={0} cy={0} r={16} {...s} />
-          <Circle cx={0} cy={0} r={5} {...s} />
+          <Circle cx={0} cy={0} r={15} {...s} />
+          <Circle cx={0} cy={0} r={6} fill={color} stroke="none" />
         </G>
       );
 
     case 'consumer_unit':
-      // Rectangular board divided into header + circuit cells
+      // Distribution board — enclosure with a single divider
       return (
         <G>
-          <Rect x={-18} y={-18} width={36} height={36} rx={2} {...s} />
-          <Line x1={-18} y1={-10} x2={18} y2={-10} {...s} />
-          <Line x1={-8} y1={-10} x2={-8} y2={18} {...s} />
-          <Line x1={2} y1={-10} x2={2} y2={18} {...s} />
-          <Line x1={12} y1={-10} x2={12} y2={18} {...s} />
+          <Rect x={-16} y={-14} width={32} height={28} rx={2} {...s} />
+          <Line x1={-16} y1={-4} x2={16} y2={-4} {...s} />
         </G>
       );
 
     case 'junction_box':
-      // Circle with centre dot — cable splice point
+      // Junction box — square (distinct shape from the circular points)
       return (
         <G>
-          <Circle cx={0} cy={0} r={16} {...s} />
-          <Circle cx={0} cy={0} r={4} {...s} />
+          <Rect x={-12} y={-12} width={24} height={24} {...s} />
+          <Line x1={-12} y1={-12} x2={12} y2={12} {...s} />
+          <Line x1={-12} y1={12} x2={12} y2={-12} {...s} />
         </G>
       );
 
     case 'smoke_detector':
-      // Disc body with wavy smoke lines above
+      // Detector head — circle-in-circle with vent ticks
       return (
         <G>
-          <Circle cx={0} cy={6} r={12} {...s} />
-          <Path d="M -8 -4 Q -4 -12 0 -4 Q 4 -12 8 -4" {...s} />
+          <Circle cx={0} cy={0} r={15} {...s} />
+          <Circle cx={0} cy={0} r={6} {...s} />
+          <Line x1={0} y1={-6} x2={0} y2={-11} {...s} />
+          <Line x1={0} y1={6} x2={0} y2={11} {...s} />
+          <Line x1={-6} y1={0} x2={-11} y2={0} {...s} />
+          <Line x1={6} y1={0} x2={11} y2={0} {...s} />
         </G>
       );
 
     case 'fan':
-      // Outer ring with four curved petal blades and a hub
+      // Extract fan — 3-blade pinwheel in a circle
       return (
         <G>
-          <Circle cx={0} cy={0} r={16} {...s} />
-          {/* blades — cubic bezier petals at 90° intervals */}
-          <Path d="M0,0 C4,-6 6,-14 0,-16 C-6,-14 -4,-6 0,0" {...s} />
-          <Path d="M0,0 C6,4 14,6 16,0 C14,-6 6,-4 0,0" {...s} />
-          <Path d="M0,0 C-4,6 -6,14 0,16 C6,14 4,6 0,0" {...s} />
-          <Path d="M0,0 C-6,-4 -14,-6 -16,0 C-14,6 -6,4 0,0" {...s} />
-          <Circle cx={0} cy={0} r={3} stroke={color} strokeWidth={2} fill={color} />
+          <Circle cx={0} cy={0} r={15} {...s} />
+          <Path d="M0,0 L0,-13 A13,13 0 0,1 11.3,6.5 Z" fill={color} stroke="none" />
+          <Path d="M0,0 L11.3,6.5 A13,13 0 0,1 -11.3,6.5 Z" {...s} />
+          <Path d="M0,0 L-11.3,6.5 A13,13 0 0,1 0,-13 Z" {...s} />
+          <Circle cx={0} cy={0} r={3} fill={color} stroke="none" />
         </G>
       );
 
@@ -125,9 +144,13 @@ function SymbolElements({ type, color }: { type: SymbolType; color: string }) {
 }
 
 // Drop this inside any <Svg> to render a placed symbol at its stored (x, y).
-export function PlacedSymbolGroup({ symbol }: { symbol: PlacedSymbol }) {
+// scale defaults to 1 (matches in-app on-screen rendering); pass a larger
+// value when rendering onto a higher-resolution canvas (e.g. a flattened
+// share export) so the glyph stays the same size RELATIVE to the image,
+// rather than shrinking to a fixed absolute pixel size.
+export function PlacedSymbolGroup({ symbol, scale = 1 }: { symbol: PlacedSymbol; scale?: number }) {
   return (
-    <G transform={`translate(${symbol.x}, ${symbol.y})`}>
+    <G transform={`translate(${symbol.x}, ${symbol.y}) scale(${scale})`}>
       <SymbolElements type={symbol.type} color={symbol.color} />
     </G>
   );
