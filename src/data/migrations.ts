@@ -101,5 +101,14 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 9,
+      steps: [
+        addColumns({
+          table: 'snag_items',
+          columns: [{ name: 'location_id', type: 'string', isOptional: true, isIndexed: true }],
+        }),
+      ],
+    },
   ],
 });

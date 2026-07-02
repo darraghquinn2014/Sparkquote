@@ -13,7 +13,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 8,
+  version: 9,
   tables: [
     // ── Catalogue ────────────────────────────────────────────────────────
     tableSchema({
@@ -184,6 +184,7 @@ export const schema = appSchema({
       name: 'snag_items',
       columns: [
         { name: 'project_id', type: 'string', isIndexed: true },
+        { name: 'location_id', type: 'string', isOptional: true, isIndexed: true }, // floor or room
         { name: 'description', type: 'string' },
         { name: 'resolved', type: 'boolean' },
         { name: 'photo_path', type: 'string', isOptional: true },

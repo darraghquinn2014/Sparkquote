@@ -141,6 +141,8 @@ export type EstimateMode = 'quick' | 'project';
 export interface SnagItem {
   id: string;
   projectId: string;
+  /** The floor or room this snag relates to, if any. */
+  locationId?: string;
   description: string;
   resolved: boolean;
   photoPath?: string;

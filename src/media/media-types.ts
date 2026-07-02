@@ -77,6 +77,16 @@ export function floorPlanPath(paths: MediaPaths, projectId: string, floorPlanId:
   return joinPath(floorPlansDir(paths, projectId), `${safeSegment(floorPlanId)}.jpg`);
 }
 
+/** Directory holding a project's snag-list reference photos. */
+export function snagPhotosDir(paths: MediaPaths, projectId: string): string {
+  return joinPath(paths.documentDir, `projects/${safeSegment(projectId)}/snags`);
+}
+
+/** Full path for a snag item's stored photo. */
+export function snagPhotoPath(paths: MediaPaths, projectId: string, snagId: string): string {
+  return joinPath(snagPhotosDir(paths, projectId), `${safeSegment(snagId)}.jpg`);
+}
+
 /** Directory for derived thumbnails (safe to clear — regenerated on demand). */
 export function thumbnailDir(paths: MediaPaths): string {
   return joinPath(paths.cacheDir, 'thumbnails');

@@ -147,6 +147,7 @@ export class WallSymbolModel extends Model {
 export class SnagItemModel extends Model {
   static table = 'snag_items';
   @text('project_id') projectId!: string;
+  @text('location_id') locationId!: string | null;
   @text('description') description!: string;
   @field('resolved') resolved!: boolean;
   @text('photo_path') photoPath!: string | null;

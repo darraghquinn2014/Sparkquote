@@ -12,6 +12,7 @@ function toSnagItem(r: SnagItemModel): SnagItem {
     sortOrder: r.sortOrder,
     createdAt: r.createdAt,
   };
+  if (r.locationId != null) item.locationId = r.locationId;
   if (r.photoPath != null) item.photoPath = r.photoPath;
   return item;
 }
@@ -24,7 +25,11 @@ export async function snagItemsForProject(projectId: string): Promise<SnagItem[]
   return rows.map(toSnagItem).sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt - b.createdAt);
 }
 
-export async function createSnagItem(projectId: string, description: string): Promise<SnagItem> {
+export async function createSnagItem(
+  projectId: string,
+  description: string,
+  locationId?: string,
+): Promise<SnagItem> {
   const existing = await database
     .get<SnagItemModel>('snag_items')
     .query(Q.where('project_id', projectId))
@@ -33,6 +38,7 @@ export async function createSnagItem(projectId: string, description: string): Pr
   await database.write(async () => {
     newItem = await database.get<SnagItemModel>('snag_items').create((r) => {
       r.projectId = projectId;
+      r.locationId = locationId ?? null;
       r.description = description;
       r.resolved = false;
       r.sortOrder = existing;
@@ -40,6 +46,14 @@ export async function createSnagItem(projectId: string, description: string): Pr
     });
   });
   return toSnagItem(newItem);
+}
+
+/** Patch a snag item's photo path once a captured/picked image has been imported. */
+export async function updateSnagItemPhoto(id: string, photoPath: string): Promise<void> {
+  await database.write(async () => {
+    const row = await database.get<SnagItemModel>('snag_items').find(id);
+    await row.update((r) => { r.photoPath = photoPath; });
+  });
 }
 
 export async function toggleSnagItem(id: string): Promise<void> {
