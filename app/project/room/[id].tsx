@@ -2,7 +2,7 @@
  * Room detail screen — reference photos for a single room.
  * Photos are internal-only; they never appear in the client PDF.
  */
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, Pressable, ScrollView, StyleSheet, Alert,
   ActivityIndicator, Modal, Dimensions, TextInput, KeyboardAvoidingView, Platform,
@@ -13,15 +13,16 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Image } from 'expo-image';
 import * as FileSystem from 'expo-file-system/legacy';
 import Svg, { Path } from 'react-native-svg';
-import type { Location, Wall } from '@/src/domain/types';
+import type { Location, Wall, WallSymbol } from '@/src/domain/types';
 import type { Photo } from '@/src/media/media-types';
 import { loadLocation } from '@/src/data/project-repo';
 import { photosForLocation, addLocationPhoto, deleteLocationPhoto, updatePhotoDetails } from '@/src/data/photo-repo';
-import { loadWallsForLocation } from '@/src/data/floor-plan-repo';
+import { loadWallsForLocation, loadWallSymbols } from '@/src/data/floor-plan-repo';
 import { saveCapture, deletePhoto } from '@/src/media/camera-service';
 import { loadAnnotations, hasAnnotations, deleteAnnotations, type AnnotationStroke, type PlacedSymbol } from '@/src/media/annotation-service';
 import { AnnotationEditor } from '@/src/ui/annotations/AnnotationEditor';
 import { PlacedSymbolGroup } from '@/src/ui/annotations/symbols';
+import { WallShareCapture } from '@/src/ui/walls/WallShareCapture';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import * as Sharing from 'expo-sharing';
 import type { PhotoStage } from '@/src/media/media-types';
@@ -46,6 +47,11 @@ export default function RoomScreen() {
   const [location, setLocation] = useState<Location | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [walls, setWalls] = useState<Wall[]>([]);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedWallIds, setSelectedWallIds] = useState<Set<string>>(new Set());
+  const [shareQueue, setShareQueue] = useState<Wall[]>([]);
+  const [captureItem, setCaptureItem] = useState<{ wall: Wall; photo: Photo; symbols: WallSymbol[] } | null>(null);
+  const [sharing, setSharing] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -168,6 +174,66 @@ export default function RoomScreen() {
     } catch (e) {
       Alert.alert('Share failed', String(e));
     }
+  };
+
+  // ── Share selected wall photos (with symbols flattened in) ───────────────
+
+  const toggleWallSelected = (wallId: string) => {
+    setSelectedWallIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(wallId)) next.delete(wallId); else next.add(wallId);
+      return next;
+    });
+  };
+
+  const startShareSelected = () => {
+    const selected = walls.filter((w) => selectedWallIds.has(w.id) && w.photoId);
+    if (selected.length === 0) return;
+    setSharing(true);
+    setShareQueue(selected);
+  };
+
+  // Advance the queue: load the next wall's photo+symbols so WallShareCapture
+  // can render and capture it. expo-sharing only shares one file per call, so
+  // multiple selected walls share sequentially, one share-sheet at a time.
+  useEffect(() => {
+    if (shareQueue.length === 0) {
+      if (sharing) {
+        setSharing(false);
+        setSelectMode(false);
+        setSelectedWallIds(new Set());
+      }
+      return;
+    }
+    const wall = shareQueue[0]!;
+    const wallPhoto = wall.photoId ? photos.find((p) => p.id === wall.photoId) : undefined;
+    if (!wallPhoto) {
+      setShareQueue((q) => q.slice(1));
+      return;
+    }
+    (async () => {
+      const wallSymbols = await loadWallSymbols(wall.id);
+      setCaptureItem({ wall, photo: wallPhoto, symbols: wallSymbols });
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shareQueue]);
+
+  const handleCaptured = async (filePath: string) => {
+    const wall = captureItem?.wall;
+    setCaptureItem(null);
+    try {
+      await Sharing.shareAsync(filePath, { mimeType: 'image/jpeg', dialogTitle: wall?.label || 'Wall photo' });
+    } catch {
+      // user cancelled or share failed — move on to the next selected wall
+    } finally {
+      setShareQueue((q) => q.slice(1));
+    }
+  };
+
+  const handleCaptureError = (e: unknown) => {
+    Alert.alert('Share failed', String(e));
+    setCaptureItem(null);
+    setShareQueue((q) => q.slice(1));
   };
 
   const saveCaptionEdit = async () => {
@@ -314,7 +380,18 @@ export default function RoomScreen() {
           <Text style={styles.hint}>Tap to view / name  ·  Hold to delete</Text>
         )}
 
-        <Text style={[styles.subtitle, styles.wallsSubtitle]}>Walls</Text>
+        <View style={styles.wallsHeaderRow}>
+          <Text style={[styles.subtitle, styles.wallsSubtitle, { marginBottom: 0 }]}>Walls</Text>
+          {walls.some((w) => w.photoId) && (
+            <Pressable
+              onPress={() => { setSelectMode((v) => !v); setSelectedWallIds(new Set()); }}
+              hitSlop={8}
+            >
+              <Text style={styles.wallsSelectToggle}>{selectMode ? 'Cancel' : 'Select'}</Text>
+            </Pressable>
+          )}
+        </View>
+
         {walls.length === 0 ? (
           <View style={styles.wallsEmpty}>
             <Text style={styles.emptyHint}>No walls traced yet.</Text>
@@ -327,24 +404,54 @@ export default function RoomScreen() {
         ) : (
           walls.map((wall) => {
             const wallPhoto = wall.photoId ? photos.find((p) => p.id === wall.photoId) : undefined;
+            const selected = selectedWallIds.has(wall.id);
             return (
               <Pressable
                 key={wall.id}
                 style={styles.wallRow}
-                onPress={() => router.push(`/project/wall/${wall.id}` as any)}
+                onPress={() => {
+                  if (selectMode) {
+                    if (wall.photoId) toggleWallSelected(wall.id);
+                  } else {
+                    router.push(`/project/wall/${wall.id}` as any);
+                  }
+                }}
               >
+                {selectMode && (
+                  <View style={[styles.checkbox, selected && styles.checkboxChecked, !wall.photoId && styles.checkboxDisabled]}>
+                    {selected && <Text style={styles.checkboxTick}>✓</Text>}
+                  </View>
+                )}
                 {wallPhoto ? (
                   <Image source={{ uri: wallPhoto.filePath }} style={styles.wallThumb} contentFit="cover" />
                 ) : (
                   <View style={styles.wallThumbEmpty} />
                 )}
                 <Text style={styles.wallRowText}>{wall.label || 'Wall'}</Text>
-                <Text style={styles.wallChevron}>›</Text>
+                {!selectMode && <Text style={styles.wallChevron}>›</Text>}
               </Pressable>
             );
           })
         )}
+
+        {selectMode && selectedWallIds.size > 0 && (
+          <Pressable style={styles.shareWallsBtn} onPress={startShareSelected} disabled={sharing}>
+            <Text style={styles.shareWallsBtnText}>
+              {sharing ? 'Preparing share…' : `Share ${selectedWallIds.size} photo${selectedWallIds.size === 1 ? '' : 's'}`}
+            </Text>
+          </Pressable>
+        )}
       </ScrollView>
+
+      {/* Off-screen capture used to flatten a wall's photo + symbols before sharing */}
+      {captureItem && (
+        <WallShareCapture
+          photo={captureItem.photo}
+          symbols={captureItem.symbols}
+          onReady={handleCaptured}
+          onError={handleCaptureError}
+        />
+      )}
 
       {/* Lightbox */}
       <Modal
@@ -591,6 +698,8 @@ const styles = StyleSheet.create({
   empty: { color: colors.textMuted, textAlign: 'center', marginTop: space.xxl },
 
   wallsSubtitle: { marginTop: space.xl, marginBottom: space.md },
+  wallsHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  wallsSelectToggle: { color: colors.accent, fontSize: 13, fontWeight: '700' },
   wallsEmpty: { alignItems: 'flex-start' },
   wallsEmptyLink: { color: colors.accent, fontSize: 13, fontWeight: '700', marginTop: space.xs },
   wallRow: {
@@ -602,6 +711,18 @@ const styles = StyleSheet.create({
   wallThumbEmpty: { width: 44, height: 44, borderRadius: radius.tile / 2, backgroundColor: colors.ground },
   wallRowText: { flex: 1, color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
   wallChevron: { color: colors.textMuted, fontSize: 20 },
+  checkbox: {
+    width: 22, height: 22, borderRadius: 5, borderWidth: 2, borderColor: colors.hairline,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  checkboxChecked: { backgroundColor: colors.accent, borderColor: colors.accent },
+  checkboxDisabled: { opacity: 0.3 },
+  checkboxTick: { color: colors.accentInk, fontSize: 13, fontWeight: '800' },
+  shareWallsBtn: {
+    backgroundColor: colors.accent, borderRadius: radius.pill,
+    paddingVertical: space.md, alignItems: 'center', marginTop: space.sm,
+  },
+  shareWallsBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 15 },
 
   thumbCaption: {
     position: 'absolute',
