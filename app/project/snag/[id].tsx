@@ -15,6 +15,7 @@ import {
 } from '@/src/data/snag-repo';
 import { loadProjects, loadLocations } from '@/src/data/project-repo';
 import { importSnagPhoto, deleteSnagPhoto } from '@/src/media/snag-photo-service';
+import { useVoiceAction } from '@/src/voice/voice-bus';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import type { SnagItem, Location } from '@/src/domain/types';
 
@@ -50,6 +51,19 @@ export default function SnagListScreen() {
   const [permission, requestPermission] = useCameraPermissions();
 
   const [lightboxUri, setLightboxUri] = useState<string | null>(null);
+
+  // When set, the next captured/picked photo attaches to this ALREADY-CREATED
+  // item (a snag voice just added) instead of the "+ Add" draft flow.
+  const [voicePhotoTargetId, setVoicePhotoTargetId] = useState<string | null>(null);
+
+  useVoiceAction('snagPhotoPrompt', ({ snagId }) => {
+    setVoicePhotoTargetId(snagId);
+    Alert.alert('Add a photo?', 'Take a photo or choose one from your library for this snag.', [
+      { text: 'Take Photo', onPress: () => openCamera() },
+      { text: 'Choose from Library', onPress: () => pickFromLibrary() },
+      { text: 'Skip', style: 'cancel', onPress: () => setVoicePhotoTargetId(null) },
+    ]);
+  });
 
   const reload = useCallback(async () => {
     if (!projectId) return;
@@ -154,9 +168,20 @@ export default function SnagListScreen() {
     }
   };
 
+  const attachPhotoToVoiceSnag = async (uri: string, snagId: string) => {
+    const filePath = await importSnagPhoto(uri, mediaPaths, projectId, snagId);
+    await updateSnagItemPhoto(snagId, filePath);
+    setVoicePhotoTargetId(null);
+    reload();
+  };
+
   const confirmPhoto = () => {
     if (!capturedUri) return;
-    setDraftPhotoUri(capturedUri);
+    if (voicePhotoTargetId) {
+      attachPhotoToVoiceSnag(capturedUri, voicePhotoTargetId).catch((e) => Alert.alert('Could not save photo', String(e)));
+    } else {
+      setDraftPhotoUri(capturedUri);
+    }
     setCameraOpen(false);
     setCapturedUri(null);
   };
@@ -169,7 +194,12 @@ export default function SnagListScreen() {
   const pickFromLibrary = async () => {
     const result = await DocumentPicker.getDocumentAsync({ type: ['image/*'], copyToCacheDirectory: true });
     if (result.canceled || !result.assets.length) return;
-    setDraftPhotoUri(result.assets[0]!.uri);
+    const uri = result.assets[0]!.uri;
+    if (voicePhotoTargetId) {
+      attachPhotoToVoiceSnag(uri, voicePhotoTargetId).catch((e) => Alert.alert('Could not save photo', String(e)));
+    } else {
+      setDraftPhotoUri(uri);
+    }
   };
 
   const open = items.filter((i) => !i.resolved);

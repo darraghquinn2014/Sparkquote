@@ -25,6 +25,7 @@ import { COMMON_FLOOR_NAMES } from '@/src/domain/floor-names';
 import { toLaborToggle } from '@/src/data/mappers';
 import { seedLaborToggles } from '@/src/data/seed/assemblies';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
+import { useVoiceAction } from '@/src/voice/voice-bus';
 
 const allToggles = seedLaborToggles.map(toLaborToggle);
 
@@ -160,6 +161,8 @@ export default function ProjectDetailScreen() {
       setReportBusy(false);
     }
   };
+
+  useVoiceAction('generateReport', generateReport);
 
   const floors = locations.filter((l) => l.parentId == null);
   const roomsOf = (floorId: string) => locations.filter((l) => l.parentId === floorId);

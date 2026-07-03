@@ -19,6 +19,7 @@ import { toClientEstimate } from '@/src/pdf/client-view-model';
 import { renderEstimateHtml } from '@/src/pdf/render-html';
 import { PdfPreviewModal } from '@/src/ui/pdf/PdfPreviewModal';
 import { ShoppingListSheet } from '@/src/ui/estimate/ShoppingListSheet';
+import { useVoiceAction } from '@/src/voice/voice-bus';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 
 const allToggles = seedLaborToggles.map(toLaborToggle);
@@ -90,6 +91,8 @@ export default function EstimateScreen() {
       setPreviewing(false);
     }
   };
+
+  useVoiceAction('previewPdf', previewPdf);
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>

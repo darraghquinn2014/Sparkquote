@@ -53,6 +53,13 @@
         }
       ],
       [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow SparkQuote to use the microphone to add items to a job by voice.",
+          "speechRecognitionPermission": "Allow SparkQuote to recognise speech to add items to a job by voice."
+        }
+      ],
+      [
         "@morrowdigital/watermelondb-expo-plugin",
         {
           "disableJsi": false

@@ -6,9 +6,11 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, Pressable, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
-import type { EstimateStatus, Project } from '@/src/domain/types';
+import type { EstimateStatus, Material, Project } from '@/src/domain/types';
 import { loadProjects, loadLocations } from '@/src/data/project-repo';
 import { loadProjectEstimate } from '@/src/data/project-estimate-repo';
+import { loadCatalogue } from '@/src/data/catalogue-repo';
+import { VoiceAddModal } from '@/src/ui/voice/VoiceAddModal';
 import { colors, space, radius, type as typo } from '@/src/ui/theme/tokens';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -23,11 +25,14 @@ export default function ProjectsScreen() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [roomCounts, setRoomCounts] = useState<Record<string, number>>({});
   const [statuses, setStatuses] = useState<Record<string, EstimateStatus>>({});
+  const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
+  const [voiceOpen, setVoiceOpen] = useState(false);
 
   const reload = useCallback(async () => {
-    const ps = await loadProjects();
+    const [ps, cat] = await Promise.all([loadProjects(), loadCatalogue()]);
     setProjects(ps);
+    setMaterials(cat.materials);
     const counts: Record<string, number> = {};
     const sts: Record<string, EstimateStatus> = {};
     for (const p of ps) {
@@ -48,10 +53,14 @@ export default function ProjectsScreen() {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.title}>Projects</Text>
-        <Pressable style={styles.newBtn} onPress={() => router.push('/project/new' as any)}>
-          
-          <Text style={styles.newText}>+ New project</Text>
-        </Pressable>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+          <Pressable style={styles.micBtn} onPress={() => setVoiceOpen(true)} hitSlop={8}>
+            <Text style={styles.micBtnText}>🎤</Text>
+          </Pressable>
+          <Pressable style={styles.newBtn} onPress={() => router.push('/project/new' as any)}>
+            <Text style={styles.newText}>+ New project</Text>
+          </Pressable>
+        </View>
       </View>
 
       {loading ? (
@@ -93,6 +102,14 @@ export default function ProjectsScreen() {
           )}
         />
       )}
+      <VoiceAddModal
+        visible={voiceOpen}
+        materials={materials}
+        projects={projects}
+        currency="GBP"
+        onAdded={reload}
+        onClose={() => setVoiceOpen(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -101,6 +118,8 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ground },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.md },
   title: { fontSize: 28, fontWeight: '800', color: colors.textPrimary },
+  micBtn: { borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.hairline },
+  micBtnText: { fontSize: 16 },
   newBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.accent, paddingHorizontal: space.md, paddingVertical: space.sm, borderRadius: radius.pill },
   newText: { color: colors.accentInk, fontWeight: '800', fontSize: 14 },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.surface, borderRadius: radius.tile, padding: space.lg, marginBottom: space.sm },
