@@ -358,6 +358,28 @@ describe('parseGlobalVoiceCommand', () => {
     expect(parseGlobalVoiceCommand('share the report')).toEqual({ kind: 'generate-report' });
   });
 
+  // --- Plain catalogue lookup (no add/create verb) ---
+  it('classifies "find twin and earth" as a material search', () => {
+    expect(parseGlobalVoiceCommand('find twin and earth')).toEqual({ kind: 'search-material', query: 'twin and earth' });
+  });
+
+  it('classifies "search for RCBO"', () => {
+    expect(parseGlobalVoiceCommand('search for RCBO')).toEqual({ kind: 'search-material', query: 'RCBO' });
+  });
+
+  it('classifies "search cable" (no "for")', () => {
+    expect(parseGlobalVoiceCommand('search cable')).toEqual({ kind: 'search-material', query: 'cable' });
+  });
+
+  it('classifies "look up MCB"', () => {
+    expect(parseGlobalVoiceCommand('look up MCB')).toEqual({ kind: 'search-material', query: 'MCB' });
+  });
+
+  it('does not let the search verbs break "show me" navigation', () => {
+    const intent = parseGlobalVoiceCommand('show me projects');
+    expect(intent).toEqual({ kind: 'navigate', path: '/projects', label: 'Projects' });
+  });
+
   // --- Review & Sign, reachable from anywhere ---
   it('classifies "open review and sign" as an estimate-query (opens the Review screen)', () => {
     const intent = parseGlobalVoiceCommand('open review and sign');

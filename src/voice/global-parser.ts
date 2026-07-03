@@ -56,6 +56,7 @@ export type GlobalVoiceIntent =
   | { kind: 'generate-report' }
   | { kind: 'add-material'; parsed: ParsedVoiceCommand }
   | { kind: 'add-labour'; hours?: number; flatMinor?: number; projectQuery?: string }
+  | { kind: 'search-material'; query: string }
   | { kind: 'estimate-query'; projectQuery?: string }
   | { kind: 'unknown'; raw: string };
 
@@ -118,6 +119,10 @@ const ESTIMATE_QUERY_RE = /\b(estimate|total|quote|cost)\b/i;
 const ESTIMATE_VERB_RE = /^(?:what'?s|whats|give me|show me|get me|tell me)\b/i;
 const NAV_RE = /^(?:open|go to|goto|navigate to|show me|take me to)\s+(?:the\s+)?(.+)$/i;
 const ADD_VERB_RE = /^(?:please\s+)?(?:add|put|include|insert)\s+/i;
+// "show"/"show me" are deliberately NOT search triggers here — they're
+// already claimed by navigation ("show me projects") and the report/review
+// checks above; adding them here would break those.
+const SEARCH_RE = /^(?:find|search(?:\s+for)?|look\s+up)\s+(.+)$/i;
 
 function stripFiller(text: string): string {
   return text
@@ -378,6 +383,11 @@ export function parseGlobalVoiceCommand(raw: string): GlobalVoiceIntent {
   const setValueFallbackMatch = text.match(SET_VALUE_FALLBACK_RE);
   if (setValueFallbackMatch) {
     return { kind: 'set-line-quantity', query: stripFiller(setValueFallbackMatch[1]), amount: parseFloat(setValueFallbackMatch[2]) };
+  }
+
+  const searchMatch = text.match(SEARCH_RE);
+  if (searchMatch) {
+    return { kind: 'search-material', query: searchMatch[1].trim() };
   }
 
   const navMatch = text.match(NAV_RE);

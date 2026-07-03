@@ -3,18 +3,19 @@ import {
   View, Text, Pressable, FlatList, TextInput, StyleSheet,
   Modal, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { loadCatalogue, updateMaterialPrice } from '@/src/data/catalogue-repo';
+import { loadCatalogue, loadSuppliers, updateMaterialPrice, type SupplierSummary } from '@/src/data/catalogue-repo';
 import { useSettingsStore } from '@/src/state/settingsStore';
 import { formatMoney } from '@/src/domain/money';
-import { colors, space, radius } from '@/src/ui/theme/tokens';
+import { colors, space, radius, type as typo } from '@/src/ui/theme/tokens';
 import type { Material } from '@/src/domain/types';
 
 type Tab = 'materials' | 'assemblies';
 
 export default function CatalogueScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const setCatalogueUpdatedAt = useSettingsStore((s) => s.setCatalogueUpdatedAt);
   const catalogueUpdatedAt = useSettingsStore((s) => s.catalogueUpdatedAt);
   const hydrateSettings = useSettingsStore((s) => s.hydrate);
@@ -22,6 +23,8 @@ export default function CatalogueScreen() {
 
   const [tab, setTab] = useState<Tab>('materials');
   const [materials, setMaterials] = useState<Material[]>([]);
+  const [suppliers, setSuppliers] = useState<SupplierSummary[]>([]);
+  const [activeSupplier, setActiveSupplier] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -33,8 +36,9 @@ export default function CatalogueScreen() {
     setLoading(true);
     try {
       await hydrateSettings();
-      const cat = await loadCatalogue();
+      const [cat, supplierList] = await Promise.all([loadCatalogue(), loadSuppliers()]);
       setMaterials(cat.materials);
+      setSuppliers(supplierList);
     } catch (e) {
       console.error('catalogue load failed', e);
     } finally {
@@ -45,6 +49,7 @@ export default function CatalogueScreen() {
   useFocusEffect(useCallback(() => { reload(); }, [reload]));
 
   const filtered = materials.filter((m) => {
+    if (activeSupplier && m.catalogueId !== activeSupplier) return false;
     if (!query.trim()) return true;
     const q = query.toLowerCase();
     return m.description.toLowerCase().includes(q) || m.sku.toLowerCase().includes(q);
@@ -117,6 +122,28 @@ export default function CatalogueScreen() {
             clearButtonMode="while-editing"
           />
 
+          {/* Supplier filter — only worth showing once there's more than one price list */}
+          {suppliers.length > 1 && (
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={[null, ...suppliers.map((s) => s.catalogueId)]}
+              keyExtractor={(id) => id ?? '__all'}
+              contentContainerStyle={styles.supplierRow}
+              style={styles.supplierContainer}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item: id }) => {
+                const active = activeSupplier === id;
+                const label = id == null ? 'All' : suppliers.find((s) => s.catalogueId === id)?.displayName ?? id;
+                return (
+                  <Pressable onPress={() => setActiveSupplier(id)} style={[styles.supplierChip, active && styles.supplierChipActive]}>
+                    <Text style={[styles.supplierChipText, active && styles.supplierChipTextActive]}>{label}</Text>
+                  </Pressable>
+                );
+              }}
+            />
+          )}
+
           {loading ? (
             <ActivityIndicator color={colors.accent} style={{ marginTop: space.xxl }} />
           ) : (
@@ -167,7 +194,7 @@ export default function CatalogueScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <Pressable style={styles.sheetBackdrop} onPress={() => setEditTarget(null)} />
-          <View style={styles.sheet}>
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + space.xl }]}>
             <Text style={styles.sheetTitle}>Edit price</Text>
             {editTarget && (
               <Text style={styles.sheetDesc} numberOfLines={2}>{editTarget.description}</Text>
@@ -234,6 +261,12 @@ const styles = StyleSheet.create({
     marginHorizontal: space.lg, marginBottom: space.sm, fontSize: 15,
     borderWidth: 1, borderColor: colors.hairline,
   },
+  supplierContainer: { height: 44, flexGrow: 0, marginHorizontal: space.lg, marginBottom: space.sm },
+  supplierRow: { gap: space.xs, alignItems: 'center' },
+  supplierChip: { paddingHorizontal: space.md, paddingVertical: space.xs, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.hairline, marginRight: space.xs },
+  supplierChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  supplierChipText: { ...typo.caption, color: colors.textSecondary },
+  supplierChipTextActive: { color: colors.accentInk, fontWeight: '800' },
   list: { paddingHorizontal: space.lg, paddingBottom: space.xxl },
   empty: { color: colors.textMuted, textAlign: 'center', marginTop: space.xxl },
   row: {

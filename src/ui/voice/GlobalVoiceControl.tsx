@@ -55,7 +55,7 @@ type Step =
 
 type PickPurpose =
   | 'open' | 'snag' | 'estimate' | 'material' | 'floor' | 'room' | 'labour' | 'room-count'
-  | 'rename-project' | 'delete-project' | 'floor-room-op' | 'labour-rate-setting';
+  | 'rename-project' | 'delete-project' | 'floor-room-op' | 'labour-rate-setting' | 'found-material';
 
 type EntityKind = 'project' | 'floor' | 'room' | 'snag';
 
@@ -99,7 +99,7 @@ export function GlobalVoiceControl() {
   const [itemCandidates, setItemCandidates] = useState<MaterialMatch[]>([]);
   const [assemblyCandidates, setAssemblyCandidates] = useState<AssemblyMatch[]>([]);
   const [manualQuery, setManualQuery] = useState('');
-  const [materialPickPurpose, setMaterialPickPurpose] = useState<'add' | 'price'>('add');
+  const [materialPickPurpose, setMaterialPickPurpose] = useState<'add' | 'price' | 'search'>('add');
 
   // Generic entity picker (floors/rooms/snags/lines resolved for the newer commands).
   const [entityPickLabel, setEntityPickLabel] = useState('');
@@ -168,6 +168,7 @@ export function GlobalVoiceControl() {
   const pendingFloorRoomOp = useRef<FloorRoomOp | null>(null);
   const pendingPriceMinor = useRef<number>(0);
   const pendingLabourRateMinor = useRef<number>(0);
+  const pendingFoundMaterial = useRef<Material | null>(null);
 
   useEffect(() => {
     if (!visible) return;
@@ -231,6 +232,7 @@ export function GlobalVoiceControl() {
     pendingFloorRoomOp.current = null;
     pendingPriceMinor.current = 0;
     pendingLabourRateMinor.current = 0;
+    pendingFoundMaterial.current = null;
     pendingFloorCount.current = 1;
     setFloorCountDraft(1);
     setFloorNamesDraft([]);
@@ -324,7 +326,7 @@ export function GlobalVoiceControl() {
       setResolvedProjectName(target.projectName);
     }
     setAmountText(String(parsed.quantity));
-    const matches = matchMaterials(parsed.itemQuery, materials, 3);
+    const matches = matchMaterials(parsed.itemQuery, materials, 20);
     if (matches.length === 1 && matches[0].score < CONFIDENT_SCORE) {
       setSelectedMaterial(matches[0].material);
       setStep('confirm-material');
@@ -806,7 +808,7 @@ export function GlobalVoiceControl() {
         return;
       }
       case 'change-material-price': {
-        const matches = matchMaterials(intent.query, materials, 3);
+        const matches = matchMaterials(intent.query, materials, 20);
         if (matches.length === 1 && matches[0].score < CONFIDENT_SCORE) {
           setPriceTarget({ materialId: matches[0].material.id, materialName: matches[0].material.description, priceDraft: (intent.priceMinor / 100).toFixed(2) });
           setStep('confirm-price');
@@ -969,6 +971,18 @@ export function GlobalVoiceControl() {
         setStep('project-pick');
         return;
       }
+      case 'search-material': {
+        const matches = matchMaterials(intent.query, materials, 20);
+        if (matches.length === 0) {
+          setInfoMessage(`No materials match "${intent.query}".`);
+          setStep('info');
+          return;
+        }
+        setMaterialPickPurpose('search');
+        setItemCandidates(matches);
+        setStep('item-pick');
+        return;
+      }
       case 'unknown':
       default:
         setStep('unknown');
@@ -1015,13 +1029,51 @@ export function GlobalVoiceControl() {
         setSettingLabourScope({ isQuickQuote: false, projectId: project.id, projectName: project.name });
         setStep('confirm-setting');
         return;
+      case 'found-material':
+        if (pendingFoundMaterial.current) {
+          setTargetIsQuickQuote(false);
+          setResolvedProjectId(project.id);
+          setResolvedProjectName(project.name);
+          setSelectedMaterial(pendingFoundMaterial.current);
+          setStep('confirm-material');
+        }
+        return;
     }
+  };
+
+  /** A material picked from search results — resolve where it's going, then reuse the normal add-confirm step. */
+  const beginAddFoundMaterial = (m: Material) => {
+    setAmountText('1');
+    setSelectedMaterial(m);
+    if (isQuickQuote) {
+      setTargetIsQuickQuote(true);
+      setResolvedProjectId(null);
+      setResolvedProjectName('Quick Quote');
+      setStep('confirm-material');
+      return;
+    }
+    if (currentProjectId) {
+      const proj = projects.find((p) => p.id === currentProjectId);
+      setTargetIsQuickQuote(false);
+      setResolvedProjectId(currentProjectId);
+      setResolvedProjectName(proj?.name ?? '');
+      setStep('confirm-material');
+      return;
+    }
+    pendingFoundMaterial.current = m;
+    setProjectCandidates(projects.map((p) => ({ project: p, score: 1 })));
+    setPickPurpose('found-material');
+    setStep('project-pick');
   };
 
   const pickMaterial = (m: Material) => {
     if (materialPickPurpose === 'price') {
       setPriceTarget({ materialId: m.id, materialName: m.description, priceDraft: (pendingPriceMinor.current / 100).toFixed(2) });
       setStep('confirm-price');
+      return;
+    }
+    if (materialPickPurpose === 'search') {
+      beginAddFoundMaterial(m);
       return;
     }
     setSelectedMaterial(m);
