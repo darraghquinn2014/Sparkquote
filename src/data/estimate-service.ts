@@ -89,16 +89,20 @@ export function lineFromMaterial(material: Material, amount = 1): LineItem {
 
 /**
  * Add an assembly-backed line in one step — the Quick-Quote tap action.
- * If the line's assembly already exists in the estimate, increments its
- * quantity instead of adding a duplicate row (tap-to-increment, spec §3.2).
+ * If the line's assembly already exists in the estimate (in the same room,
+ * where applicable), increments its quantity instead of adding a duplicate
+ * row (tap-to-increment, spec §3.2). A distinct locationId always gets its
+ * own line, since a socket install in the kitchen and one in the office are
+ * separate rows for per-room rollups.
  */
 export function addAssemblyToEstimate(
   estimate: Estimate,
   assembly: Assembly,
   lookup: MaterialLookup,
+  locationId?: string,
 ): Estimate {
   const existing = estimate.lineItems.find(
-    (l) => l.sourceAssemblyId === assembly.id && !l.overrides,
+    (l) => l.sourceAssemblyId === assembly.id && !l.overrides && l.locationId === locationId,
   );
   if (existing) {
     const lineItems = estimate.lineItems.map((l) =>
@@ -106,7 +110,7 @@ export function addAssemblyToEstimate(
     );
     return { ...estimate, lineItems };
   }
-  return addLine(estimate, lineFromAssembly(assembly, lookup));
+  return addLine(estimate, { ...lineFromAssembly(assembly, lookup), locationId });
 }
 
 /** Remove a line by id. */

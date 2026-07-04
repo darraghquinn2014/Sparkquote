@@ -21,23 +21,25 @@ function emptyProjectEstimate(): Estimate {
   };
 }
 
-/** Adds a material as an unassigned (no room) line on a project's estimate. */
+/** Adds a material line on a project's estimate, optionally tagged to a room (locationId). */
 export async function addMaterialToProjectByVoice(
   projectId: string,
   material: Material,
   amount: number,
+  locationId?: string,
 ): Promise<void> {
   const estimate = (await loadProjectEstimate(projectId)) ?? emptyProjectEstimate();
-  const updated = addLine(estimate, lineFromMaterial(material, amount));
+  const updated = addLine(estimate, { ...lineFromMaterial(material, amount), locationId });
   await saveProjectEstimate(projectId, updated);
 }
 
-/** Adds a standalone labour line (hours or flat amount) to a project's estimate. */
+/** Adds a standalone labour line (hours or flat amount) to a project's estimate, optionally tagged to a room. */
 export async function addLabourToProjectByVoice(
   projectId: string,
   opts: { hours?: number; flatMinor?: number },
+  locationId?: string,
 ): Promise<void> {
   const estimate = (await loadProjectEstimate(projectId)) ?? emptyProjectEstimate();
-  const updated = addLine(estimate, lineFromLabour(opts));
+  const updated = addLine(estimate, { ...lineFromLabour(opts), locationId });
   await saveProjectEstimate(projectId, updated);
 }

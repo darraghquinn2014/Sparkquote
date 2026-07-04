@@ -73,6 +73,27 @@ describe('EstimateService through the engine', () => {
     expect(est.lineItems[0]!.quantity).toBe(2);
   });
 
+  it('the same tile in two different rooms adds separate rows, not a shared increment', () => {
+    const ls = assemblies.find((a) => a.id === 'asm_lightswitch_1g')!;
+    let est = emptyDraft();
+    est = addAssemblyToEstimate(est, ls, lookup, 'kitchen');
+    est = addAssemblyToEstimate(est, ls, lookup, 'office');
+    expect(est.lineItems).toHaveLength(2);
+    expect(est.lineItems[0]!.quantity).toBe(1);
+    expect(est.lineItems[1]!.quantity).toBe(1);
+    expect(est.lineItems[0]!.locationId).toBe('kitchen');
+    expect(est.lineItems[1]!.locationId).toBe('office');
+  });
+
+  it('the same tile tapped twice in the same room still increments quantity', () => {
+    const ls = assemblies.find((a) => a.id === 'asm_lightswitch_1g')!;
+    let est = emptyDraft();
+    est = addAssemblyToEstimate(est, ls, lookup, 'kitchen');
+    est = addAssemblyToEstimate(est, ls, lookup, 'kitchen');
+    expect(est.lineItems).toHaveLength(1);
+    expect(est.lineItems[0]!.quantity).toBe(2);
+  });
+
   it('different tiles add separate rows', () => {
     const ls = assemblies.find((a) => a.id === 'asm_lightswitch_1g')!;
     const dl = assemblies.find((a) => a.id === 'asm_downlight')!;

@@ -107,6 +107,7 @@ export function GlobalVoiceControl() {
   const entityPickCallback = useRef<((item: { id: string; label: string }) => void) | null>(null);
 
   const [resolvedProjectId, setResolvedProjectId] = useState<string | null>(null);
+  const [resolvedLocationId, setResolvedLocationId] = useState<string | null>(null);
   const [resolvedProjectName, setResolvedProjectName] = useState('');
   const [targetIsQuickQuote, setTargetIsQuickQuote] = useState(false);
   const [resolvedFloorId, setResolvedFloorId] = useState<string | null>(null);
@@ -209,6 +210,7 @@ export function GlobalVoiceControl() {
     setSelectedAssembly(null);
     setAssemblyAction('delete');
     setResolvedProjectId(null);
+    setResolvedLocationId(null);
     setResolvedFloorId(null);
     setTargetIsQuickQuote(false);
     setRoomCountDraft(1);
@@ -313,6 +315,33 @@ export function GlobalVoiceControl() {
     setPickPurpose(purpose);
     setStep('project-pick');
     return null;
+  };
+
+  /**
+   * When adding a material/labour line while already inside a project
+   * (currentProjectId set), the trailing "to/for X" clause the parser
+   * captured as projectQuery is actually a room name in this context — the
+   * project is already known, so that clause can only be describing where
+   * in the project the line goes ("add a socket to the kitchen"). Resolves
+   * it against the project's rooms via fuzzy match, asking the user when
+   * ambiguous, and calls onResolved with the room's locationId (or
+   * undefined if no room was said / none matched).
+   */
+  const resolveRoomThenAdd = async (
+    projectId: string,
+    roomQuery: string | undefined,
+    onResolved: (locationId?: string) => void,
+  ) => {
+    if (!roomQuery) { onResolved(undefined); return; }
+    const locations = await loadLocations(projectId).catch(() => [] as Location[]);
+    const rooms = locations.filter((l) => l.parentId != null);
+    const matches = matchLocations(roomQuery, rooms, 3);
+    if (matches.length === 1 && matches[0].score < CONFIDENT_SCORE) { onResolved(matches[0].location.id); return; }
+    if (matches.length > 1) {
+      showEntityPick('Which room?', matches.map((m) => ({ id: m.location.id, label: m.location.name })), (item) => onResolved(item.id));
+      return;
+    }
+    onResolved(undefined);
   };
 
   const resolveMaterial = (parsed: ParsedVoiceCommand, target: { projectId: string; projectName: string } | { quickQuote: true }) => {
@@ -937,7 +966,10 @@ export function GlobalVoiceControl() {
         }
         if (currentProjectId) {
           const proj = projects.find((p) => p.id === currentProjectId);
-          resolveMaterial(intent.parsed, { projectId: currentProjectId, projectName: proj?.name ?? '' });
+          resolveRoomThenAdd(currentProjectId, intent.parsed.projectQuery, (locationId) => {
+            setResolvedLocationId(locationId ?? null);
+            resolveMaterial(intent.parsed, { projectId: currentProjectId, projectName: proj?.name ?? '' });
+          });
           return;
         }
         if (intent.parsed.projectQuery) {
@@ -958,7 +990,10 @@ export function GlobalVoiceControl() {
         }
         if (currentProjectId) {
           const proj = projects.find((p) => p.id === currentProjectId);
-          beginLabourConfirm(pendingLabour.current, { projectId: currentProjectId, projectName: proj?.name ?? '' });
+          resolveRoomThenAdd(currentProjectId, intent.projectQuery, (locationId) => {
+            setResolvedLocationId(locationId ?? null);
+            beginLabourConfirm(pendingLabour.current, { projectId: currentProjectId, projectName: proj?.name ?? '' });
+          });
           return;
         }
         if (intent.projectQuery) {
@@ -1178,7 +1213,7 @@ export function GlobalVoiceControl() {
         useEstimateStore.getState().addMaterial(selectedMaterial, amount);
       } else {
         if (!resolvedProjectId) return;
-        await addMaterialToProjectByVoice(resolvedProjectId, selectedMaterial, amount);
+        await addMaterialToProjectByVoice(resolvedProjectId, selectedMaterial, amount, resolvedLocationId ?? undefined);
       }
       setStep('saved');
       setTimeout(backToIdle, 900);
@@ -1197,7 +1232,7 @@ export function GlobalVoiceControl() {
         useEstimateStore.getState().addLabour(opts);
       } else {
         if (!resolvedProjectId) return;
-        await addLabourToProjectByVoice(resolvedProjectId, opts);
+        await addLabourToProjectByVoice(resolvedProjectId, opts, resolvedLocationId ?? undefined);
       }
       setStep('saved');
       setTimeout(backToIdle, 900);
