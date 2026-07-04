@@ -3,15 +3,19 @@
  * from the route alone, so voice commands like "add a snag: loose socket"
  * don't need to repeat the job name while already inside that job. Room
  * screens carry a locationId, not a projectId, so those need one extra
- * lookup to find their parent project.
+ * lookup to find their parent project. Wall screens are one level deeper
+ * still — a wallId, which resolves to a locationId, which resolves to a
+ * projectId — so those need two.
  */
 import { useEffect, useState } from 'react';
 import { usePathname } from 'expo-router';
 import { loadLocation } from '../data/project-repo';
+import { loadWall } from '../data/floor-plan-repo';
 
 const DIRECT_PROJECT_RE = /^\/project\/(?:quote|snag|drawings)\/([^/]+)$/;
 const PLAIN_PROJECT_RE = /^\/project\/([^/]+)$/;
 const ROOM_RE = /^\/project\/room\/([^/]+)$/;
+const WALL_RE = /^\/project\/wall\/([^/]+)$/;
 
 export function useCurrentProjectId(): string | undefined {
   const pathname = usePathname();
@@ -29,6 +33,15 @@ export function useCurrentProjectId(): string | undefined {
     const room = pathname.match(ROOM_RE);
     if (room) {
       loadLocation(room[1])
+        .then((loc) => { if (!cancelled) setProjectId(loc.projectId); })
+        .catch(() => { if (!cancelled) setProjectId(undefined); });
+      return () => { cancelled = true; };
+    }
+
+    const wall = pathname.match(WALL_RE);
+    if (wall) {
+      loadWall(wall[1])
+        .then((w) => loadLocation(w.locationId))
         .then((loc) => { if (!cancelled) setProjectId(loc.projectId); })
         .catch(() => { if (!cancelled) setProjectId(undefined); });
       return () => { cancelled = true; };
