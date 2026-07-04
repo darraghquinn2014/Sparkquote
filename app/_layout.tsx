@@ -24,6 +24,9 @@ export default function RootLayout() {
         <Stack.Screen name="catalogue" options={{ headerShown: false }} />
         <Stack.Screen name="manage-jobs" options={{ headerShown: false }} />
         <Stack.Screen name="suppliers" options={{ headerShown: false }} />
+        <Stack.Screen name="tools/index" options={{ headerShown: false }} />
+        <Stack.Screen name="tools/voltage-drop" options={{ headerShown: false }} />
+        <Stack.Screen name="tools/ohms-law" options={{ headerShown: false }} />
         <Stack.Screen name="business-profile" options={{ headerShown: false }} />
         <Stack.Screen name="import" options={{ headerShown: false }} />
         <Stack.Screen name="project/new" options={{ headerShown: false }} />

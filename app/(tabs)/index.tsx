@@ -30,6 +30,7 @@ const C = {
   quickQuote: '#F0B730',
   estimate:   '#06D6A0',
   catalogue:  '#9B5DE5',
+  tools:      '#FF6A3D',
 } as const;
 type Accent = keyof typeof C;
 
@@ -229,16 +230,24 @@ export default function HomeScreen() {
             onPress={() => router.push('/estimate' as never)}
           />
         </View>
-        <Block
-          accent="catalogue"
-          icon="≡"
-          label="Catalogue"
-          sub="Materials & prices"
-          stat={catStat}
-          illustration={<ShelvesIllustration color={C.catalogue} size={52} />}
-          wide thin
-          onPress={() => router.push('/catalogue' as never)}
-        />
+        <View style={styles.row}>
+          <Block
+            accent="catalogue"
+            icon="≡"
+            label="Catalogue"
+            sub="Materials & prices"
+            stat={catStat}
+            illustration={<ShelvesIllustration color={C.catalogue} size={72} />}
+            onPress={() => router.push('/catalogue' as never)}
+          />
+          <Block
+            accent="tools"
+            icon="Ω"
+            label="Tools"
+            sub="Site calculators"
+            onPress={() => router.push('/tools' as never)}
+          />
+        </View>
       </View>
     </SafeAreaView>
   );
