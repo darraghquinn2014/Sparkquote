@@ -13,8 +13,8 @@ import { buildLocationTree, rollUpTotals } from '../../domain/location';
 import type { Estimate, Location, Material } from '../../domain/types';
 
 const materials = seedMaterials.map(toMaterial);
-const pvcTrunking = materials.find((m) => m.id === 'mat_trunk_pvc50')!; // 540/m
-const tray = materials.find((m) => m.id === 'mat_tray_med')!; // 1420/m
+const pvcTrunking = materials.find((m) => m.id === 'mat_trunk_pvc50')!; // 480/m
+const tray = materials.find((m) => m.id === 'mat_tray_med')!; // 1350/m
 
 function emptyProjectEstimate(): Estimate {
   return {
@@ -27,7 +27,7 @@ describe('containmentLine', () => {
   it('prices per metre with a snapshot of the per-metre cost', () => {
     const line = containmentLine(pvcTrunking, 12, 'recep');
     expect(line.quantityMeters).toBe(12);
-    expect(line.resolvedMaterialCostMinor).toBe(540);
+    expect(line.resolvedMaterialCostMinor).toBe(480);
     expect(line.locationId).toBe('recep');
     expect(line.quantity).toBeUndefined();
   });
@@ -36,12 +36,12 @@ describe('containmentLine', () => {
     expect(() => containmentLine(pvcTrunking, -1, 'recep')).toThrow();
   });
 
-  it('prices correctly through the engine: 12m × 540 = 6480', () => {
+  it('prices correctly through the engine: 12m × 480 = 5760', () => {
     let est = emptyProjectEstimate();
     est = addProjectLine(est, containmentLine(pvcTrunking, 12, 'recep'));
     const priced = priceEstimate(est, []);
-    expect(priced.lines[0]!.materialTotalMinor).toBe(6480);
-    expect(priced.subtotalMinor).toBe(6480);
+    expect(priced.lines[0]!.materialTotalMinor).toBe(5760);
+    expect(priced.subtotalMinor).toBe(5760);
   });
 });
 
@@ -52,8 +52,8 @@ describe('setMeters', () => {
     const id = est.lineItems[0]!.id;
     est = setMeters(est, id, 18);
     expect(est.lineItems[0]!.quantityMeters).toBe(18);
-    // 18m × 1420 = 25560
-    expect(priceEstimate(est, []).subtotalMinor).toBe(25560);
+    // 18m × 1350 = 24300
+    expect(priceEstimate(est, []).subtotalMinor).toBe(24300);
   });
 
   it('rejects negative metres', () => {
@@ -100,17 +100,17 @@ describe('end-to-end: containment priced and rolled up by location', () => {
       { id: 'office', projectId: 'p1', parentId: 'gf', name: 'Office', sortOrder: 2 },
     ];
     let est = emptyProjectEstimate();
-    est = addProjectLine(est, containmentLine(pvcTrunking, 12, 'recep')); // 6480
-    est = addProjectLine(est, containmentLine(tray, 8, 'office')); // 11360
+    est = addProjectLine(est, containmentLine(pvcTrunking, 12, 'recep')); // 5760
+    est = addProjectLine(est, containmentLine(tray, 8, 'office')); // 10800
 
     const priced = priceEstimate(est, []);
     const locById = new Map(est.lineItems.map((l) => [l.id, l.locationId]));
     const tree = buildLocationTree(locations);
     const roll = rollUpTotals(tree, priced.lines, (id) => locById.get(id));
 
-    expect(roll.byLocation.get('recep')!.ownMinor).toBe(6480);
-    expect(roll.byLocation.get('office')!.ownMinor).toBe(11360);
-    expect(roll.byLocation.get('gf')!.rolledUpMinor).toBe(6480 + 11360);
+    expect(roll.byLocation.get('recep')!.ownMinor).toBe(5760);
+    expect(roll.byLocation.get('office')!.ownMinor).toBe(10800);
+    expect(roll.byLocation.get('gf')!.rolledUpMinor).toBe(5760 + 10800);
     expect(roll.unassignedMinor).toBe(0);
   });
 });

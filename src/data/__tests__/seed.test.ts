@@ -58,8 +58,8 @@ describe('EstimateService through the engine', () => {
   it('lineFromAssembly snapshots the correct material cost', () => {
     const lightSwitch = assemblies.find((a) => a.id === 'asm_lightswitch_1g')!;
     const line = lineFromAssembly(lightSwitch, lookup);
-    // sw1g 180 + bb25 120 + te15 5×1.1×78=429 + terminal 2×45=90 = 819
-    expect(line.resolvedMaterialCostMinor).toBe(819);
+    // sw1g 185 + bb25 100 + te15 5×1.1×75=412.5→413 + terminal 2×32=64 = 762
+    expect(line.resolvedMaterialCostMinor).toBe(762);
     expect(line.laborBaseHours).toBe(0.5);
     expect(line.sourceAssemblyId).toBe('asm_lightswitch_1g');
   });
@@ -87,11 +87,11 @@ describe('EstimateService through the engine', () => {
     let est = emptyDraft();
     est = addAssemblyToEstimate(est, ls, lookup);
     const priced = priceEstimate(est, toggles);
-    // material 819 + labor 0.5h×£50=2500 = 3319; +20% VAT = 3983 (3318.x→ check)
-    expect(priced.lines[0]!.materialTotalMinor).toBe(819);
+    // material 762 + labor 0.5h×£50=2500 = 3262; +20% VAT = 3914.4 → 3914
+    expect(priced.lines[0]!.materialTotalMinor).toBe(762);
     expect(priced.lines[0]!.labor.costMinor).toBe(2500);
-    expect(priced.subtotalMinor).toBe(3319);
-    expect(priced.grandTotalMinor).toBe(3983); // 3319 × 1.2 = 3982.8 → 3983
+    expect(priced.subtotalMinor).toBe(3262);
+    expect(priced.grandTotalMinor).toBe(3914);
   });
 
   it('removeLine drops the right row', () => {
