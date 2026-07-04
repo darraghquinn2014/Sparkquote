@@ -42,7 +42,7 @@ import {
 } from '../../voice/matcher';
 import type { ParsedVoiceCommand } from '../../voice/command-parser';
 import { useVoiceCommand } from '../../voice/useVoiceCommand';
-import { useCurrentProjectId } from '../../voice/useCurrentProjectContext';
+import { useCurrentProjectContext } from '../../voice/useCurrentProjectContext';
 
 type Step =
   | 'idle' | 'listening' | 'processing'
@@ -83,7 +83,7 @@ export function GlobalVoiceControl() {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const isQuickQuote = pathname === '/estimate';
-  const currentProjectId = useCurrentProjectId();
+  const { projectId: currentProjectId, locationId: currentLocationId } = useCurrentProjectContext();
   const voice = useVoiceCommand();
 
   const [visible, setVisible] = useState(false);
@@ -967,7 +967,7 @@ export function GlobalVoiceControl() {
         if (currentProjectId) {
           const proj = projects.find((p) => p.id === currentProjectId);
           resolveRoomThenAdd(currentProjectId, intent.parsed.projectQuery, (locationId) => {
-            setResolvedLocationId(locationId ?? null);
+            setResolvedLocationId(locationId ?? currentLocationId ?? null);
             resolveMaterial(intent.parsed, { projectId: currentProjectId, projectName: proj?.name ?? '' });
           });
           return;
@@ -991,7 +991,7 @@ export function GlobalVoiceControl() {
         if (currentProjectId) {
           const proj = projects.find((p) => p.id === currentProjectId);
           resolveRoomThenAdd(currentProjectId, intent.projectQuery, (locationId) => {
-            setResolvedLocationId(locationId ?? null);
+            setResolvedLocationId(locationId ?? currentLocationId ?? null);
             beginLabourConfirm(pendingLabour.current, { projectId: currentProjectId, projectName: proj?.name ?? '' });
           });
           return;
