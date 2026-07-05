@@ -129,6 +129,9 @@ export default function HomeScreen() {
           await seedIfEmpty();
           await prefixAssembliesWithInstall();
           await Promise.all([hydrate(), hydrateSettings()]);
+          if (!useSettingsStore.getState().voiceSetupComplete) {
+            router.push('/voice-setup' as any);
+          }
           const [projects, cat] = await Promise.all([loadProjects(), loadCatalogue()]);
           setProjectCount(projects.length);
           setFavouriteCount(cat.assemblies.filter((a) => a.quickQuoteRank != null).length);

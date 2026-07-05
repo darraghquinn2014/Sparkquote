@@ -15,7 +15,7 @@ interface UseVoiceCommandResult {
   transcript: string;
   interimTranscript: string;
   error: VoiceCommandError | null;
-  start: () => Promise<void>;
+  start: (contextualStrings?: string[]) => Promise<void>;
   stop: () => void;
   reset: () => void;
 }
@@ -64,7 +64,7 @@ export function useVoiceCommand(): UseVoiceCommandResult {
     gotFinalRef.current = false;
   }, []);
 
-  const start = useCallback(async () => {
+  const start = useCallback(async (contextualStrings?: string[]) => {
     reset();
     const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
     if (!permission.granted) {
@@ -76,6 +76,7 @@ export function useVoiceCommand(): UseVoiceCommandResult {
       lang: 'en-GB',
       interimResults: true,
       continuous: false,
+      ...(contextualStrings?.length ? { contextualStrings } : {}),
     });
   }, [reset]);
 

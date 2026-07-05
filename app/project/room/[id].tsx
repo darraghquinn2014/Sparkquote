@@ -19,6 +19,7 @@ import { loadLocation } from '@/src/data/project-repo';
 import { photosForLocation, addLocationPhoto, deleteLocationPhoto, updatePhotoDetails } from '@/src/data/photo-repo';
 import { loadWallsForLocation, loadWallSymbols } from '@/src/data/floor-plan-repo';
 import { saveCapture, deletePhoto } from '@/src/media/camera-service';
+import { useVoiceAction } from '@/src/voice/voice-bus';
 import { loadAnnotations, hasAnnotations, deleteAnnotations, type AnnotationStroke, type PlacedSymbol } from '@/src/media/annotation-service';
 import { AnnotationEditor } from '@/src/ui/annotations/AnnotationEditor';
 import { PlacedSymbolGroup } from '@/src/ui/annotations/symbols';
@@ -101,6 +102,8 @@ export default function RoomScreen() {
     setCapturedUri(null);
     setCameraOpen(true);
   };
+
+  useVoiceAction('takePhoto', openCamera);
 
   const takePhoto = async () => {
     if (!cameraRef.current) return;

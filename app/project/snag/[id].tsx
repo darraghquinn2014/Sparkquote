@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import {
   View, Text, Pressable, FlatList, TextInput,
   StyleSheet, Alert, ActivityIndicator, Modal, ScrollView,
@@ -30,7 +30,7 @@ type CameraState = 'live' | 'preview';
 
 export default function SnagListScreen() {
   const router = useRouter();
-  const { id: projectId } = useLocalSearchParams<{ id: string }>();
+  const { id: projectId, promptPhotoFor } = useLocalSearchParams<{ id: string; promptPhotoFor?: string }>();
   const [projectName, setProjectName] = useState('');
   const [items, setItems] = useState<SnagItem[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
@@ -56,14 +56,28 @@ export default function SnagListScreen() {
   // item (a snag voice just added) instead of the "+ Add" draft flow.
   const [voicePhotoTargetId, setVoicePhotoTargetId] = useState<string | null>(null);
 
-  useVoiceAction('snagPhotoPrompt', ({ snagId }) => {
+  const promptForSnagPhoto = (snagId: string) => {
     setVoicePhotoTargetId(snagId);
     Alert.alert('Add a photo?', 'Take a photo or choose one from your library for this snag.', [
       { text: 'Take Photo', onPress: () => openCamera() },
       { text: 'Choose from Library', onPress: () => pickFromLibrary() },
       { text: 'Skip', style: 'cancel', onPress: () => setVoicePhotoTargetId(null) },
     ]);
-  });
+  };
+
+  useVoiceAction('snagPhotoPrompt', ({ snagId }) => promptForSnagPhoto(snagId));
+
+  // Voice can create a snag from any screen, not just this one — when this
+  // screen wasn't already mounted to catch the live voice-bus event, the
+  // caller navigates here instead with the new snag's id, so offer the same
+  // photo prompt once on arrival.
+  const promptedForRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (promptPhotoFor && promptedForRef.current !== promptPhotoFor) {
+      promptedForRef.current = promptPhotoFor;
+      promptForSnagPhoto(promptPhotoFor);
+    }
+  }, [promptPhotoFor]);
 
   const reload = useCallback(async () => {
     if (!projectId) return;

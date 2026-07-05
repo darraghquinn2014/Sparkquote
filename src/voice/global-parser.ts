@@ -21,6 +21,7 @@
  */
 import { parseVoiceCommand, parseLeadingNumber, splitTrailingProjectClause, type ParsedVoiceCommand } from './command-parser';
 import { matchNavTarget } from './nav-targets';
+import { splitRoomFloorClause } from './matcher';
 
 export type GlobalVoiceIntent =
   | { kind: 'navigate'; path: string; label: string }
@@ -30,10 +31,14 @@ export type GlobalVoiceIntent =
   | { kind: 'navigate-contextual'; query: string }
   | { kind: 'open-project'; query: string }
   | { kind: 'create-project'; name: string; clientName?: string }
+  /** Ambiguous "create a new job" — resolved by the caller: on Quick Quote
+   * (no project in view) it means a new assembly; everywhere else, a project. */
+  | { kind: 'create-project-or-assembly'; name: string; clientName?: string }
   | { kind: 'rename-project'; query?: string; newName: string }
   | { kind: 'delete-project'; query: string }
   | { kind: 'create-snag'; description: string; projectQuery?: string }
   | { kind: 'delete-snag'; query: string }
+  | { kind: 'mark-snag'; query: string; resolved: boolean }
   | { kind: 'create-floor'; name: string; count?: number; projectQuery?: string }
   | { kind: 'rename-floor'; query: string; newName: string }
   | { kind: 'delete-floor'; query: string }
@@ -43,6 +48,7 @@ export type GlobalVoiceIntent =
   | { kind: 'room-count-query'; floorQuery?: string; projectQuery?: string }
   | { kind: 'delete-assembly'; query: string }
   | { kind: 'hide-assembly'; query: string }
+  | { kind: 'show-assembly'; query: string }
   | { kind: 'open-assembly-builder' }
   | { kind: 'change-material-price'; query: string; priceMinor: number }
   | { kind: 'set-vat-rate'; pct: number }
@@ -54,6 +60,7 @@ export type GlobalVoiceIntent =
   | { kind: 'clear-estimate' }
   | { kind: 'preview-pdf' }
   | { kind: 'generate-report' }
+  | { kind: 'take-photo' }
   | { kind: 'add-material'; parsed: ParsedVoiceCommand }
   | { kind: 'add-labour'; hours?: number; flatMinor?: number; projectQuery?: string }
   | { kind: 'search-material'; query: string }
@@ -64,6 +71,9 @@ const CREATE_VERB = '(?:add|create|start|make)';
 const RENAME_VERB_RE = /^(?:rename|change|update)\s+(.+)$/i;
 const DELETE_VERB_RE = /^(?:delete|remove|get rid of)\s+(.+)$/i;
 const HIDE_VERB_RE = /^(?:hide|unfavou?rite|unfavorite)\s+(.+)$/i;
+const SHOW_VERB_RE = /^(?:show|unhide|favou?rite|favorite|bring\s+back)\s+(.+)$/i;
+const MARK_SNAG_DONE_RE = /^(?:mark|set)\s+(.+?)\s+(?:as\s+)?(?:done|resolved|complete|completed|finished)\s*$/i;
+const MARK_SNAG_UNDONE_RE = /^(?:mark|set)\s+(.+?)\s+(?:as\s+)?(?:not\s+done|unresolved|outstanding|reopened|open|undone)\s*$/i;
 
 const ENTITY_WORD = {
   project: /\b(?:project|job)\b/i,
@@ -73,7 +83,13 @@ const ENTITY_WORD = {
   assembly: /\bassembl(?:y|ies)\b/i,
 };
 
-const CREATE_PROJECT_RE = new RegExp(`^${CREATE_VERB}\\s+(?:a\\s+|an\\s+)?new\\s+(?:project|job)\\b\\s*(.*)$`, 'i');
+const CREATE_PROJECT_RE = new RegExp(`^${CREATE_VERB}\\s+(?:a\\s+|an\\s+)?new\\s+project\\b\\s*(.*)$`, 'i');
+// "job" alone is ambiguous — the app calls a project a "job" (rename/delete
+// project already accept it, PROJECT_NAV_TARGETS has "this job") but also
+// calls a custom assembly a "job" (the Quick-Quote tile, Manage Jobs
+// screen). Resolved by the caller using screen context: on Quick Quote
+// there's no project to create, so "job" there means assembly.
+const CREATE_JOB_AMBIGUOUS_RE = new RegExp(`^${CREATE_VERB}\\s+(?:a\\s+|an\\s+)?new\\s+job\\b\\s*(.*)$`, 'i');
 const CREATE_ASSEMBLY_RE = new RegExp(`^${CREATE_VERB}\\s+(?:a\\s+|an\\s+)?(?:new\\s+)?assembl(?:y|ies)\\b`, 'i');
 
 const SNAG_RE = new RegExp(`^${CREATE_VERB}\\s+(?:a\\s+|an\\s+)?(?:new\\s+)?snags?(?:\\s+item)?\\s*(?:called|named)?\\s*[:\\-]?\\s*(.*)$`, 'i');
@@ -84,7 +100,7 @@ const FLOOR_RE = new RegExp(`^${CREATE_VERB}\\s+(?:a\\s+|an\\s+)?(?:new\\s+)?flo
 const ROOM_COUNT_RE = new RegExp(`^${CREATE_VERB}\\s+(\\d+|\\w+)\\s+rooms\\b\\s*(.*)$`, 'i');
 const ROOM_RE = new RegExp(`^${CREATE_VERB}\\s+(?:a\\s+|an\\s+)?(?:new\\s+)?rooms?\\s*(?:called|named)?\\s*[:\\-]?\\s*(.*)$`, 'i');
 const ROOM_COUNT_QUERY_WORD_RE = /how many rooms\b/i;
-const ROOM_COUNT_FLOOR_RE = /(?:on|in)\s+(?:the\s+)?(.+?)\s*\??$/i;
+const ROOM_COUNT_FLOOR_RE = /(?:on|in|to|for)\s+(?:the\s+)?(.+?)\s*\??$/i;
 
 const LABOUR_WORD_RE = /\blabou?r\b/i;
 const HOURS_RE = /(?:of\s+)?(\d+(?:\.\d+)?)\s*hours?\b/i;
@@ -112,6 +128,8 @@ const PREVIEW_WORD_RE = /\bpreview\b/i;
 const PREVIEW_TARGET_RE = /\b(pdf|quote)\b/i;
 
 const REPORT_RE = /^(?:open|go to|goto|show me|take me to|generate|give me|create|make|share)\s+(?:the\s+|a\s+|my\s+)?report\b/i;
+// Checked after REPORT_RE so "take me to the report" isn't misread as a camera command.
+const TAKE_PHOTO_RE = /^(?:take|capture)\s+(?:a\s+)?(?:photo|picture|photograph)s?\b/i;
 
 const REVIEW_SIGN_RE = /\breview\b|\bsign(?:ing)?\s+the\s+quote\b|\bsign\s+it\b/i;
 
@@ -210,6 +228,12 @@ export function parseGlobalVoiceCommand(raw: string): GlobalVoiceIntent {
     return { kind: 'create-project', name, clientName };
   }
 
+  const createJobMatch = text.match(CREATE_JOB_AMBIGUOUS_RE);
+  if (createJobMatch) {
+    const { name, clientName } = extractNameAndClient(createJobMatch[1]);
+    return { kind: 'create-project-or-assembly', name, clientName };
+  }
+
   const renameMatch = text.match(RENAME_VERB_RE);
   if (renameMatch && ENTITY_WORD.project.test(renameMatch[1])) {
     const parsed = parseRenamePhrase(renameMatch[1], ENTITY_WORD.project);
@@ -234,6 +258,11 @@ export function parseGlobalVoiceCommand(raw: string): GlobalVoiceIntent {
     return { kind: 'hide-assembly', query: stripNoise(hideMatch[1], ENTITY_WORD.assembly) };
   }
 
+  const showMatch = text.match(SHOW_VERB_RE);
+  if (showMatch && ENTITY_WORD.assembly.test(showMatch[1])) {
+    return { kind: 'show-assembly', query: stripNoise(showMatch[1], ENTITY_WORD.assembly) };
+  }
+
   if (renameMatch && ENTITY_WORD.floor.test(renameMatch[1])) {
     const parsed = parseRenamePhrase(renameMatch[1], ENTITY_WORD.floor);
     if (parsed && parsed.oldQuery) return { kind: 'rename-floor', query: parsed.oldQuery, newName: parsed.newName };
@@ -254,6 +283,19 @@ export function parseGlobalVoiceCommand(raw: string): GlobalVoiceIntent {
 
   if (deleteMatch && ENTITY_WORD.snag.test(deleteMatch[1])) {
     return { kind: 'delete-snag', query: stripNoise(deleteMatch[1], ENTITY_WORD.snag) };
+  }
+
+  // Checked before the "done" pattern below: "not done"/"unresolved"/etc.
+  // would otherwise also satisfy the done pattern (its "as " prefix is
+  // optional, so "as not done" can be misread as "as ...not" + "done").
+  const markUndoneMatch = text.match(MARK_SNAG_UNDONE_RE);
+  if (markUndoneMatch) {
+    return { kind: 'mark-snag', query: stripFiller(markUndoneMatch[1]), resolved: false };
+  }
+
+  const markDoneMatch = text.match(MARK_SNAG_DONE_RE);
+  if (markDoneMatch) {
+    return { kind: 'mark-snag', query: stripFiller(markDoneMatch[1]), resolved: true };
   }
 
   const priceMatch = text.match(PRICE_RE);
@@ -293,6 +335,10 @@ export function parseGlobalVoiceCommand(raw: string): GlobalVoiceIntent {
 
   if (REPORT_RE.test(text)) {
     return { kind: 'generate-report' };
+  }
+
+  if (TAKE_PHOTO_RE.test(text)) {
+    return { kind: 'take-photo' };
   }
 
   if (REVIEW_SIGN_RE.test(text)) {
@@ -344,15 +390,30 @@ export function parseGlobalVoiceCommand(raw: string): GlobalVoiceIntent {
     const countWord = roomCountMatch[1].toLowerCase();
     const count = /^\d+$/.test(countWord) ? parseInt(countWord, 10) : parseLeadingNumber(countWord)?.value;
     if (count && count > 0) {
-      const { projectQuery } = splitTrailingProjectClause(roomCountMatch[2].trim());
+      // No room name here (count-based creation auto-names "Room 1", "Room
+      // 2", ...) — the whole remainder is a floor/project qualifier, e.g.
+      // "on the ground floor" or "to the Smith job". Falls back to the raw
+      // remainder verbatim when there's no on/in/to/for connector at all
+      // ("add 3 rooms ground floor") — there's no room name here to
+      // collide with, so the caller can try it straight against real floor
+      // names once loaded.
+      const remainder = roomCountMatch[2].trim();
+      const floorMatch = remainder.match(ROOM_COUNT_FLOOR_RE);
+      const projectQuery = floorMatch ? floorMatch[1].trim() : (remainder || undefined);
       return { kind: 'create-room', name: '', count: Math.min(count, 20), projectQuery };
     }
   }
 
   const roomMatch = text.match(ROOM_RE);
   if (roomMatch) {
-    const { rest, projectQuery } = splitTrailingProjectClause(roomMatch[1].trim());
-    return { kind: 'create-room', name: rest, projectQuery };
+    // The trailing clause here is dual-purpose, resolved by the caller: a
+    // floor name ("Kitchen on the ground floor") when already inside a
+    // project, a project name ("Kitchen to the Smith job") otherwise.
+    // splitRoomFloorClause (not splitTrailingProjectClause) is used because
+    // "on"/"in" phrasing — how floors are actually spoken — needs to split
+    // too, not just "to"/"for".
+    const { roomPart, floorPart } = splitRoomFloorClause(roomMatch[1].trim());
+    return { kind: 'create-room', name: roomPart, projectQuery: floorPart };
   }
 
   if (ADD_VERB_RE.test(text) && LABOUR_WORD_RE.test(text)) {

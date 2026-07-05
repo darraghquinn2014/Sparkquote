@@ -121,6 +121,10 @@ export default function SettingsScreen() {
           <Text style={styles.rowText}>Business profile</Text>
           <Text style={styles.chevron}>›</Text>
         </Pressable>
+        <Pressable style={styles.row} onPress={() => router.push('/voice-setup' as any)}>
+          <Text style={styles.rowText}>Voice &amp; vocabulary</Text>
+          <Text style={styles.chevron}>›</Text>
+        </Pressable>
         <Pressable style={styles.row} onPress={() => router.push('/media-settings')}>
           <Text style={styles.rowText}>Photos & storage</Text>
           <Text style={styles.chevron}>›</Text>

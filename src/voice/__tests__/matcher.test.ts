@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { matchAssemblies, matchLines, matchLocations, matchMaterials, matchProjects, matchSnags } from '../matcher';
+import {
+  matchAssemblies, matchLines, matchLocations, matchMaterials, matchProjects, matchRoomWithFloor, matchSnags,
+  splitRoomFloorClause,
+} from '../matcher';
 import type { Assembly, LineItem, Location, Material, Project, SnagItem } from '../../domain/types';
 
 const materials: Material[] = [
@@ -76,6 +79,73 @@ const snags: SnagItem[] = [
   { id: 's1', projectId: 'p1', description: 'Loose socket in the kitchen', resolved: false, sortOrder: 0, createdAt: 0 },
   { id: 's2', projectId: 'p1', description: 'Broken light switch in the lounge', resolved: false, sortOrder: 1, createdAt: 0 },
 ];
+
+describe('splitRoomFloorClause', () => {
+  it('splits a comma-separated room and floor', () => {
+    expect(splitRoomFloorClause('kitchen, ground floor')).toEqual({ roomPart: 'kitchen', floorPart: 'ground floor' });
+  });
+
+  it('splits "on the" phrasing', () => {
+    expect(splitRoomFloorClause('kitchen on the ground floor')).toEqual({ roomPart: 'kitchen', floorPart: 'ground floor' });
+  });
+
+  it('leaves a bare room name alone', () => {
+    expect(splitRoomFloorClause('kitchen')).toEqual({ roomPart: 'kitchen' });
+  });
+});
+
+describe('matchRoomWithFloor', () => {
+  const floors: Location[] = [
+    { id: 'f1', projectId: 'p1', name: 'Ground Floor', sortOrder: 0 },
+    { id: 'f2', projectId: 'p1', name: 'First Floor', sortOrder: 1 },
+  ];
+  const twoKitchens: Location[] = [
+    { id: 'r1', projectId: 'p1', parentId: 'f1', name: 'Kitchen', sortOrder: 0 },
+    { id: 'r2', projectId: 'p1', parentId: 'f2', name: 'Kitchen', sortOrder: 0 },
+    { id: 'r3', projectId: 'p1', parentId: 'f1', name: 'Lounge', sortOrder: 1 },
+  ];
+
+  it('matches a compound "room, floor" phrase that a plain Fuse search on the whole string misses', () => {
+    // Sanity check on the failure mode this is fixing: the whole compound
+    // phrase against a single short room name scores past Fuse's own
+    // threshold and returns nothing.
+    expect(matchLocations('kitchen, ground floor', [twoKitchens[0]])).toEqual([]);
+
+    const results = matchRoomWithFloor('kitchen, ground floor', [twoKitchens[0]], floors);
+    expect(results[0]?.location.id).toBe('r1');
+  });
+
+  it('disambiguates same-named rooms on different floors using the floor clause', () => {
+    const results = matchRoomWithFloor('kitchen, ground floor', twoKitchens, floors);
+    expect(results).toHaveLength(1);
+    expect(results[0]?.location.id).toBe('r1');
+  });
+
+  it('disambiguates the other floor too', () => {
+    const results = matchRoomWithFloor('kitchen on the first floor', twoKitchens, floors);
+    expect(results).toHaveLength(1);
+    expect(results[0]?.location.id).toBe('r2');
+  });
+
+  it('falls back to all room-name matches when no floor is named', () => {
+    const results = matchRoomWithFloor('kitchen', twoKitchens, floors);
+    expect(results.map((r) => r.location.id).sort()).toEqual(['r1', 'r2']);
+  });
+
+  it('disambiguates with no connector word at all between room and floor', () => {
+    // Real speech is often connector-free — no comma, no "on"/"to"/"for" —
+    // which a grammar-only split can't catch at all.
+    const results = matchRoomWithFloor('kitchen ground floor', twoKitchens, floors);
+    expect(results).toHaveLength(1);
+    expect(results[0]?.location.id).toBe('r1');
+  });
+
+  it('handles the floor name coming before the room name, still connector-free', () => {
+    const results = matchRoomWithFloor('first floor kitchen', twoKitchens, floors);
+    expect(results).toHaveLength(1);
+    expect(results[0]?.location.id).toBe('r2');
+  });
+});
 
 describe('matchSnags', () => {
   it('matches a snag by partial description', () => {

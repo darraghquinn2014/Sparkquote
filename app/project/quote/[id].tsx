@@ -20,7 +20,6 @@ import { MaterialPicker } from '@/src/ui/catalogue/MaterialPicker';
 import { LabourSheet } from '@/src/ui/catalogue/LabourSheet';
 import { EditLineSheet } from '@/src/ui/catalogue/EditLineSheet';
 import { PhotoMeasureSheet } from '@/src/ui/measure/PhotoMeasureSheet';
-import { VoiceAddModal } from '@/src/ui/voice/VoiceAddModal';
 import { useVoiceAction } from '@/src/voice/voice-bus';
 import { toLaborToggle } from '@/src/data/mappers';
 import { seedLaborToggles } from '@/src/data/seed/assemblies';
@@ -64,7 +63,6 @@ export default function ProjectQuoteScreen() {
   const [rateText, setRateText] = useState('');
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState(false);
-  const [voiceOpen, setVoiceOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -154,6 +152,13 @@ export default function ProjectQuoteScreen() {
 
   useVoiceAction('previewPdf', previewPdf);
 
+  // Global voice control writes straight to the DB, bypassing this screen's
+  // own in-memory estimate — reload so an item/labour line added by voice
+  // (to this project, any room) actually shows up without a refocus.
+  useVoiceAction('projectEstimateChanged', ({ projectId: changedId }) => {
+    if (changedId === projectId) load();
+  });
+
   const commitRate = () => {
     const n = parseFloat(rateText);
     if (Number.isFinite(n) && n > 0) save({ ...estimate, hourlyRateMinor: Math.round(n * 100) });
@@ -173,9 +178,6 @@ export default function ProjectQuoteScreen() {
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Quote'}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-          <Pressable style={styles.micBtn} onPress={() => setVoiceOpen(true)} hitSlop={8}>
-            <Text style={styles.micBtnText}>🎤</Text>
-          </Pressable>
           <Pressable
             style={[styles.reviewBtn, estimate.lineItems.length === 0 && styles.reviewBtnDisabled]}
             onPress={() => estimate.lineItems.length > 0 && router.push(`/review?projectId=${projectId}` as any)}
@@ -352,15 +354,6 @@ export default function ProjectQuoteScreen() {
         html={previewHtml}
         onClose={() => setPreviewHtml(null)}
       />
-      <VoiceAddModal
-        visible={voiceOpen}
-        materials={materials}
-        currency={estimate.currency}
-        lockedProjectId={projectId}
-        lockedProjectName={project?.name}
-        onAdded={load}
-        onClose={() => setVoiceOpen(false)}
-      />
     </SafeAreaView>
   );
 }
@@ -373,8 +366,6 @@ const styles = StyleSheet.create({
   },
   back: { color: colors.textSecondary, fontSize: 16, fontWeight: '600' },
   headerTitle: { flex: 1, color: colors.textPrimary, fontSize: 17, fontWeight: '700', textAlign: 'center' },
-  micBtn: { borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.hairline },
-  micBtnText: { fontSize: 16 },
   reviewBtn: { backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.sm },
   reviewBtnDisabled: { opacity: 0.35 },
   reviewBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 13 },

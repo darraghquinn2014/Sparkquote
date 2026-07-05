@@ -22,6 +22,16 @@ describe('parseGlobalVoiceCommand', () => {
     expect(intent).toEqual({ kind: 'create-project', name: 'Oak Street', clientName: undefined });
   });
 
+  it('classifies "create a new job" as ambiguous, not a project outright — "job" means both a project and a Quick-Quote assembly tile', () => {
+    const intent = parseGlobalVoiceCommand('create a new job');
+    expect(intent).toEqual({ kind: 'create-project-or-assembly', name: '', clientName: undefined });
+  });
+
+  it('classifies "create a new assembly" unambiguously, regardless of "job" overlap', () => {
+    const intent = parseGlobalVoiceCommand('create a new assembly');
+    expect(intent).toEqual({ kind: 'open-assembly-builder' });
+  });
+
   it('classifies a snag command with a target job', () => {
     const intent = parseGlobalVoiceCommand('add a snag: loose socket in the kitchen to the Smith job');
     expect(intent).toEqual({ kind: 'create-snag', description: 'loose socket in the kitchen', projectQuery: 'Smith' });
@@ -76,6 +86,26 @@ describe('parseGlobalVoiceCommand', () => {
   it('classifies "add a room called X"', () => {
     const intent = parseGlobalVoiceCommand('add a room called Kitchen');
     expect(intent).toEqual({ kind: 'create-room', name: 'Kitchen', projectQuery: undefined });
+  });
+
+  it('classifies "add a room called X on the Y floor" — "on" phrasing, not just "to/for"', () => {
+    const intent = parseGlobalVoiceCommand('add a room called Kitchen on the ground floor');
+    expect(intent).toEqual({ kind: 'create-room', name: 'Kitchen', projectQuery: 'ground floor' });
+  });
+
+  it('classifies "add a room called X to the Y floor"', () => {
+    const intent = parseGlobalVoiceCommand('add a room called Kitchen to the ground floor');
+    expect(intent).toEqual({ kind: 'create-room', name: 'Kitchen', projectQuery: 'ground floor' });
+  });
+
+  it('classifies "add N rooms on the Y floor" with no room name', () => {
+    const intent = parseGlobalVoiceCommand('add 3 rooms on the ground floor');
+    expect(intent).toEqual({ kind: 'create-room', name: '', count: 3, projectQuery: 'ground floor' });
+  });
+
+  it('classifies "add N rooms Y floor" with no connector word at all', () => {
+    const intent = parseGlobalVoiceCommand('add 3 rooms ground floor');
+    expect(intent).toEqual({ kind: 'create-room', name: '', count: 3, projectQuery: 'ground floor' });
   });
 
   it('classifies "add a new snag" with no description yet as create-snag with an empty description', () => {
@@ -202,6 +232,16 @@ describe('parseGlobalVoiceCommand', () => {
     expect(intent).toEqual({ kind: 'delete-assembly', query: 'Light Switch' });
   });
 
+  it('classifies "show the socket install assembly" as show-assembly', () => {
+    const intent = parseGlobalVoiceCommand('show the socket install assembly');
+    expect(intent).toEqual({ kind: 'show-assembly', query: 'socket install' });
+  });
+
+  it('classifies "unhide the RCBO assembly" as show-assembly', () => {
+    const intent = parseGlobalVoiceCommand('unhide the RCBO assembly');
+    expect(intent).toEqual({ kind: 'show-assembly', query: 'RCBO' });
+  });
+
   // --- Floor/room rename/delete ---
   it('classifies "rename the ground floor to First Floor"', () => {
     const intent = parseGlobalVoiceCommand('rename the ground floor to First Floor');
@@ -227,6 +267,43 @@ describe('parseGlobalVoiceCommand', () => {
   it('classifies "delete the snag about the loose socket"', () => {
     const intent = parseGlobalVoiceCommand('delete the snag about the loose socket');
     expect(intent).toEqual({ kind: 'delete-snag', query: 'about loose socket' });
+  });
+
+  // --- Snag mark done/undone ---
+  it('classifies "mark the loose socket done" as mark-snag resolved', () => {
+    const intent = parseGlobalVoiceCommand('mark the loose socket done');
+    expect(intent).toEqual({ kind: 'mark-snag', query: 'loose socket', resolved: true });
+  });
+
+  it('classifies "set the loose socket as resolved" as mark-snag resolved', () => {
+    const intent = parseGlobalVoiceCommand('set the loose socket as resolved');
+    expect(intent).toEqual({ kind: 'mark-snag', query: 'loose socket', resolved: true });
+  });
+
+  it('classifies "mark the loose socket as not done" as mark-snag unresolved (not swallowed by the done pattern)', () => {
+    const intent = parseGlobalVoiceCommand('mark the loose socket as not done');
+    expect(intent).toEqual({ kind: 'mark-snag', query: 'loose socket', resolved: false });
+  });
+
+  it('classifies "mark the loose socket unresolved"', () => {
+    const intent = parseGlobalVoiceCommand('mark the loose socket unresolved');
+    expect(intent).toEqual({ kind: 'mark-snag', query: 'loose socket', resolved: false });
+  });
+
+  // --- Take photo ---
+  it('classifies "take a photo of this wall" as take-photo', () => {
+    const intent = parseGlobalVoiceCommand('take a photo of this wall');
+    expect(intent).toEqual({ kind: 'take-photo' });
+  });
+
+  it('classifies "capture a picture" as take-photo', () => {
+    const intent = parseGlobalVoiceCommand('capture a picture');
+    expect(intent).toEqual({ kind: 'take-photo' });
+  });
+
+  it('does not classify "take me to the report" as take-photo', () => {
+    const intent = parseGlobalVoiceCommand('take me to the report');
+    expect(intent.kind).not.toBe('take-photo');
   });
 
   // --- Catalogue price / settings ---

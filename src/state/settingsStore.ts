@@ -8,6 +8,13 @@ interface SettingsData {
   currency: Currency;
   catalogueUpdatedAt: number | null;
   showLaborBreakdown: boolean;
+  /** Extra words the electrician added at voice setup (own name, brand
+   * names, site nicknames) — merged into the recognizer's vocabulary hint
+   * list alongside the catalogue/project names built at recognition time. */
+  customVoiceWords: string[];
+  /** Whether the first-run voice vocabulary setup screen has been completed
+   * or explicitly skipped. */
+  voiceSetupComplete: boolean;
 }
 
 const DEFAULTS: SettingsData = {
@@ -16,6 +23,8 @@ const DEFAULTS: SettingsData = {
   currency: 'GBP',
   catalogueUpdatedAt: null,
   showLaborBreakdown: true,
+  customVoiceWords: [],
+  voiceSetupComplete: false,
 };
 
 const settingsPath = () =>
@@ -44,6 +53,8 @@ interface SettingsStore extends SettingsData {
   setCurrency: (c: Currency) => void;
   setCatalogueUpdatedAt: (ts: number) => void;
   setShowLaborBreakdown: (show: boolean) => void;
+  setCustomVoiceWords: (words: string[]) => void;
+  setVoiceSetupComplete: (complete: boolean) => void;
 }
 
 function snapshot(s: SettingsStore): SettingsData {
@@ -53,6 +64,8 @@ function snapshot(s: SettingsStore): SettingsData {
     currency: s.currency,
     catalogueUpdatedAt: s.catalogueUpdatedAt,
     showLaborBreakdown: s.showLaborBreakdown,
+    customVoiceWords: s.customVoiceWords,
+    voiceSetupComplete: s.voiceSetupComplete,
   };
 }
 
@@ -89,5 +102,15 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   setShowLaborBreakdown: (show) => {
     set({ showLaborBreakdown: show });
     saveToDisk({ ...snapshot(get()), showLaborBreakdown: show });
+  },
+
+  setCustomVoiceWords: (words) => {
+    set({ customVoiceWords: words });
+    saveToDisk({ ...snapshot(get()), customVoiceWords: words });
+  },
+
+  setVoiceSetupComplete: (complete) => {
+    set({ voiceSetupComplete: complete });
+    saveToDisk({ ...snapshot(get()), voiceSetupComplete: complete });
   },
 }));

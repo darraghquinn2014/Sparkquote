@@ -63,6 +63,13 @@ export async function toggleSnagItem(id: string): Promise<void> {
   });
 }
 
+export async function setSnagResolved(id: string, resolved: boolean): Promise<void> {
+  await database.write(async () => {
+    const row = await database.get<SnagItemModel>('snag_items').find(id);
+    await row.update((r) => { r.resolved = resolved; });
+  });
+}
+
 export async function deleteSnagItem(id: string): Promise<void> {
   await database.write(async () => {
     const row = await database.get<SnagItemModel>('snag_items').find(id);

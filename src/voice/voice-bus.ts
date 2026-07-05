@@ -15,6 +15,14 @@ export interface VoiceActionPayloads {
   /** A snag was just created by voice — offer to attach a photo to it, the
    * same way the manual "+ Add" flow does, without rebuilding the camera UI. */
   snagPhotoPrompt: { snagId: string };
+  /** "take a photo" — opens whichever screen's own camera flow is mounted
+   * (room gallery or wall reference photo), same as its "+ Add photo" button. */
+  takePhoto: void;
+  /** A project's estimate was just written to directly (add/remove/edit a
+   * line, clear it, ...) via voice, bypassing whichever screen's own local
+   * state holds its own copy — if that screen is mounted, it should reload
+   * from disk so the change actually shows up without a refocus. */
+  projectEstimateChanged: { projectId: string };
 }
 
 export type VoiceActionName = keyof VoiceActionPayloads;

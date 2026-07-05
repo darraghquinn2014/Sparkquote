@@ -28,6 +28,7 @@ import {
   loadWall, loadWallSymbols, renameWall, setWallPhoto, clearWallPhoto,
   addWallSymbol, updateWallSymbolPhotoY, deleteWallSymbol, deleteWall,
 } from '@/src/data/floor-plan-repo';
+import { useVoiceAction } from '@/src/voice/voice-bus';
 import { symbolPhotoX } from '@/src/domain/wall-geometry';
 import { PlacedSymbolGroup, SYMBOL_TYPES, SYMBOL_LABELS, SYMBOL_TYPE_COLORS } from '@/src/ui/annotations/symbols';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
@@ -149,6 +150,8 @@ export default function WallScreen() {
     setCapturedUri(null);
     setCameraOpen(true);
   };
+
+  useVoiceAction('takePhoto', openCamera);
 
   const takePhoto = async () => {
     if (!cameraRef.current) return;

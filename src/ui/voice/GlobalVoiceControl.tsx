@@ -27,17 +27,20 @@ import {
   loadProjects, createProject, renameProject, deleteProject,
   loadLocations, addLocation, renameLocation, deleteLocation,
 } from '../../data/project-repo';
-import { loadCatalogue, deleteAssembly, setAssemblyFavourite, updateMaterialPrice } from '../../data/catalogue-repo';
-import { createSnagItem, snagItemsForProject, deleteSnagItem } from '../../data/snag-repo';
+import { loadCatalogue, deleteAssembly, setAssemblyFavourite, nextFavouriteRank, updateMaterialPrice } from '../../data/catalogue-repo';
+import { createSnagItem, snagItemsForProject, deleteSnagItem, setSnagResolved } from '../../data/snag-repo';
 import { loadProjectEstimate, saveProjectEstimate } from '../../data/project-estimate-repo';
 import { useEstimateStore } from '../../state/estimateStore';
 import { useSettingsStore } from '../../state/settingsStore';
-import { addLabourToProjectByVoice, addMaterialToProjectByVoice } from '../../voice/voice-write';
+import { addAssemblyToProjectByVoice, addLabourToProjectByVoice, addMaterialToProjectByVoice } from '../../voice/voice-write';
+import { materialLookupFrom } from '../../domain/assembly';
 import { parseGlobalVoiceCommand, type GlobalVoiceIntent } from '../../voice/global-parser';
 import { matchProjectNavTarget } from '../../voice/nav-targets';
+import { buildVoiceVocabulary } from '../../voice/vocabulary';
 import { emitVoiceAction } from '../../voice/voice-bus';
 import {
-  matchAssemblies, matchLines, matchLocations, matchMaterials, matchProjects, matchSnags,
+  matchAssemblies, matchLines, matchLocations, matchMaterials, matchProjects, matchRoomWithFloor, matchSnags,
+  stripKnownFloorName,
   type AssemblyMatch, type MaterialMatch, type ProjectMatch,
 } from '../../voice/matcher';
 import type { ParsedVoiceCommand } from '../../voice/command-parser';
@@ -48,8 +51,8 @@ type Step =
   | 'idle' | 'listening' | 'processing'
   | 'project-pick' | 'floor-pick' | 'item-pick' | 'assembly-pick' | 'manual-search' | 'entity-pick'
   | 'confirm-project' | 'confirm-snag' | 'confirm-floor' | 'confirm-room' | 'confirm-labour'
-  | 'confirm-material' | 'confirm-delete-assembly'
-  | 'confirm-rename' | 'confirm-delete-entity' | 'confirm-setting' | 'confirm-price' | 'confirm-line-op'
+  | 'confirm-material' | 'confirm-add-assembly' | 'confirm-delete-assembly'
+  | 'confirm-rename' | 'confirm-delete-entity' | 'confirm-mark-snag' | 'confirm-setting' | 'confirm-price' | 'confirm-line-op'
   | 'confirm-clear-estimate'
   | 'saving' | 'saved' | 'unknown' | 'info';
 
@@ -64,7 +67,8 @@ type FloorRoomOp =
   | { kind: 'delete-floor'; query: string }
   | { kind: 'rename-room'; query: string; newName: string }
   | { kind: 'delete-room'; query: string }
-  | { kind: 'delete-snag'; query: string };
+  | { kind: 'delete-snag'; query: string }
+  | { kind: 'mark-snag'; query: string; resolved: boolean };
 
 type SettingKind = 'vat' | 'currency' | 'labourRate';
 
@@ -114,7 +118,9 @@ export function GlobalVoiceControl() {
   const [resolvedFloorName, setResolvedFloorName] = useState('');
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
   const [selectedAssembly, setSelectedAssembly] = useState<Assembly | null>(null);
-  const [assemblyAction, setAssemblyAction] = useState<'delete' | 'hide'>('delete');
+  const [addAssemblyTarget, setAddAssemblyTarget] = useState<Assembly | null>(null);
+  const [addAssemblyQtyText, setAddAssemblyQtyText] = useState('1');
+  const [assemblyAction, setAssemblyAction] = useState<'delete' | 'hide' | 'show'>('delete');
   const [amountText, setAmountText] = useState('1');
   const [snagDescription, setSnagDescription] = useState('');
   const [floorNameDraft, setFloorNameDraft] = useState('');
@@ -144,6 +150,9 @@ export function GlobalVoiceControl() {
   // Delete (project/floor/room/snag)
   const [deleteTarget, setDeleteTarget] = useState<{ kind: EntityKind; id: string; label: string } | null>(null);
 
+  // Mark a snag resolved/unresolved
+  const [snagDoneTarget, setSnagDoneTarget] = useState<{ id: string; label: string; resolved: boolean } | null>(null);
+
   // Settings (VAT / currency / labour rate)
   const [settingKind, setSettingKind] = useState<SettingKind>('vat');
   const [settingValueDraft, setSettingValueDraft] = useState('');
@@ -170,6 +179,9 @@ export function GlobalVoiceControl() {
   const pendingPriceMinor = useRef<number>(0);
   const pendingLabourRateMinor = useRef<number>(0);
   const pendingFoundMaterial = useRef<Material | null>(null);
+  /** Recognizer vocabulary hint list — rebuilt once per FAB press (not per
+   * command) so a whole multi-command session shares one biasing list. */
+  const vocabRef = useRef<string[]>([]);
 
   useEffect(() => {
     if (!visible) return;
@@ -177,10 +189,17 @@ export function GlobalVoiceControl() {
     loadCatalogue().then((c) => { setMaterials(c.materials); setAssemblies(c.assemblies); }).catch(() => {});
   }, [visible]);
 
-  const open = () => {
+  const assemblyLookup = useMemo(() => materialLookupFrom(materials), [materials]);
+
+  const open = async () => {
     setVisible(true);
     setRawTranscript('');
     voice.reset();
+    try {
+      vocabRef.current = await buildVoiceVocabulary(useSettingsStore.getState().customVoiceWords);
+    } catch {
+      vocabRef.current = [];
+    }
     startListening();
   };
 
@@ -209,6 +228,8 @@ export function GlobalVoiceControl() {
     setSelectedMaterial(null);
     setSelectedAssembly(null);
     setAssemblyAction('delete');
+    setAddAssemblyTarget(null);
+    setAddAssemblyQtyText('1');
     setResolvedProjectId(null);
     setResolvedLocationId(null);
     setResolvedFloorId(null);
@@ -218,6 +239,7 @@ export function GlobalVoiceControl() {
     setRenameTarget(null);
     setRenameDraft('');
     setDeleteTarget(null);
+    setSnagDoneTarget(null);
     setSettingLabourScope(null);
     setPriceTarget(null);
     setLineOpTarget(null);
@@ -265,7 +287,7 @@ export function GlobalVoiceControl() {
   const startDictation = async (target: DictateTarget) => {
     setDictateTarget(target);
     voice.reset();
-    await voice.start();
+    await voice.start(vocabRef.current);
   };
 
   useEffect(() => {
@@ -286,7 +308,7 @@ export function GlobalVoiceControl() {
 
   const startListening = async () => {
     setStep('listening');
-    await voice.start();
+    await voice.start(vocabRef.current);
   };
 
   const openProjectScreen = (project: Project) => {
@@ -317,33 +339,6 @@ export function GlobalVoiceControl() {
     return null;
   };
 
-  /**
-   * When adding a material/labour line while already inside a project
-   * (currentProjectId set), the trailing "to/for X" clause the parser
-   * captured as projectQuery is actually a room name in this context — the
-   * project is already known, so that clause can only be describing where
-   * in the project the line goes ("add a socket to the kitchen"). Resolves
-   * it against the project's rooms via fuzzy match, asking the user when
-   * ambiguous, and calls onResolved with the room's locationId (or
-   * undefined if no room was said / none matched).
-   */
-  const resolveRoomThenAdd = async (
-    projectId: string,
-    roomQuery: string | undefined,
-    onResolved: (locationId?: string) => void,
-  ) => {
-    if (!roomQuery) { onResolved(undefined); return; }
-    const locations = await loadLocations(projectId).catch(() => [] as Location[]);
-    const rooms = locations.filter((l) => l.parentId != null);
-    const matches = matchLocations(roomQuery, rooms, 3);
-    if (matches.length === 1 && matches[0].score < CONFIDENT_SCORE) { onResolved(matches[0].location.id); return; }
-    if (matches.length > 1) {
-      showEntityPick('Which room?', matches.map((m) => ({ id: m.location.id, label: m.location.name })), (item) => onResolved(item.id));
-      return;
-    }
-    onResolved(undefined);
-  };
-
   const resolveMaterial = (parsed: ParsedVoiceCommand, target: { projectId: string; projectName: string } | { quickQuote: true }) => {
     if ('quickQuote' in target) {
       setTargetIsQuickQuote(true);
@@ -368,6 +363,75 @@ export function GlobalVoiceControl() {
     }
     setManualQuery(parsed.itemQuery);
     setStep('manual-search');
+  };
+
+  const beginAddAssemblyConfirm = (
+    assembly: Assembly,
+    quantity: number,
+    target: { projectId: string; projectName: string } | { quickQuote: true },
+  ) => {
+    if ('quickQuote' in target) {
+      setTargetIsQuickQuote(true);
+      setResolvedProjectId(null);
+      setResolvedProjectName('Quick Quote');
+    } else {
+      setTargetIsQuickQuote(false);
+      setResolvedProjectId(target.projectId);
+      setResolvedProjectName(target.projectName);
+    }
+    setAddAssemblyTarget(assembly);
+    setAddAssemblyQtyText(String(quantity && quantity > 0 ? quantity : 1));
+    setStep('confirm-add-assembly');
+  };
+
+  /**
+   * When adding a material/assembly/labour line while already inside a
+   * project (currentProjectId set), the trailing "to/for X" clause the
+   * parser captured as projectQuery is actually a room name in this
+   * context — the project is already known, so that clause can only be
+   * describing where in the project the line goes ("add a socket to the
+   * kitchen"). Resolves it against the project's rooms via fuzzy match,
+   * asking the user when ambiguous, and calls onResolved with the room's
+   * locationId (or undefined if no room was said / none matched).
+   */
+  const resolveRoomThenAdd = async (
+    projectId: string,
+    roomQuery: string | undefined,
+    onResolved: (locationId?: string) => void,
+  ) => {
+    if (!roomQuery) { onResolved(undefined); return; }
+    const locations = await loadLocations(projectId).catch(() => [] as Location[]);
+    const rooms = locations.filter((l) => l.parentId != null);
+    const floors = locations.filter((l) => l.parentId == null);
+    const matches = matchRoomWithFloor(roomQuery, rooms, floors);
+    if (matches.length === 1 && matches[0].score < CONFIDENT_SCORE) { onResolved(matches[0].location.id); return; }
+    if (matches.length > 0) {
+      showEntityPick('Which room?', matches.map((m) => ({ id: m.location.id, label: m.location.name })), (item) => onResolved(item.id));
+      return;
+    }
+    onResolved(undefined);
+  };
+
+  /**
+   * "add X" resolves against assemblies (Quick-Quote job tiles) as well as
+   * raw materials — voice previously could only add materials, but tapping a
+   * favourited assembly tile is the single most common Quick Quote action.
+   * An assembly only wins when it's a confident match and at least as good
+   * as the best material match, so genuine material queries ("twin and
+   * earth") aren't hijacked by a loosely-related assembly name.
+   */
+  const resolveAddTarget = (
+    parsed: ParsedVoiceCommand,
+    target: { projectId: string; projectName: string } | { quickQuote: true },
+  ) => {
+    const bestAssembly = matchAssemblies(parsed.itemQuery, assemblies, 1)[0];
+    const bestMaterial = matchMaterials(parsed.itemQuery, materials, 1)[0];
+    const assemblyWins = !!bestAssembly && bestAssembly.score < CONFIDENT_SCORE && (!bestMaterial || bestAssembly.score <= bestMaterial.score);
+    if (assemblyWins) {
+      beginAddAssemblyConfirm(bestAssembly.assembly, parsed.quantity, target);
+      return;
+    }
+    resolveMaterial(parsed, target);
   };
 
   const beginLabourConfirm = (
@@ -405,22 +469,60 @@ export function GlobalVoiceControl() {
     setStep('confirm-floor');
   };
 
-  /** Rooms need a floor too — resolve it from the project's existing floors. */
-  const beginRoomCreate = async (roomName: string, count: number, projectId: string, projectName: string) => {
+  /**
+   * Rooms need a floor too — resolve it from the project's existing floors.
+   * `floorQuery` is the trailing "on/to/for the X floor" clause the parser
+   * captured (dual-purpose field, see the 'create-room' case) — when the
+   * electrician actually named a floor, it should win over the "only one
+   * floor exists" / "ask me" defaults below, not be silently dropped.
+   */
+  const beginRoomCreate = async (
+    roomName: string, count: number, projectId: string, projectName: string, floorQuery?: string,
+  ) => {
     setResolvedProjectId(projectId);
     setResolvedProjectName(projectName);
     setRoomCountDraft(count);
-    if (count > 1) {
-      setRoomNamesDraft(Array.from({ length: count }, (_, i) => `Room ${i + 1}`));
-    } else {
-      setRoomNameDraft(roomName);
-    }
     const locations = await loadLocations(projectId).catch(() => []);
     const floors = locations.filter((l) => l.parentId == null);
     if (floors.length === 0) {
+      if (count > 1) setRoomNamesDraft(Array.from({ length: count }, (_, i) => `Room ${i + 1}`));
+      else setRoomNameDraft(roomName);
       setInfoMessage(`"${projectName}" has no floors yet — add a floor first, then a room.`);
       setStep('info');
       return;
+    }
+    // A floor name might not have been split off by the parser at all —
+    // "Kitchen ground floor" with no comma/on/to/for connector parses as
+    // one bare room name. Now that the project's real floor names are
+    // loaded, check whether one of them is hiding inside the room name
+    // before falling back to grammar-based parsing.
+    let effectiveFloorQuery = floorQuery;
+    let effectiveRoomName = roomName;
+    if (!effectiveFloorQuery && count === 1 && roomName) {
+      const { rest, floor } = stripKnownFloorName(roomName, floors);
+      if (floor) {
+        effectiveFloorQuery = floor.name;
+        effectiveRoomName = rest || roomName;
+      }
+    }
+    if (count > 1) {
+      setRoomNamesDraft(Array.from({ length: count }, (_, i) => `Room ${i + 1}`));
+    } else {
+      setRoomNameDraft(effectiveRoomName);
+    }
+    if (effectiveFloorQuery) {
+      const matches = matchLocations(effectiveFloorQuery, floors, 5);
+      if (matches.length === 1 && matches[0].score < CONFIDENT_SCORE) {
+        setResolvedFloorId(matches[0].location.id);
+        setResolvedFloorName(matches[0].location.name);
+        setStep('confirm-room');
+        return;
+      }
+      if (matches.length > 0) {
+        setFloorCandidates(matches.map((m) => m.location));
+        setStep('floor-pick');
+        return;
+      }
     }
     if (floors.length === 1) {
       setResolvedFloorId(floors[0].id);
@@ -438,7 +540,7 @@ export function GlobalVoiceControl() {
     setStep('confirm-room');
   };
 
-  const resolveAssemblyAction = (query: string, action: 'delete' | 'hide') => {
+  const resolveAssemblyAction = (query: string, action: 'delete' | 'hide' | 'show') => {
     setAssemblyAction(action);
     const matches = matchAssemblies(query, assemblies, 3);
     if (matches.length === 1 && matches[0].score < CONFIDENT_SCORE) {
@@ -491,6 +593,26 @@ export function GlobalVoiceControl() {
         showEntityPick('Which snag?', matches.map((m) => ({ id: m.snag.id, label: m.snag.description })), (item) => {
           setDeleteTarget({ kind: 'snag', id: item.id, label: item.label });
           setStep('confirm-delete-entity');
+        });
+        return;
+      }
+      setInfoMessage(`No snag matches "${op.query}" in ${projectName}.`);
+      setStep('info');
+      return;
+    }
+
+    if (op.kind === 'mark-snag') {
+      const snags = await snagItemsForProject(projectId).catch(() => [] as SnagItem[]);
+      const matches = matchSnags(op.query, snags, 3);
+      if (matches.length === 1 && matches[0].score < CONFIDENT_SCORE) {
+        setSnagDoneTarget({ id: matches[0].snag.id, label: matches[0].snag.description, resolved: op.resolved });
+        setStep('confirm-mark-snag');
+        return;
+      }
+      if (matches.length > 0) {
+        showEntityPick('Which snag?', matches.map((m) => ({ id: m.snag.id, label: m.snag.description })), (item) => {
+          setSnagDoneTarget({ id: item.id, label: item.label, resolved: op.resolved });
+          setStep('confirm-mark-snag');
         });
         return;
       }
@@ -671,6 +793,17 @@ export function GlobalVoiceControl() {
         setStep('confirm-project');
         return;
       }
+      case 'create-project-or-assembly': {
+        if (isQuickQuote) {
+          router.push('/manage-jobs' as any);
+          backToIdle();
+          return;
+        }
+        setProjectNameDraft(intent.name);
+        setClientNameDraft(intent.clientName ?? '');
+        setStep('confirm-project');
+        return;
+      }
       case 'rename-project': {
         pendingRenameNewName.current = intent.newName;
         const proceed = (project: Project) => {
@@ -732,6 +865,15 @@ export function GlobalVoiceControl() {
         setStep('project-pick');
         return;
       }
+      case 'mark-snag': {
+        const op: FloorRoomOp = { kind: 'mark-snag', query: intent.query, resolved: intent.resolved };
+        if (currentProjectId) { runFloorRoomOp(currentProjectId, op); return; }
+        pendingFloorRoomOp.current = op;
+        setProjectCandidates(projects.map((p) => ({ project: p, score: 1 })));
+        setPickPurpose('floor-room-op');
+        setStep('project-pick');
+        return;
+      }
       case 'create-floor': {
         const count = intent.count ?? 1;
         if (currentProjectId) {
@@ -772,8 +914,10 @@ export function GlobalVoiceControl() {
       case 'create-room': {
         const count = intent.count ?? 1;
         if (currentProjectId) {
+          // Already inside a project — the trailing clause can only be
+          // naming a floor ("Kitchen on the ground floor"), not a project.
           const proj = projects.find((p) => p.id === currentProjectId);
-          beginRoomCreate(intent.name, count, currentProjectId, proj?.name ?? '');
+          beginRoomCreate(intent.name, count, currentProjectId, proj?.name ?? '', intent.projectQuery);
           return;
         }
         if (intent.projectQuery) {
@@ -829,6 +973,10 @@ export function GlobalVoiceControl() {
       }
       case 'hide-assembly': {
         resolveAssemblyAction(intent.query, 'hide');
+        return;
+      }
+      case 'show-assembly': {
+        resolveAssemblyAction(intent.query, 'show');
         return;
       }
       case 'open-assembly-builder': {
@@ -946,8 +1094,19 @@ export function GlobalVoiceControl() {
         close();
         return;
       }
+      case 'take-photo': {
+        const handled = emitVoiceAction('takePhoto');
+        if (!handled) {
+          setInfoMessage('Open a room or wall photo screen first to take a photo.');
+          setStep('info');
+          return;
+        }
+        close();
+        return;
+      }
       case 'estimate-query': {
         if (currentProjectId) { openReview(currentProjectId); return; }
+        if (isQuickQuote) { router.push('/review' as any); backToIdle(); return; }
         if (intent.projectQuery) {
           const project = resolveProjectPick(intent.projectQuery, 'estimate');
           if (project) openReview(project.id);
@@ -961,20 +1120,20 @@ export function GlobalVoiceControl() {
       case 'add-material': {
         pendingParsed.current = intent.parsed;
         if (isQuickQuote) {
-          resolveMaterial(intent.parsed, { quickQuote: true });
+          resolveAddTarget(intent.parsed, { quickQuote: true });
           return;
         }
         if (currentProjectId) {
           const proj = projects.find((p) => p.id === currentProjectId);
           resolveRoomThenAdd(currentProjectId, intent.parsed.projectQuery, (locationId) => {
             setResolvedLocationId(locationId ?? currentLocationId ?? null);
-            resolveMaterial(intent.parsed, { projectId: currentProjectId, projectName: proj?.name ?? '' });
+            resolveAddTarget(intent.parsed, { projectId: currentProjectId, projectName: proj?.name ?? '' });
           });
           return;
         }
         if (intent.parsed.projectQuery) {
           const project = resolveProjectPick(intent.parsed.projectQuery, 'material');
-          if (project) resolveMaterial(intent.parsed, { projectId: project.id, projectName: project.name });
+          if (project) resolveAddTarget(intent.parsed, { projectId: project.id, projectName: project.name });
           return;
         }
         setProjectCandidates(projects.map((p) => ({ project: p, score: 1 })));
@@ -1040,7 +1199,7 @@ export function GlobalVoiceControl() {
         beginRoomCreate(pendingRoomName.current, pendingRoomCount.current, project.id, project.name);
         return;
       case 'material':
-        if (pendingParsed.current) resolveMaterial(pendingParsed.current, { projectId: project.id, projectName: project.name });
+        if (pendingParsed.current) resolveAddTarget(pendingParsed.current, { projectId: project.id, projectName: project.name });
         return;
       case 'labour':
         beginLabourConfirm(pendingLabour.current, { projectId: project.id, projectName: project.name });
@@ -1146,16 +1305,18 @@ export function GlobalVoiceControl() {
     setStep('saving');
     try {
       const item = await createSnagItem(resolvedProjectId, snagDescription.trim());
-      // If the Snag List screen is mounted, hand off to its own existing
-      // camera/library flow so the photo can be attached — same offer the
-      // manual "+ Add" flow gives, without rebuilding a camera UI here.
+      // If the Snag List screen is already mounted, hand off to its own
+      // existing camera/library flow so the photo can be attached — same
+      // offer the manual "+ Add" flow gives, without rebuilding a camera UI
+      // here. Otherwise (voice can create a snag from any screen) navigate
+      // there so it can offer the same prompt on arrival.
       const offeredPhoto = emitVoiceAction('snagPhotoPrompt', { snagId: item.id });
       if (offeredPhoto) {
         close();
         return;
       }
-      setStep('saved');
-      setTimeout(backToIdle, 900);
+      router.push(`/project/snag/${resolvedProjectId}?promptPhotoFor=${item.id}` as any);
+      backToIdle();
     } catch {
       setStep('confirm-snag');
     }
@@ -1214,11 +1375,32 @@ export function GlobalVoiceControl() {
       } else {
         if (!resolvedProjectId) return;
         await addMaterialToProjectByVoice(resolvedProjectId, selectedMaterial, amount, resolvedLocationId ?? undefined);
+        emitVoiceAction('projectEstimateChanged', { projectId: resolvedProjectId });
       }
       setStep('saved');
       setTimeout(backToIdle, 900);
     } catch {
       setStep('confirm-material');
+    }
+  };
+
+  const confirmAddAssembly = async () => {
+    if (!addAssemblyTarget) return;
+    const n = parseFloat(addAssemblyQtyText);
+    const times = Number.isFinite(n) && n > 0 ? Math.round(n) : 1;
+    setStep('saving');
+    try {
+      if (targetIsQuickQuote) {
+        for (let i = 0; i < times; i += 1) useEstimateStore.getState().addAssembly(addAssemblyTarget, assemblyLookup);
+      } else {
+        if (!resolvedProjectId) return;
+        await addAssemblyToProjectByVoice(resolvedProjectId, addAssemblyTarget, assemblyLookup, times, resolvedLocationId ?? undefined);
+        emitVoiceAction('projectEstimateChanged', { projectId: resolvedProjectId });
+      }
+      setStep('saved');
+      setTimeout(backToIdle, 900);
+    } catch {
+      setStep('confirm-add-assembly');
     }
   };
 
@@ -1233,6 +1415,7 @@ export function GlobalVoiceControl() {
       } else {
         if (!resolvedProjectId) return;
         await addLabourToProjectByVoice(resolvedProjectId, opts, resolvedLocationId ?? undefined);
+        emitVoiceAction('projectEstimateChanged', { projectId: resolvedProjectId });
       }
       setStep('saved');
       setTimeout(backToIdle, 900);
@@ -1265,6 +1448,7 @@ export function GlobalVoiceControl() {
               : l,
           );
           await saveProjectEstimate(projectId, { ...est, lineItems });
+          emitVoiceAction('projectEstimateChanged', { projectId });
         }
       }
       setStep('saved');
@@ -1282,7 +1466,10 @@ export function GlobalVoiceControl() {
         useEstimateStore.getState().clear();
       } else if (clearEstimateScope.projectId) {
         const est = await loadProjectEstimate(clearEstimateScope.projectId);
-        if (est) await saveProjectEstimate(clearEstimateScope.projectId, { ...est, lineItems: [] });
+        if (est) {
+          await saveProjectEstimate(clearEstimateScope.projectId, { ...est, lineItems: [] });
+          emitVoiceAction('projectEstimateChanged', { projectId: clearEstimateScope.projectId });
+        }
       }
       setStep('saved');
       setTimeout(backToIdle, 900);
@@ -1297,6 +1484,8 @@ export function GlobalVoiceControl() {
     try {
       if (assemblyAction === 'hide') {
         await setAssemblyFavourite(selectedAssembly.id, null);
+      } else if (assemblyAction === 'show') {
+        await setAssemblyFavourite(selectedAssembly.id, await nextFavouriteRank());
       } else {
         await deleteAssembly(selectedAssembly.id);
       }
@@ -1339,6 +1528,18 @@ export function GlobalVoiceControl() {
     }
   };
 
+  const confirmMarkSnag = async () => {
+    if (!snagDoneTarget) return;
+    setStep('saving');
+    try {
+      await setSnagResolved(snagDoneTarget.id, snagDoneTarget.resolved);
+      setStep('saved');
+      setTimeout(backToIdle, 900);
+    } catch {
+      setStep('confirm-mark-snag');
+    }
+  };
+
   const confirmSetting = async () => {
     setStep('saving');
     try {
@@ -1355,7 +1556,10 @@ export function GlobalVoiceControl() {
             useEstimateStore.getState().setHourlyRate(minor);
           } else if (settingLabourScope?.projectId) {
             const est = await loadProjectEstimate(settingLabourScope.projectId);
-            if (est) await saveProjectEstimate(settingLabourScope.projectId, { ...est, hourlyRateMinor: minor });
+            if (est) {
+              await saveProjectEstimate(settingLabourScope.projectId, { ...est, hourlyRateMinor: minor });
+              emitVoiceAction('projectEstimateChanged', { projectId: settingLabourScope.projectId });
+            }
           } else {
             useSettingsStore.getState().setHourlyRate(minor);
           }
@@ -1403,6 +1607,7 @@ export function GlobalVoiceControl() {
         if (est) {
           if (lineOpTarget.kind === 'remove') {
             await saveProjectEstimate(projectId, { ...est, lineItems: est.lineItems.filter((l) => l.id !== lineOpTarget.lineId) });
+            emitVoiceAction('projectEstimateChanged', { projectId });
           } else {
             const n = parseFloat(lineOpTarget.quantityDraft);
             if (Number.isFinite(n) && n > 0) {
@@ -1412,6 +1617,7 @@ export function GlobalVoiceControl() {
                   : l,
               );
               await saveProjectEstimate(projectId, { ...est, lineItems });
+              emitVoiceAction('projectEstimateChanged', { projectId });
             }
           }
         }
@@ -1765,23 +1971,45 @@ export function GlobalVoiceControl() {
               </View>
             )}
 
+            {step === 'confirm-add-assembly' && addAssemblyTarget && (
+              <View style={styles.confirmArea}>
+                <Text style={styles.confirmItem}>{addAssemblyTarget.name}</Text>
+                <View style={styles.confirmRow}>
+                  <Text style={styles.confirmLabel}>Quantity</Text>
+                  <TextInput value={addAssemblyQtyText} onChangeText={(t) => setAddAssemblyQtyText(t.replace(/[^0-9.]/g, ''))} keyboardType="decimal-pad" style={styles.confirmInput} selectTextOnFocus />
+                </View>
+                <View style={styles.confirmRow}>
+                  <Text style={styles.confirmLabel}>Job</Text>
+                  <Text style={styles.confirmValue} numberOfLines={1}>{resolvedProjectName}</Text>
+                </View>
+                <View style={styles.confirmActions}>
+                  <Pressable style={[styles.bigBtn, styles.cancelBtn]} onPress={backToIdle}><Text style={styles.cancelBtnText}>Cancel</Text></Pressable>
+                  <Pressable style={[styles.bigBtn, styles.confirmBtn]} onPress={confirmAddAssembly}><Text style={styles.confirmBtnText}>Confirm</Text></Pressable>
+                </View>
+              </View>
+            )}
+
             {step === 'confirm-delete-assembly' && selectedAssembly && (
               <View style={styles.confirmArea}>
                 <Text style={styles.confirmItem}>
-                  {assemblyAction === 'hide' ? `Hide "${selectedAssembly.name}"?` : `Delete "${selectedAssembly.name}"?`}
+                  {assemblyAction === 'hide' ? `Hide "${selectedAssembly.name}"?`
+                    : assemblyAction === 'show' ? `Show "${selectedAssembly.name}" in Quick Quote?`
+                    : `Delete "${selectedAssembly.name}"?`}
                 </Text>
                 <Text style={styles.micHint}>
                   {assemblyAction === 'hide'
                     ? 'Removes it from Quick Quote. You can bring it back any time from Manage Jobs.'
+                    : assemblyAction === 'show'
+                    ? 'Adds it back to Quick Quote as a favourite.'
                     : "This removes it from the catalogue and Quick Quote. This can't be undone by voice."}
                 </Text>
                 <View style={styles.confirmActions}>
                   <Pressable style={[styles.bigBtn, styles.cancelBtn]} onPress={backToIdle}><Text style={styles.cancelBtnText}>Cancel</Text></Pressable>
                   <Pressable
-                    style={[styles.bigBtn, assemblyAction === 'hide' ? styles.confirmBtn : styles.dangerBtn]}
+                    style={[styles.bigBtn, assemblyAction === 'delete' ? styles.dangerBtn : styles.confirmBtn]}
                     onPress={confirmAssemblyAction}
                   >
-                    <Text style={styles.confirmBtnText}>{assemblyAction === 'hide' ? 'Hide' : 'Delete'}</Text>
+                    <Text style={styles.confirmBtnText}>{assemblyAction === 'hide' ? 'Hide' : assemblyAction === 'show' ? 'Show' : 'Delete'}</Text>
                   </Pressable>
                 </View>
               </View>
@@ -1819,6 +2047,20 @@ export function GlobalVoiceControl() {
                 <View style={styles.confirmActions}>
                   <Pressable style={[styles.bigBtn, styles.cancelBtn]} onPress={backToIdle}><Text style={styles.cancelBtnText}>Cancel</Text></Pressable>
                   <Pressable style={[styles.bigBtn, styles.dangerBtn]} onPress={confirmDeleteEntity}><Text style={styles.confirmBtnText}>Delete</Text></Pressable>
+                </View>
+              </View>
+            )}
+
+            {step === 'confirm-mark-snag' && snagDoneTarget && (
+              <View style={styles.confirmArea}>
+                <Text style={styles.confirmItem}>
+                  {snagDoneTarget.resolved ? `Mark "${snagDoneTarget.label}" done?` : `Reopen "${snagDoneTarget.label}"?`}
+                </Text>
+                <View style={styles.confirmActions}>
+                  <Pressable style={[styles.bigBtn, styles.cancelBtn]} onPress={backToIdle}><Text style={styles.cancelBtnText}>Cancel</Text></Pressable>
+                  <Pressable style={[styles.bigBtn, styles.confirmBtn]} onPress={confirmMarkSnag}>
+                    <Text style={styles.confirmBtnText}>{snagDoneTarget.resolved ? 'Mark done' : 'Reopen'}</Text>
+                  </Pressable>
                 </View>
               </View>
             )}
@@ -1958,16 +2200,16 @@ const styles = StyleSheet.create({
 
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   scrimTap: { flex: 1 },
-  sheet: { minHeight: 380, backgroundColor: colors.ground, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: space.lg, paddingTop: space.sm },
+  sheet: { minHeight: 260, backgroundColor: colors.ground, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: space.lg, paddingTop: space.sm },
   grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.hairline, marginBottom: space.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontSize: 20, fontWeight: '800', color: colors.textPrimary },
   done: { fontSize: 16, fontWeight: '700', color: colors.accent },
 
-  micArea: { alignItems: 'center', paddingVertical: space.xxl, gap: space.md },
-  micBtn: { width: 96, height: 96, borderRadius: 48, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  micArea: { alignItems: 'center', paddingVertical: space.lg, gap: space.sm },
+  micBtn: { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   micBtnActive: { backgroundColor: colors.danger },
-  micGlyph: { fontSize: 40 },
+  micGlyph: { fontSize: 30 },
   micHint: { color: colors.textSecondary, fontSize: 14, textAlign: 'center', paddingHorizontal: space.lg },
   transcript: { color: colors.textPrimary, fontSize: 16, fontStyle: 'italic', textAlign: 'center', paddingHorizontal: space.lg },
   errorBox: { backgroundColor: colors.danger + '22', borderColor: colors.danger + '55', borderWidth: 1, borderRadius: radius.tile, padding: space.md },

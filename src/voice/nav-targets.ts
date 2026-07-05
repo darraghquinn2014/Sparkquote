@@ -23,6 +23,9 @@ export const NAV_TARGETS: NavTarget[] = [
   { patterns: ['cloud backup', 'backup'], path: '/cloud-backup', label: 'Cloud Backup' },
   { patterns: ['photos and storage', 'photo storage', 'media settings'], path: '/media-settings', label: 'Photos & Storage' },
   { patterns: ['import', 'import prices'], path: '/import', label: 'Import' },
+  { patterns: ['tools', 'the tools', 'tools hub', 'electrician tools'], path: '/tools', label: 'Tools' },
+  { patterns: ['voltage drop', 'the voltage drop calculator', 'voltage drop calculator'], path: '/tools/voltage-drop', label: 'Voltage Drop' },
+  { patterns: ["ohm's law", 'ohms law', "the ohm's law calculator", 'power wheel', 'the power wheel'], path: '/tools/ohms-law', label: "Ohm's Law" },
 ];
 
 /** Exact or substring match against the fixed nav targets, case-insensitive. */
@@ -43,7 +46,7 @@ export interface ProjectNavTarget {
 }
 
 export const PROJECT_NAV_TARGETS: ProjectNavTarget[] = [
-  { patterns: ['snags', 'the snag list', 'the snags', 'punch list'], path: (id) => `/project/snag/${id}`, label: 'Snags' },
+  { patterns: ['snags', 'snag list', 'the snag list', 'the snags', 'punch list'], path: (id) => `/project/snag/${id}`, label: 'Snags' },
   { patterns: ['quote', 'the quote', 'quoting', 'the estimate for this job'], path: (id) => `/project/quote/${id}`, label: 'Quote' },
   { patterns: ['documents', 'drawings'], path: (id) => `/project/drawings/${id}`, label: 'Documents' },
   { patterns: ['this project', 'this job', 'the project', 'the job'], path: (id) => `/project/${id}`, label: 'Project' },

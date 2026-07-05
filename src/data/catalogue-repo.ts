@@ -300,6 +300,9 @@ async function nextRank(): Promise<number> {
   return (ranks.length ? Math.max(...ranks) : 0) + 1;
 }
 
+/** Public alias of nextRank for callers (e.g. voice un-hide) that re-favourite an assembly. */
+export const nextFavouriteRank = nextRank;
+
 /** Create a custom assembly + its components. Favourite by default. */
 export async function createAssembly(input: {
   name: string;
