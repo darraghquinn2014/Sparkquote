@@ -1639,9 +1639,11 @@ export function GlobalVoiceControl() {
 
   return (
     <>
-      <Pressable style={[styles.fab, { bottom: insets.bottom + 24 }]} onPress={open} hitSlop={8}>
-        <Text style={styles.fabGlyph}>🎤</Text>
-      </Pressable>
+      {pathname !== '/voice-setup' && (
+        <Pressable style={[styles.fab, { bottom: insets.bottom + 24 }]} onPress={open} hitSlop={8}>
+          <Text style={styles.fabGlyph}>🎤</Text>
+        </Pressable>
+      )}
 
       <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
         <View style={styles.scrim}>
