@@ -137,6 +137,15 @@ const ESTIMATE_QUERY_RE = /\b(estimate|total|quote|cost)\b/i;
 const ESTIMATE_VERB_RE = /^(?:what'?s|whats|give me|show me|get me|tell me)\b/i;
 const NAV_RE = /^(?:open|go to|goto|navigate to|show me|take me to)\s+(?:the\s+)?(.+)$/i;
 const ADD_VERB_RE = /^(?:please\s+)?(?:add|put|include|insert)\s+/i;
+// "basement back room add two sockets" / "in the basement, back room, add
+// two sockets" — the room/floor named *before* the command, not after
+// ("add two sockets to the kitchen"). The preposition is optional because
+// real speech often skips it entirely, with nothing but word order marking
+// where the location ends and the command begins — only tried as a last
+// resort (see the bottom of parseGlobalVoiceCommand), so it can't steal a
+// phrase a more specific pattern above would otherwise have matched, and
+// can't fire at all for a plain "add X" with nothing before the verb.
+const LEADING_LOCATION_RE = /^(?:(?:in|at|on)\s+)?(?:the\s+)?(.+?)\s*,?\s+((?:please\s+)?(?:add|put|include|insert)\s+.+)$/i;
 // "show"/"show me" are deliberately NOT search triggers here — they're
 // already claimed by navigation ("show me projects") and the report/review
 // checks above; adding them here would break those.
@@ -457,6 +466,25 @@ export function parseGlobalVoiceCommand(raw: string): GlobalVoiceIntent {
     const navHit = matchNavTarget(target);
     if (navHit) return { kind: 'navigate', path: navHit.path, label: navHit.label };
     return { kind: 'navigate-contextual', query: target };
+  }
+
+  // Last resort, not first: everything above already had its chance against
+  // the original text, so this can only fire on a phrase nothing else
+  // recognised — specifically an add-material/add-labour command with its
+  // room/floor named up front instead of trailing ("basement back room add
+  // two sockets"). See LEADING_LOCATION_RE.
+  const leadingLocationMatch = text.match(LEADING_LOCATION_RE);
+  if (leadingLocationMatch) {
+    const leadingLocationQuery = leadingLocationMatch[1].trim();
+    const body = leadingLocationMatch[2].trim();
+    if (LABOUR_WORD_RE.test(body)) {
+      const withoutVerb = body.replace(ADD_VERB_RE, '');
+      const { rest, projectQuery } = splitTrailingProjectClause(withoutVerb);
+      const { hours, flatMinor } = parseLabourAmount(rest);
+      return { kind: 'add-labour', hours, flatMinor, projectQuery: projectQuery ?? leadingLocationQuery };
+    }
+    const parsed = parseVoiceCommand(body);
+    return { kind: 'add-material', parsed: { ...parsed, projectQuery: parsed.projectQuery ?? leadingLocationQuery } };
   }
 
   return { kind: 'unknown', raw: text };

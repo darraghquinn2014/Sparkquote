@@ -150,6 +150,47 @@ describe('parseGlobalVoiceCommand', () => {
     expect(intent).toEqual({ kind: 'create-project', name: '', clientName: undefined });
   });
 
+  it('classifies "in the X, add Y" — a location named before the command, not after', () => {
+    const intent = parseGlobalVoiceCommand('in basement back room add 2 sockets');
+    expect(intent.kind).toBe('add-material');
+    if (intent.kind === 'add-material') {
+      // Quantity still defaults to 1 here — a bare leading number with no
+      // unit word ("2 sockets") is deliberately left as item text rather
+      // than read as a count, same as "2.5 twin and earth" (see
+      // command-parser.test.ts) — this test is only about the location
+      // clause being recognised at all, not the quantity heuristic.
+      expect(intent.parsed.itemQuery).toBe('2 sockets');
+      expect(intent.parsed.projectQuery).toBe('basement back room');
+    }
+  });
+
+  it('classifies a leading location clause for add-labour too', () => {
+    const intent = parseGlobalVoiceCommand('in the kitchen add 2 hours labour');
+    expect(intent).toEqual({ kind: 'add-labour', hours: 2, flatMinor: undefined, projectQuery: 'kitchen' });
+  });
+
+  it('classifies a leading location clause with no preposition at all ("basement back room add X")', () => {
+    const intent = parseGlobalVoiceCommand('basement back room add 2 sockets');
+    expect(intent.kind).toBe('add-material');
+    if (intent.kind === 'add-material') {
+      expect(intent.parsed.itemQuery).toBe('2 sockets');
+      expect(intent.parsed.projectQuery).toBe('basement back room');
+    }
+  });
+
+  it('does not misfire the leading-location fallback on a plain "add X" with nothing before the verb', () => {
+    const intent = parseGlobalVoiceCommand('add 2 sockets');
+    expect(intent.kind).toBe('add-material');
+    if (intent.kind === 'add-material') {
+      expect(intent.parsed.projectQuery).toBeUndefined();
+    }
+  });
+
+  it('prefers a trailing "to the X" clause over a leading one if somehow both are said', () => {
+    const intent = parseGlobalVoiceCommand('in the kitchen add 2 hours labour to the lounge');
+    expect(intent).toEqual({ kind: 'add-labour', hours: 2, flatMinor: undefined, projectQuery: 'lounge' });
+  });
+
   it('classifies "add labour two hours" (spoken number) as add-labour, not material search', () => {
     const intent = parseGlobalVoiceCommand('add labour two hours');
     expect(intent).toEqual({ kind: 'add-labour', hours: 2, flatMinor: undefined, projectQuery: undefined });
