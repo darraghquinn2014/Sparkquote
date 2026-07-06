@@ -2,11 +2,11 @@
  * Design tokens (spec §11.4 field usability).
  *
  * Direction: a working instrument for electricians on-site, not a marketing
- * surface. Decisions are made for legibility in poor light, one-handed reach,
- * and gloved taps — not for showroom polish.
+ * surface. Decisions are made for legibility in bright daylight, one-handed
+ * reach, and gloved taps — not for showroom polish.
  *
- *  - Palette: deep slate ground (reads in dim plant rooms, saves OLED battery)
- *    with a single high-visibility "live wire" amber accent reserved for the
+ *  - Palette: bright, clean ground (reads well in direct sunlight on-site)
+ *    with a single high-visibility "live wire" blue accent reserved for the
  *    one thing that matters most: the running total and the active tap.
  *    Category hues are muted, never competing with the accent.
  *  - Type: large, tabular figures for money (so digits don't jump as totals
@@ -15,21 +15,21 @@
  */
 
 export const colors = {
-  ground: '#07101E', // deep navy, primary background
-  surface: '#0C1928', // raised cards / tiles
-  surfacePressed: '#142035', // tile while pressed
-  hairline: '#1A3060', // dividers, blue-tinted
-  textPrimary: '#E8F1FF',
-  textSecondary: '#6B8DAE',
-  textMuted: '#334D6E',
+  ground: '#F5F7FA', // soft off-white, primary background
+  surface: '#FFFFFF', // raised cards / tiles
+  surfacePressed: '#E8ECF2', // tile while pressed
+  hairline: '#D8E0EA', // dividers, blue-tinted
+  textPrimary: '#0B1220',
+  textSecondary: '#48607A',
+  textMuted: '#8CA0B8',
   accent: '#1B8FFF', // electric blue — totals & active state
-  accentSecondary: '#00C8FF', // cyan — badges & highlights
+  accentSecondary: '#0092B0', // deep cyan — badges & highlights
   accentInk: '#FFFFFF', // text on accent buttons
   // category hues
   catPower: '#2B6EE8',
-  catLighting: '#F0B730',
+  catLighting: '#B8860B',
   catDistribution: '#9B5DE5',
-  catTesting: '#06D6A0',
+  catTesting: '#049C77',
   danger: '#E5564B',
 } as const;
 
