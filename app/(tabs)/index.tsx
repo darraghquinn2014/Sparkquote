@@ -16,7 +16,6 @@ import { CircuitBackground } from '@/src/ui/home/CircuitBackground';
 import {
   HouseIllustration,
   LightningIllustration,
-  ReceiptIllustration,
   ShelvesIllustration,
 } from '@/src/ui/home/CardIllustrations';
 
@@ -26,8 +25,8 @@ const GAP = space.md;
 const HALF_W = (W - space.lg * 2 - GAP) / 2;
 
 const C = {
+  brand:      '#F0B730',
   projects:   '#1B8FFF',
-  quickQuote: '#F0B730',
   estimate:   '#06D6A0',
   catalogue:  '#9B5DE5',
   tools:      '#FF6A3D',
@@ -119,7 +118,6 @@ export default function HomeScreen() {
   const savedEstimate = useEstimateStore((s) => s.savedEstimate);
 
   const [projectCount, setProjectCount] = useState<number | null>(null);
-  const [favouriteCount, setFavouriteCount] = useState<number | null>(null);
   const [materialCount, setMaterialCount] = useState<number | null>(null);
 
   useFocusEffect(
@@ -134,7 +132,6 @@ export default function HomeScreen() {
           }
           const [projects, cat] = await Promise.all([loadProjects(), loadCatalogue()]);
           setProjectCount(projects.length);
-          setFavouriteCount(cat.assemblies.filter((a) => a.quickQuoteRank != null).length);
           setMaterialCount(cat.materials.length);
         } catch (e) {
           console.error('home init failed', e);
@@ -156,10 +153,6 @@ export default function HomeScreen() {
     ? undefined
     : projectCount === 0 ? 'No projects yet' : `${projectCount} project${projectCount !== 1 ? 's' : ''}`;
 
-  const qqStat = favouriteCount == null
-    ? undefined
-    : `${favouriteCount} favourite job${favouriteCount !== 1 ? 's' : ''}`;
-
   const estimateStat = hasActive
     ? `${estimate.lineItems.length} items · ${formatMoney(priceEstimate(estimate, allToggles).grandTotalMinor, estimate.currency)}`
     : hasSaved
@@ -177,7 +170,7 @@ export default function HomeScreen() {
       {/* Brand */}
       <View style={styles.brandRow}>
         <Text style={styles.brandName}>
-          <Text style={{ color: C.quickQuote }}>Spark</Text>Quote
+          <Text style={{ color: C.brand }}>Spark</Text>Quote
         </Text>
         <View style={styles.brandMeta}>
           <View style={styles.brandLine} />
@@ -204,36 +197,25 @@ export default function HomeScreen() {
       {/* Bento grid */}
       <View style={styles.grid}>
         <Block
-          accent="projects"
-          icon="⊞"
-          label="Projects"
-          sub="Jobs, rooms & photos"
-          stat={projectStat}
-          illustration={<HouseIllustration color={C.projects} size={100} />}
+          accent="estimate"
+          icon="⚡"
+          label="Quick estimate"
+          sub="Rough price on the spot — tap or talk"
+          stat={estimateStat}
+          illustration={<LightningIllustration color={C.estimate} size={100} />}
           wide tall
-          onPress={() => router.navigate('/(tabs)/projects' as never)}
+          onPress={() => router.push('/estimate' as never)}
         />
         <View style={styles.row}>
           <Block
-            accent="quickQuote"
-            icon="⚡"
-            label="Quick Quote"
-            sub="Tap to price a job"
-            stat={qqStat}
-            illustration={<LightningIllustration color={C.quickQuote} size={72} />}
-            onPress={() => router.push('/quick-quote' as never)}
+            accent="projects"
+            icon="⊞"
+            label="Projects"
+            sub="Jobs, rooms & photos"
+            stat={projectStat}
+            illustration={<HouseIllustration color={C.projects} size={72} />}
+            onPress={() => router.navigate('/(tabs)/projects' as never)}
           />
-          <Block
-            accent="estimate"
-            icon="£"
-            label="Estimate"
-            sub="View & edit quote"
-            stat={estimateStat}
-            illustration={<ReceiptIllustration color={C.estimate} size={72} />}
-            onPress={() => router.push('/estimate' as never)}
-          />
-        </View>
-        <View style={styles.row}>
           <Block
             accent="catalogue"
             icon="≡"
@@ -243,14 +225,15 @@ export default function HomeScreen() {
             illustration={<ShelvesIllustration color={C.catalogue} size={72} />}
             onPress={() => router.push('/catalogue' as never)}
           />
-          <Block
-            accent="tools"
-            icon="Ω"
-            label="Tools"
-            sub="Site calculators"
-            onPress={() => router.push('/tools' as never)}
-          />
         </View>
+        <Block
+          accent="tools"
+          icon="Ω"
+          label="Tools"
+          sub="Site calculators"
+          wide thin
+          onPress={() => router.push('/tools' as never)}
+        />
       </View>
     </SafeAreaView>
   );
@@ -283,7 +266,7 @@ const styles = StyleSheet.create({
   brandLine: {
     height: 2,
     width: 32,
-    backgroundColor: C.quickQuote,
+    backgroundColor: C.brand,
     borderRadius: 2,
   },
   brandTag: {

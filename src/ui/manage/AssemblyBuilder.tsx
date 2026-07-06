@@ -1,7 +1,7 @@
 /**
- * AssemblyBuilder — create a custom assembly (a Quick-Quote job tile).
+ * AssemblyBuilder — create a custom assembly (an Add-Job tile).
  * Pick catalogue materials + quantities, set a name/category and labour hours.
- * Saved as a favourite so it appears on Quick Quote immediately.
+ * Saved as a favourite so it appears in Add Job immediately.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import {

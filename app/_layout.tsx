@@ -19,7 +19,6 @@ export default function RootLayout() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="quick-quote" options={{ headerShown: false }} />
         <Stack.Screen name="estimate" options={{ headerShown: false }} />
         <Stack.Screen name="catalogue" options={{ headerShown: false }} />
         <Stack.Screen name="manage-jobs" options={{ headerShown: false }} />

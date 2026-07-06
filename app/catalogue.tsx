@@ -170,7 +170,7 @@ export default function CatalogueScreen() {
       ) : (
         <View style={styles.assembliesSection}>
           <Text style={styles.assembliesInfo}>
-            Manage your job templates — set which ones appear on Quick Quote, adjust labour hours, and add or remove materials.
+            Manage your job templates — set which ones appear in Add Job, adjust labour hours, and add or remove materials.
           </Text>
           <Pressable style={styles.manageBtn} onPress={() => router.push('/manage-jobs' as never)}>
             <Text style={styles.manageBtnText}>Open Assembly Manager</Text>

@@ -33,7 +33,7 @@ export function HouseIllustration({ color, size = 80 }: IllustrationProps) {
   );
 }
 
-/** Lightning bolt — Quick Quote */
+/** Lightning bolt — Quick estimate */
 export function LightningIllustration({ color, size = 70 }: IllustrationProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 70 70">

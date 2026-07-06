@@ -31,8 +31,8 @@ export type GlobalVoiceIntent =
   | { kind: 'navigate-contextual'; query: string }
   | { kind: 'open-project'; query: string }
   | { kind: 'create-project'; name: string; clientName?: string }
-  /** Ambiguous "create a new job" — resolved by the caller: on Quick Quote
-   * (no project in view) it means a new assembly; everywhere else, a project. */
+  /** Ambiguous "create a new job" — resolved by the caller: on the standalone
+   * Estimate screen (no project in view) it means a new assembly; everywhere else, a project. */
   | { kind: 'create-project-or-assembly'; name: string; clientName?: string }
   | { kind: 'rename-project'; query?: string; newName: string }
   | { kind: 'delete-project'; query: string }
@@ -86,9 +86,9 @@ const ENTITY_WORD = {
 const CREATE_PROJECT_RE = new RegExp(`^${CREATE_VERB}\\s+(?:a\\s+|an\\s+)?new\\s+project\\b\\s*(.*)$`, 'i');
 // "job" alone is ambiguous — the app calls a project a "job" (rename/delete
 // project already accept it, PROJECT_NAV_TARGETS has "this job") but also
-// calls a custom assembly a "job" (the Quick-Quote tile, Manage Jobs
-// screen). Resolved by the caller using screen context: on Quick Quote
-// there's no project to create, so "job" there means assembly.
+// calls a custom assembly a "job" (the Add-Job tile, Manage Jobs
+// screen). Resolved by the caller using screen context: on the standalone
+// Estimate screen there's no project to create, so "job" there means assembly.
 const CREATE_JOB_AMBIGUOUS_RE = new RegExp(`^${CREATE_VERB}\\s+(?:a\\s+|an\\s+)?new\\s+job\\b\\s*(.*)$`, 'i');
 const CREATE_ASSEMBLY_RE = new RegExp(`^${CREATE_VERB}\\s+(?:a\\s+|an\\s+)?(?:new\\s+)?assembl(?:y|ies)\\b`, 'i');
 

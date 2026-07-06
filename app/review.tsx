@@ -100,7 +100,7 @@ export default function ReviewRoute() {
     return (
       <SafeAreaView style={styles.empty} edges={['top', 'bottom']}>
         <Text style={styles.emptyText}>
-          {projectId ? 'No items on this quote yet. Add items per room on the project quote screen.' : 'No items yet. Add some jobs on Quick Quote first.'}
+          {projectId ? 'No items on this quote yet. Add items per room on the project quote screen.' : 'No items yet. Add a job, labour, or material on the Estimate screen first.'}
         </Text>
       </SafeAreaView>
     );

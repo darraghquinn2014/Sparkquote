@@ -3,7 +3,7 @@
  * layout, so it's available on every screen) plus its command modal.
  *
  * Covers: navigation, creating/renaming/deleting projects, floors, rooms
- * and snags, adding materials/labour (to a project or the plain Quick Quote
+ * and snags, adding materials/labour (to a project or the standalone Estimate
  * screen), deleting/hiding assemblies, catalogue price edits, VAT/currency/
  * labour-rate settings, and removing or changing the quantity of a line on
  * whichever estimate is currently in view.
@@ -34,6 +34,10 @@ import { useEstimateStore } from '../../state/estimateStore';
 import { useSettingsStore } from '../../state/settingsStore';
 import { addAssemblyToProjectByVoice, addLabourToProjectByVoice, addMaterialToProjectByVoice } from '../../voice/voice-write';
 import { materialLookupFrom } from '../../domain/assembly';
+import { priceLine } from '../../domain/pricing';
+import { lineFromAssembly } from '../../data/estimate-service';
+import { toLaborToggle } from '../../data/mappers';
+import { seedLaborToggles } from '../../data/seed/assemblies';
 import { parseGlobalVoiceCommand, type GlobalVoiceIntent } from '../../voice/global-parser';
 import { matchProjectNavTarget } from '../../voice/nav-targets';
 import { buildVoiceVocabulary } from '../../voice/vocabulary';
@@ -81,6 +85,8 @@ type DictateTarget =
   | { kind: 'floorNameAt' | 'roomNameAt'; index: number };
 
 const CONFIDENT_SCORE = 0.25;
+const allLaborToggles = seedLaborToggles.map(toLaborToggle);
+const laborToggleIndex = new Map(allLaborToggles.map((t) => [t.id, t]));
 
 export function GlobalVoiceControl() {
   const router = useRouter();
@@ -343,7 +349,7 @@ export function GlobalVoiceControl() {
     if ('quickQuote' in target) {
       setTargetIsQuickQuote(true);
       setResolvedProjectId(null);
-      setResolvedProjectName('Quick Quote');
+      setResolvedProjectName('Estimate');
     } else {
       setTargetIsQuickQuote(false);
       setResolvedProjectId(target.projectId);
@@ -373,7 +379,7 @@ export function GlobalVoiceControl() {
     if ('quickQuote' in target) {
       setTargetIsQuickQuote(true);
       setResolvedProjectId(null);
-      setResolvedProjectName('Quick Quote');
+      setResolvedProjectName('Estimate');
     } else {
       setTargetIsQuickQuote(false);
       setResolvedProjectId(target.projectId);
@@ -413,9 +419,9 @@ export function GlobalVoiceControl() {
   };
 
   /**
-   * "add X" resolves against assemblies (Quick-Quote job tiles) as well as
+   * "add X" resolves against assemblies (Add-Job tiles) as well as
    * raw materials — voice previously could only add materials, but tapping a
-   * favourited assembly tile is the single most common Quick Quote action.
+   * favourited assembly tile is the single most common add-job action.
    * An assembly only wins when it's a confident match and at least as good
    * as the best material match, so genuine material queries ("twin and
    * earth") aren't hijacked by a loosely-related assembly name.
@@ -441,7 +447,7 @@ export function GlobalVoiceControl() {
     if ('quickQuote' in target) {
       setTargetIsQuickQuote(true);
       setResolvedProjectId(null);
-      setResolvedProjectName('Quick Quote');
+      setResolvedProjectName('Estimate');
     } else {
       setTargetIsQuickQuote(false);
       setResolvedProjectId(target.projectId);
@@ -649,7 +655,7 @@ export function GlobalVoiceControl() {
     setStep('info');
   };
 
-  /** Resolves a line on whichever estimate is currently in view (Quick Quote or the current project). */
+  /** Resolves a line on whichever estimate is currently in view (the standalone Estimate or the current project). */
   const resolveLineOp = async (query: string, kind: 'remove' | 'setQuantity', amount?: number) => {
     let lines: LineItem[];
     const scope = isQuickQuote
@@ -659,7 +665,7 @@ export function GlobalVoiceControl() {
         : null;
 
     if (!scope) {
-      setInfoMessage('Open a project or Quick Quote first to edit its lines.');
+      setInfoMessage('Open a project or the Estimate screen first to edit its lines.');
       setStep('info');
       return;
     }
@@ -708,13 +714,13 @@ export function GlobalVoiceControl() {
         ? { isQuickQuote: false as const, projectId: currentProjectId }
         : null;
     if (!scope) {
-      setInfoMessage('Open a project or Quick Quote first to edit its labour.');
+      setInfoMessage('Open a project or the Estimate screen first to edit its labour.');
       setStep('info');
       return;
     }
 
     let lines: LineItem[];
-    let scopeLabel = 'Quick Quote';
+    let scopeLabel = 'Estimate';
     if (scope.isQuickQuote) {
       lines = useEstimateStore.getState().estimate.lineItems;
     } else {
@@ -1055,7 +1061,7 @@ export function GlobalVoiceControl() {
       }
       case 'clear-estimate': {
         if (isQuickQuote) {
-          setClearEstimateScope({ isQuickQuote: true, label: 'Quick Quote' });
+          setClearEstimateScope({ isQuickQuote: true, label: 'Estimate' });
           setStep('confirm-clear-estimate');
           return;
         }
@@ -1065,14 +1071,14 @@ export function GlobalVoiceControl() {
           setStep('confirm-clear-estimate');
           return;
         }
-        setInfoMessage('Open a project or Quick Quote first to clear its estimate.');
+        setInfoMessage('Open a project or the Estimate screen first to clear its estimate.');
         setStep('info');
         return;
       }
       case 'preview-pdf': {
         const handled = emitVoiceAction('previewPdf');
         if (!handled) {
-          setInfoMessage("Open Quick Quote or a job's Quote screen first to preview its PDF.");
+          setInfoMessage("Open the Estimate screen or a job's Quote screen first to preview its PDF.");
           setStep('info');
           return;
         }
@@ -1242,7 +1248,7 @@ export function GlobalVoiceControl() {
     if (isQuickQuote) {
       setTargetIsQuickQuote(true);
       setResolvedProjectId(null);
-      setResolvedProjectName('Quick Quote');
+      setResolvedProjectName('Estimate');
       setStep('confirm-material');
       return;
     }
@@ -1635,6 +1641,13 @@ export function GlobalVoiceControl() {
     ? Math.round(amountNum * selectedMaterial.unitCostMinor)
     : 0;
 
+  const settingsHourlyRateMinor = useSettingsStore((s) => s.hourlyRateMinor);
+  const assemblyQtyNum = parseFloat(addAssemblyQtyText);
+  const assemblyUnitPriceMinor = addAssemblyTarget
+    ? priceLine(lineFromAssembly(addAssemblyTarget, assemblyLookup), settingsHourlyRateMinor, laborToggleIndex, []).lineTotalMinor
+    : 0;
+  const assemblyPreviewTotal = Number.isFinite(assemblyQtyNum) ? Math.round(assemblyQtyNum * assemblyUnitPriceMinor) : 0;
+
   const entityLabel = (kind: EntityKind) => kind === 'project' ? 'job' : kind === 'floor' ? 'floor' : kind === 'room' ? 'room' : 'snag';
 
   return (
@@ -1955,11 +1968,15 @@ export function GlobalVoiceControl() {
               <View style={styles.confirmArea}>
                 <Text style={styles.confirmItem}>{selectedMaterial.description}</Text>
                 <View style={styles.confirmRow}>
+                  <Text style={styles.confirmLabel}>Unit price</Text>
+                  <Text style={styles.confirmValue}>{formatMoney(selectedMaterial.unitCostMinor, 'GBP')} / {selectedMaterial.unit}</Text>
+                </View>
+                <View style={styles.confirmRow}>
                   <Text style={styles.confirmLabel}>{isMetres ? 'Metres' : 'Quantity'}</Text>
                   <TextInput value={amountText} onChangeText={(t) => setAmountText(t.replace(/[^0-9.]/g, ''))} keyboardType="decimal-pad" style={styles.confirmInput} selectTextOnFocus />
                 </View>
                 <View style={styles.confirmRow}>
-                  <Text style={styles.confirmLabel}>Price</Text>
+                  <Text style={styles.confirmLabel}>Total</Text>
                   <Text style={styles.confirmValue}>{formatMoney(previewTotal, 'GBP')}</Text>
                 </View>
                 <View style={styles.confirmRow}>
@@ -1977,8 +1994,16 @@ export function GlobalVoiceControl() {
               <View style={styles.confirmArea}>
                 <Text style={styles.confirmItem}>{addAssemblyTarget.name}</Text>
                 <View style={styles.confirmRow}>
+                  <Text style={styles.confirmLabel}>Unit price</Text>
+                  <Text style={styles.confirmValue}>{formatMoney(assemblyUnitPriceMinor, 'GBP')} each</Text>
+                </View>
+                <View style={styles.confirmRow}>
                   <Text style={styles.confirmLabel}>Quantity</Text>
                   <TextInput value={addAssemblyQtyText} onChangeText={(t) => setAddAssemblyQtyText(t.replace(/[^0-9.]/g, ''))} keyboardType="decimal-pad" style={styles.confirmInput} selectTextOnFocus />
+                </View>
+                <View style={styles.confirmRow}>
+                  <Text style={styles.confirmLabel}>Total</Text>
+                  <Text style={styles.confirmValue}>{formatMoney(assemblyPreviewTotal, 'GBP')}</Text>
                 </View>
                 <View style={styles.confirmRow}>
                   <Text style={styles.confirmLabel}>Job</Text>
@@ -1995,15 +2020,15 @@ export function GlobalVoiceControl() {
               <View style={styles.confirmArea}>
                 <Text style={styles.confirmItem}>
                   {assemblyAction === 'hide' ? `Hide "${selectedAssembly.name}"?`
-                    : assemblyAction === 'show' ? `Show "${selectedAssembly.name}" in Quick Quote?`
+                    : assemblyAction === 'show' ? `Show "${selectedAssembly.name}" in Add Job?`
                     : `Delete "${selectedAssembly.name}"?`}
                 </Text>
                 <Text style={styles.micHint}>
                   {assemblyAction === 'hide'
-                    ? 'Removes it from Quick Quote. You can bring it back any time from Manage Jobs.'
+                    ? 'Removes it from the Add Job picker. You can bring it back any time from Manage Jobs.'
                     : assemblyAction === 'show'
-                    ? 'Adds it back to Quick Quote as a favourite.'
-                    : "This removes it from the catalogue and Quick Quote. This can't be undone by voice."}
+                    ? 'Adds it back to the Add Job picker as a favourite.'
+                    : "This removes it from the catalogue and the Add Job picker. This can't be undone by voice."}
                 </Text>
                 <View style={styles.confirmActions}>
                   <Pressable style={[styles.bigBtn, styles.cancelBtn]} onPress={backToIdle}><Text style={styles.cancelBtnText}>Cancel</Text></Pressable>
@@ -2102,7 +2127,7 @@ export function GlobalVoiceControl() {
                   <View style={styles.confirmRow}>
                     <Text style={styles.confirmLabel}>Applies to</Text>
                     <Text style={styles.confirmValue} numberOfLines={1}>
-                      {settingLabourScope?.isQuickQuote ? 'Quick Quote' : settingLabourScope?.projectName ?? 'Default (Settings)'}
+                      {settingLabourScope?.isQuickQuote ? 'Estimate' : settingLabourScope?.projectName ?? 'Default (Settings)'}
                     </Text>
                   </View>
                 )}
@@ -2149,7 +2174,7 @@ export function GlobalVoiceControl() {
                   </View>
                 )}
                 {lineOpTarget.kind === 'remove' && (
-                  <Text style={styles.micHint}>This removes the line from {lineOpTarget.scope.isQuickQuote ? 'Quick Quote' : 'this job\'s quote'}.</Text>
+                  <Text style={styles.micHint}>This removes the line from {lineOpTarget.scope.isQuickQuote ? 'Estimate' : 'this job\'s quote'}.</Text>
                 )}
                 <View style={styles.confirmActions}>
                   <Pressable style={[styles.bigBtn, styles.cancelBtn]} onPress={backToIdle}><Text style={styles.cancelBtnText}>Cancel</Text></Pressable>

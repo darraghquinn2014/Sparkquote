@@ -48,6 +48,10 @@ export function MaterialPicker({ visible, materials, currency, onAdd, onClose }:
   }, [materials, query, activeSupplier]);
 
   const isMetres = selected?.unit === 'm';
+  const amountNum = parseFloat(amountText);
+  const previewTotal = selected && Number.isFinite(amountNum)
+    ? Math.round(amountNum * selected.unitCostMinor)
+    : 0;
 
   const confirmAdd = () => {
     if (!selected) return;
@@ -147,7 +151,10 @@ export function MaterialPicker({ visible, materials, currency, onAdd, onClose }:
               <View style={styles.addRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.addItemName} numberOfLines={1}>{selected.description}</Text>
-                  <Text style={styles.addLabel}>{isMetres ? 'Metres' : 'Quantity'}</Text>
+                  <Text style={styles.addLabel}>
+                    {isMetres ? 'Metres' : 'Quantity'} · {formatMoney(selected.unitCostMinor, currency)} / {selected.unit}
+                  </Text>
+                  <Text style={styles.addTotal}>Total: {formatMoney(previewTotal, currency)}</Text>
                 </View>
                 <TextInput
                   value={amountText}
@@ -195,6 +202,7 @@ const styles = StyleSheet.create({
   addRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.surface, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.md, marginTop: space.sm },
   addItemName: { fontSize: 13, fontWeight: '700', color: colors.textPrimary, marginBottom: 2 },
   addLabel: { fontSize: 11, fontWeight: '700', color: colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
+  addTotal: { fontSize: 13, fontWeight: '700', color: colors.accent, marginTop: 3 },
   amountInput: { width: 80, backgroundColor: colors.ground, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.sm, color: colors.textPrimary, fontSize: 18, fontWeight: '700', fontVariant: ['tabular-nums'], textAlign: 'center' },
   addBtn: { backgroundColor: colors.accent, borderRadius: radius.tile, paddingHorizontal: space.xl, paddingVertical: space.sm },
   addBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 15 },

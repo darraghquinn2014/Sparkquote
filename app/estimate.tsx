@@ -4,15 +4,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
 import { useRouter } from 'expo-router';
 import { useEstimateStore } from '@/src/state/estimateStore';
+import { materialLookupFrom } from '@/src/domain/assembly';
 import { EditLineSheet } from '@/src/ui/catalogue/EditLineSheet';
 import { priceLine, priceEstimate } from '@/src/domain/pricing';
 import { formatMoney } from '@/src/domain/money';
 import { toLaborToggle } from '@/src/data/mappers';
 import { seedLaborToggles } from '@/src/data/seed/assemblies';
-import type { EstimateStatus, LineItem, Material } from '@/src/domain/types';
+import type { Assembly, EstimateStatus, LineItem, Material } from '@/src/domain/types';
 import { useSettingsStore } from '@/src/state/settingsStore';
 import { MaterialPicker } from '@/src/ui/catalogue/MaterialPicker';
 import { LabourSheet } from '@/src/ui/catalogue/LabourSheet';
+import { AssemblyPicker } from '@/src/ui/estimate/AssemblyPicker';
 import { loadCatalogue } from '@/src/data/catalogue-repo';
 import { loadBusinessProfile, readLogoDataUri } from '@/src/data/business-profile';
 import { toClientEstimate } from '@/src/pdf/client-view-model';
@@ -49,6 +51,7 @@ export default function EstimateScreen() {
   const replaceLine = useEstimateStore((s) => s.replaceLine);
   const remove = useEstimateStore((s) => s.remove);
   const addMaterial = useEstimateStore((s) => s.addMaterial);
+  const addAssembly = useEstimateStore((s) => s.addAssembly);
   const setHourlyRate = useEstimateStore((s) => s.setHourlyRate);
   const addLabour = useEstimateStore((s) => s.addLabour);
   const setStatus = useEstimateStore((s) => s.setStatus);
@@ -56,7 +59,9 @@ export default function EstimateScreen() {
   const [editing, setEditing] = useState<LineItem | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [labourOpen, setLabourOpen] = useState(false);
+  const [assemblyPickerOpen, setAssemblyPickerOpen] = useState(false);
   const [materials, setMaterials] = useState<Material[]>([]);
+  const [assemblies, setAssemblies] = useState<Assembly[]>([]);
   const [rateEditing, setRateEditing] = useState(false);
   const [rateText, setRateText] = useState('');
   const [previewing, setPreviewing] = useState(false);
@@ -66,8 +71,18 @@ export default function EstimateScreen() {
   const swipeableRefs = useRef<Map<string, Swipeable>>(new Map());
 
   useEffect(() => {
-    loadCatalogue().then((c) => setMaterials(c.materials)).catch(() => {});
+    loadCatalogue().then((c) => { setMaterials(c.materials); setAssemblies(c.assemblies); }).catch(() => {});
   }, []);
+
+  const removeAssembly = (assemblyId: string) => {
+    const line = estimate.lineItems.find((l) => l.sourceAssemblyId === assemblyId && !l.overrides);
+    if (!line) return;
+    if ((line.quantity ?? 1) <= 1) {
+      remove(line.id);
+    } else {
+      replaceLine({ ...line, quantity: (line.quantity ?? 1) - 1 });
+    }
+  };
 
   const previewPdf = async () => {
     try {
@@ -126,6 +141,9 @@ export default function EstimateScreen() {
       </View>
 
       <View style={styles.headerBtns}>
+        <Pressable style={styles.addItemBtn} onPress={() => setAssemblyPickerOpen(true)}>
+          <Text style={styles.addItemText}>+ Job</Text>
+        </Pressable>
         <Pressable style={styles.addItemBtn} onPress={() => setLabourOpen(true)}>
           <Text style={styles.addItemText}>+ Labour</Text>
         </Pressable>
@@ -155,7 +173,7 @@ export default function EstimateScreen() {
             </View>
           ) : null
         }
-        ListEmptyComponent={<Text style={styles.empty}>No items yet. Add jobs on Quick Quote.</Text>}
+        ListEmptyComponent={<Text style={styles.empty}>No items yet. Add a job, labour, or material above — or just say it.</Text>}
         ListFooterComponent={estimate.lineItems.length === 0 ? null : (
           <View style={styles.footer}>
             <Pressable
@@ -245,6 +263,18 @@ export default function EstimateScreen() {
         currency={estimate.currency}
         onAdd={(material, amount) => addMaterial(material, amount)}
         onClose={() => setPickerOpen(false)}
+      />
+      <AssemblyPicker
+        visible={assemblyPickerOpen}
+        assemblies={assemblies}
+        materials={materials}
+        toggles={allToggles}
+        hourlyRateMinor={estimate.hourlyRateMinor}
+        currency={estimate.currency}
+        lineItems={estimate.lineItems}
+        onAdd={(assembly) => addAssembly(assembly, materialLookupFrom(materials))}
+        onRemove={removeAssembly}
+        onClose={() => setAssemblyPickerOpen(false)}
       />
       <PdfPreviewModal
         visible={previewHtml != null}

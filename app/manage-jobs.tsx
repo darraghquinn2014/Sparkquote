@@ -1,5 +1,5 @@
 /**
- * Manage jobs — list all assemblies, toggle Quick-Quote favourites, delete,
+ * Manage jobs — list all assemblies, toggle Add-Job favourites, delete,
  * and create/edit ones. Swipe right to edit, swipe left to delete.
  */
 import React, { useCallback, useMemo, useRef, useState } from 'react';
