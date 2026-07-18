@@ -23,6 +23,13 @@ On the Mac used for iOS work (`/Users/darraghquinn/Sparkquote`), the iOS Simulat
 - **Day-to-day JS iteration:** `npx expo start --dev-client` (lightweight, runs fine locally on this Mac). Find the Mac's LAN IP with `ipconfig getifaddr en0`; the installed dev client connects to it over WiFi. Pure JS/TS changes hot-reload through the already-installed client — only rerun the EAS build step when native dependencies or `app.json`/`eas.json` config change.
 - **Stale port 8081:** if `expo start` silently says "Skipping dev server" instead of starting, something (often a leftover `expo run:ios` process from a past simulator attempt) is already holding port 8081. Find it with `lsof -i :8081` and kill it — non-interactive `expo start` won't prompt to use an alternate port, it just bails.
 
+### Keeping iOS in sync when most development happens on the PC
+Primary development happens on the Windows PC (Android side, see Environment above); this Mac is used mainly to keep the iOS build current. **You never need Xcode itself on this Mac** — EAS Build compiles in Expo's cloud, not locally. Two cases after `git pull` here:
+1. **Pure JS/TS/UI changes (the common case) — no rebuild needed.** Just run `npx expo start --dev-client` (or leave it running); the already-installed dev client on the iPhone picks up new JS over WiFi automatically, same as hot reload.
+2. **Native changes — need a fresh EAS build.** Triggers: a new/upgraded package with native code (most non-`expo-` packages, or a new `expo-*` module not already in the installed build), or any change to `app.json`/`app.config.js` (permissions, icons, plugins, bundle id, entitlements) or `eas.json`. Run `eas build --profile development --platform ios` in a real Terminal (see above), reinstall via the link on the iPhone, then resume `expo start --dev-client`.
+
+If unsure which case a PC-side change falls into, just try `expo start --dev-client` first — a crash or a silently-missing feature (missing native module) is the signal a new EAS build is needed.
+
 ## Critical build rules (hard-won — do not relearn the hard way)
 - **NO `babel.config.js`.** It caused a "private properties" crash with WatermelonDB decorators. Decorators work via tsconfig `experimentalDecorators`. Never re-add babel.config.js.
 - **Tests use Vitest, NOT Jest.** Run `npx vitest run <path>` (e.g. `npx vitest run src/domain/__tests__/pricing.test.ts`). Jest fails to parse the TS `import type` syntax. There are ~176 domain tests; 11 are pricing tests.
