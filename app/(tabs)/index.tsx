@@ -3,7 +3,7 @@ import { View, Text, Pressable, StyleSheet, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { seedIfEmpty, prefixAssembliesWithInstall, loadCatalogue } from '@/src/data/catalogue-repo';
+import { seedIfEmpty, prefixAssembliesWithInstall, repairMissingSeedMaterials, loadCatalogue } from '@/src/data/catalogue-repo';
 import { loadProjects } from '@/src/data/project-repo';
 import { useEstimateStore } from '@/src/state/estimateStore';
 import { useSettingsStore } from '@/src/state/settingsStore';
@@ -125,6 +125,7 @@ export default function HomeScreen() {
       (async () => {
         try {
           await seedIfEmpty();
+          await repairMissingSeedMaterials();
           await prefixAssembliesWithInstall();
           await Promise.all([hydrate(), hydrateSettings()]);
           if (!useSettingsStore.getState().voiceSetupComplete) {

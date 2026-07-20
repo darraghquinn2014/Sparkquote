@@ -176,13 +176,6 @@ export default function EstimateScreen() {
         ListEmptyComponent={<Text style={styles.empty}>No items yet. Add a job, labour, or material above — or just say it.</Text>}
         ListFooterComponent={estimate.lineItems.length === 0 ? null : (
           <View style={styles.footer}>
-            <Pressable
-              style={[styles.previewBtn, previewing && styles.previewBtnBusy]}
-              onPress={previewPdf}
-              disabled={previewing}
-            >
-              <Text style={styles.previewBtnText}>{previewing ? 'Building…' : 'Preview PDF quote'}</Text>
-            </Pressable>
             <Pressable style={styles.rateRow} onPress={() => { setRateText(String(estimate.hourlyRateMinor / 100)); setRateEditing(true); }}>
               <Text style={styles.rateLabel}>Labour rate</Text>
               {rateEditing ? (
@@ -207,8 +200,12 @@ export default function EstimateScreen() {
             <View style={styles.breakdownRow}><Text style={styles.bdLabel}>Subtotal</Text><Text style={styles.bdValue}>{formatMoney(breakdown.subtotalMinor, estimate.currency)}</Text></View>
             <View style={styles.breakdownRow}><Text style={styles.bdLabel}>VAT ({estimate.vatRatePct}%)</Text><Text style={styles.bdValue}>{formatMoney(breakdown.vatAmountMinor, estimate.currency)}</Text></View>
             <View style={[styles.breakdownRow, styles.totalRow]}><Text style={styles.totalLabel}>Total</Text><Text style={styles.totalValue}>{formatMoney(breakdown.grandTotalMinor, estimate.currency)}</Text></View>
-            <Pressable style={styles.reviewBtn} onPress={() => router.push('/review' as any)}>
-              <Text style={styles.reviewBtnText}>Review & Sign PDF</Text>
+            <Pressable
+              style={[styles.reviewBtn, previewing && styles.reviewBtnBusy]}
+              onPress={previewPdf}
+              disabled={previewing}
+            >
+              <Text style={styles.reviewBtnText}>{previewing ? 'Building…' : 'Preview PDF quote'}</Text>
             </Pressable>
           </View>
         )}
@@ -280,6 +277,10 @@ export default function EstimateScreen() {
         visible={previewHtml != null}
         html={previewHtml}
         onClose={() => setPreviewHtml(null)}
+        onFinalReview={() => {
+          setPreviewHtml(null);
+          router.push('/review' as any);
+        }}
       />
       <ShoppingListSheet
         visible={shoppingOpen}
@@ -319,11 +320,9 @@ const styles = StyleSheet.create({
   qty: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   amount: { fontSize: 17, color: colors.textSecondary, fontWeight: '600' },
   footer: { marginTop: space.lg, paddingTop: space.lg, borderTopWidth: 1, borderTopColor: colors.hairline },
-  previewBtn: { backgroundColor: colors.surface, borderRadius: radius.pill, paddingVertical: 12, alignItems: 'center', marginBottom: space.sm, borderWidth: 1, borderColor: colors.hairline },
   reviewBtn: { backgroundColor: colors.accent, borderRadius: radius.pill, paddingVertical: 14, alignItems: 'center', marginTop: space.md },
   reviewBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 16 },
-  previewBtnBusy: { opacity: 0.6 },
-  previewBtnText: { color: colors.textSecondary, fontWeight: '700', fontSize: 14 },
+  reviewBtnBusy: { opacity: 0.6 },
   shoppingLink: { color: colors.accent, fontWeight: '700', fontSize: 13 },
   rateRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.tile, padding: space.lg, marginBottom: space.lg, borderWidth: 1, borderColor: colors.hairline },
   rateLabel: { fontSize: 15, color: colors.textSecondary, fontWeight: '600' },

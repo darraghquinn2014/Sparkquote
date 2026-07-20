@@ -181,11 +181,12 @@ export default function ProjectQuoteScreen() {
         <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Quote'}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
           <Pressable
-            style={[styles.reviewBtn, estimate.lineItems.length === 0 && styles.reviewBtnDisabled]}
-            onPress={() => estimate.lineItems.length > 0 && router.push(`/review?projectId=${projectId}` as any)}
+            style={[styles.reviewBtn, (estimate.lineItems.length === 0 || previewing) && styles.reviewBtnDisabled]}
+            onPress={() => estimate.lineItems.length > 0 && previewPdf()}
+            disabled={previewing}
             hitSlop={8}
           >
-            <Text style={styles.reviewBtnText}>Review ›</Text>
+            <Text style={styles.reviewBtnText}>{previewing ? 'Building…' : 'Preview PDF quote'}</Text>
           </Pressable>
         </View>
       </View>
@@ -311,13 +312,6 @@ export default function ProjectQuoteScreen() {
         {/* Grand total footer */}
         {estimate.lineItems.length > 0 && (
           <View style={styles.footer}>
-            <Pressable
-              style={[styles.previewBtn, previewing && styles.previewBtnBusy]}
-              onPress={previewPdf}
-              disabled={previewing}
-            >
-              <Text style={styles.previewBtnText}>{previewing ? 'Building…' : 'Preview PDF quote'}</Text>
-            </Pressable>
             <View style={styles.bdRow}><Text style={styles.bdLabel}>Materials</Text><Text style={styles.bdValue}>{formatMoney(priced.materialsTotalMinor, estimate.currency)}</Text></View>
             <View style={styles.bdRow}><Text style={styles.bdLabel}>Labour</Text><Text style={styles.bdValue}>{formatMoney(priced.laborTotalMinor, estimate.currency)}</Text></View>
             <View style={styles.bdRow}><Text style={styles.bdLabel}>Subtotal</Text><Text style={styles.bdValue}>{formatMoney(priced.subtotalMinor, estimate.currency)}</Text></View>
@@ -363,6 +357,10 @@ export default function ProjectQuoteScreen() {
         visible={previewHtml != null}
         html={previewHtml}
         onClose={() => setPreviewHtml(null)}
+        onFinalReview={() => {
+          setPreviewHtml(null);
+          router.push(`/review?projectId=${projectId}` as any);
+        }}
       />
     </SafeAreaView>
   );
@@ -421,9 +419,6 @@ const styles = StyleSheet.create({
   cableEstBtnText: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
 
   footer: { marginTop: space.lg, paddingTop: space.lg, borderTopWidth: 1, borderTopColor: colors.hairline },
-  previewBtn: { backgroundColor: colors.accent, borderRadius: radius.pill, paddingVertical: 12, alignItems: 'center', marginBottom: space.lg },
-  previewBtnBusy: { opacity: 0.6 },
-  previewBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 15 },
   bdRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
   bdLabel: { color: colors.textSecondary, fontSize: 15 },
   bdValue: { color: colors.textPrimary, fontSize: 15, fontWeight: '600', fontVariant: ['tabular-nums'] },

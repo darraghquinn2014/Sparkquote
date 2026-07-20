@@ -65,13 +65,20 @@ How to use this file:
   list on the project screen, not instead of it.
   _New file: `app/project/floor/[id].tsx`_
 
-- [ ] **Calibration screen: can't zoom, no height prompt, Android nav bar
+- [x] **Calibration screen: can't zoom, no height prompt, Android nav bar
   covers Save.** Pinch-zoom now works while tracing walls or calibrating
   (previously view-only), with tap placement corrected for the zoom level.
   After saving a calibration, an optional ceiling-height prompt pops up
   (applies to every room on that floor at once — skippable). The
   Save-scale sheet now pads for the Android system nav bar instead of
   being covered by it.
+  _Changed: `app/project/plan/[id].tsx`_
+  Follow-up: the first pass only added pinch-zoom, no panning, and the
+  canvas wasn't clipped — once zoomed in you were stuck viewing the centre
+  and the zoomed image bled over the header/mode buttons, blocking them.
+  Added one-finger pan (with correct scale math — translate is raw screen
+  pixels applied after scale, not divided by it) and clipped the canvas.
+  Device-verified 2026-07-20.
   _Changed: `app/project/plan/[id].tsx`_
 
 - [ ] **Plan screen header off-centre, no project name.** Header now shows
@@ -84,3 +91,17 @@ How to use this file:
 ## New issues
 
 <!-- Add new items below this line, one per bullet. -->
+
+- [x] **Selecting multiple wall photos to share only sent 1, even with 3
+  selected (WhatsApp and email).** `expo-sharing`'s Android promise
+  resolves as soon as the chosen app is *launched*, not once you've
+  actually sent from it — so sharing 3 photos sequentially fired the next
+  share sheet on top of the app you were still looking at, and only the
+  last one you interacted with really went out. Root fix: switched to
+  `react-native-share` (new native dependency — needed a local
+  `gradlew assembleDebug` rebuild, not just a JS reload) and now render
+  every selected wall's flattened photo first, then hand them all to one
+  `ACTION_SEND_MULTIPLE` share call — WhatsApp/email now get one message
+  with all selected photos attached. Device-verified 2026-07-20.
+  _Changed: `app/project/room/[id].tsx`, `package.json` (added
+  `react-native-share`)_

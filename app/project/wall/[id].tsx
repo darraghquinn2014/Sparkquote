@@ -24,8 +24,9 @@ import type { SymbolType } from '@/src/media/annotation-service';
 import { loadLocation } from '@/src/data/project-repo';
 import { loadPhoto, addLocationPhoto, deleteLocationPhoto } from '@/src/data/photo-repo';
 import { saveCapture, deletePhoto } from '@/src/media/camera-service';
+import { useCameraOrientation } from '@/src/media/useCameraOrientation';
 import {
-  loadWall, loadWallSymbols, renameWall, setWallPhoto, clearWallPhoto,
+  loadWall, loadWallSymbols, renameWall, setWallPhoto,
   addWallSymbol, updateWallSymbolPhotoY, deleteWallSymbol, deleteWall,
 } from '@/src/data/floor-plan-repo';
 import { useVoiceAction } from '@/src/voice/voice-bus';
@@ -102,6 +103,7 @@ export default function WallScreen() {
   const [saving, setSaving] = useState(false);
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
+  useCameraOrientation(cameraOpen);
 
   const [containerSize, setContainerSize] = useState({ width: 1, height: 1 });
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
@@ -215,23 +217,6 @@ export default function WallScreen() {
     setCameraState('live');
   };
 
-  const confirmRemovePhoto = () => {
-    if (!wall || !photo) return;
-    Alert.alert('Remove photo?', 'Tagged symbols for this wall are kept and will reappear once you attach a new photo.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          await clearWallPhoto(wall.id);
-          await deleteLocationPhoto(photo.id);
-          await deletePhoto(photo);
-          await reload();
-        },
-      },
-    ]);
-  };
-
   const startEditLabel = () => {
     setLabelText(wall?.label ?? '');
     setEditingLabel(true);
@@ -271,7 +256,6 @@ export default function WallScreen() {
         ? [
             { text: 'Retake photo', onPress: openCamera },
             { text: 'Choose different photo', onPress: pickFromLibrary },
-            { text: 'Remove photo', style: 'destructive' as const, onPress: confirmRemovePhoto },
           ]
         : []),
       { text: 'Delete wall', style: 'destructive', onPress: confirmDeleteWall },

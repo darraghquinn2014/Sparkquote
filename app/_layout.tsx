@@ -30,9 +30,11 @@ export default function RootLayout() {
         <Stack.Screen name="project/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="project/floor/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="project/room/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="project/wall/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="project/snag/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="project/drawings/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="project/quote/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="project/plan/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <GlobalVoiceControl />

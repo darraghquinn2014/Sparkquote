@@ -11,6 +11,8 @@ import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import type { Project, Location } from '@/src/domain/types';
 import { loadProjects, loadLocation, loadLocations, addLocation, renameLocation, deleteLocation } from '@/src/data/project-repo';
 import { loadProjectEstimate } from '@/src/data/project-estimate-repo';
+import { loadWallsForLocation } from '@/src/data/floor-plan-repo';
+import { photosForLocation } from '@/src/data/photo-repo';
 import { priceEstimate } from '@/src/domain/pricing';
 import { formatMoney } from '@/src/domain/money';
 import { COMMON_ROOM_NAMES } from '@/src/domain/room-names';
@@ -27,6 +29,8 @@ export default function FloorDetailScreen() {
   const [project, setProject] = useState<Project | null>(null);
   const [rooms, setRooms] = useState<Location[]>([]);
   const [roomTotals, setRoomTotals] = useState<Map<string, number>>(new Map());
+  const [roomWallCounts, setRoomWallCounts] = useState<Map<string, number>>(new Map());
+  const [roomPhotoCounts, setRoomPhotoCounts] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
 
   const [adding, setAdding] = useState(false);
@@ -34,6 +38,8 @@ export default function FloorDetailScreen() {
   const [draftName, setDraftName] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedRoomIds, setSelectedRoomIds] = useState<Set<string>>(new Set());
 
   const reload = useCallback(async () => {
     if (!id) return;
@@ -47,7 +53,15 @@ export default function FloorDetailScreen() {
       loadProjectEstimate(loc.projectId),
     ]);
     setProject(projects.find((p) => p.id === loc.projectId) ?? null);
-    setRooms(locs.filter((l) => l.parentId === id));
+    const floorRooms = locs.filter((l) => l.parentId === id);
+    setRooms(floorRooms);
+
+    const counts = await Promise.all(floorRooms.map(async (room) => {
+      const [walls, photos] = await Promise.all([loadWallsForLocation(room.id), photosForLocation(room.id)]);
+      return { roomId: room.id, wallCount: walls.length, photoCount: photos.length };
+    }));
+    setRoomWallCounts(new Map(counts.map((c) => [c.roomId, c.wallCount])));
+    setRoomPhotoCounts(new Map(counts.map((c) => [c.roomId, c.photoCount])));
 
     if (estimate) {
       const priced = priceEstimate(estimate, allToggles);
@@ -98,6 +112,36 @@ export default function FloorDetailScreen() {
     ]);
   };
 
+  const toggleRoomSelected = (roomId: string) => {
+    setSelectedRoomIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(roomId)) next.delete(roomId); else next.add(roomId);
+      return next;
+    });
+  };
+
+  const confirmDeleteSelected = () => {
+    const count = selectedRoomIds.size;
+    if (count === 0) return;
+    Alert.alert(
+      `Delete ${count} room${count === 1 ? '' : 's'}?`,
+      'This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await Promise.all(Array.from(selectedRoomIds).map((id) => deleteLocation(id)));
+            setSelectMode(false);
+            setSelectedRoomIds(new Set());
+            reload();
+          },
+        },
+      ],
+    );
+  };
+
   if (loading) {
     return <SafeAreaView style={styles.screen}><ActivityIndicator color={colors.accent} style={{ marginTop: space.xxl }} /></SafeAreaView>;
   }
@@ -127,7 +171,21 @@ export default function FloorDetailScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxl }}>
-        {rooms.map((room) => (
+        {rooms.length > 0 && (
+          <View style={styles.roomsHeaderRow}>
+            <Text style={styles.roomsHeaderTitle}>ROOMS</Text>
+            <Pressable
+              onPress={() => { setSelectMode((v) => !v); setSelectedRoomIds(new Set()); }}
+              hitSlop={8}
+            >
+              <Text style={styles.roomsSelectToggle}>{selectMode ? 'Cancel' : 'Select'}</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {rooms.map((room) => {
+          const selected = selectedRoomIds.has(room.id);
+          return (
           <View key={room.id} style={styles.roomRow}>
             {editingId === room.id ? (
               <>
@@ -142,25 +200,51 @@ export default function FloorDetailScreen() {
               </>
             ) : (
               <>
-                <Pressable style={{ flex: 1 }} onPress={() => router.push(`/project/room/${room.id}` as any)}>
-                  <Text style={styles.roomName}>{room.name}</Text>
-                  {(roomTotals.get(room.id) ?? 0) > 0 && (
-                    <Text style={styles.roomTotalText}>{formatMoney(roomTotals.get(room.id)!, 'GBP')}</Text>
+                <Pressable
+                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+                  onPress={() => selectMode ? toggleRoomSelected(room.id) : router.push(`/project/room/${room.id}` as any)}
+                >
+                  {selectMode && (
+                    <View style={[styles.checkbox, selected && styles.checkboxChecked]}>
+                      {selected && <Text style={styles.checkboxTick}>✓</Text>}
+                    </View>
                   )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.roomName}>{room.name}</Text>
+                    <Text style={styles.roomMeta}>
+                      {roomWallCounts.get(room.id) ?? 0} wall{(roomWallCounts.get(room.id) ?? 0) === 1 ? '' : 's'}
+                      {'  ·  '}
+                      {roomPhotoCounts.get(room.id) ?? 0} photo{(roomPhotoCounts.get(room.id) ?? 0) === 1 ? '' : 's'}
+                    </Text>
+                    {(roomTotals.get(room.id) ?? 0) > 0 && (
+                      <Text style={styles.roomTotalText}>{formatMoney(roomTotals.get(room.id)!, 'GBP')}</Text>
+                    )}
+                  </View>
                 </Pressable>
-                <Pressable onPress={() => startEdit(room.id, room.name)} hitSlop={8}>
-                  <Text style={styles.editBtn}>Edit</Text>
-                </Pressable>
-                <Pressable onPress={() => confirmDelete(room)} hitSlop={8} style={{ marginLeft: space.sm }}>
-                  <Text style={styles.deleteBtn}>Delete</Text>
-                </Pressable>
+                {!selectMode && (
+                  <>
+                    <Pressable onPress={() => startEdit(room.id, room.name)} hitSlop={8}>
+                      <Text style={styles.editBtn}>Edit</Text>
+                    </Pressable>
+                    <Pressable onPress={() => confirmDelete(room)} hitSlop={8} style={{ marginLeft: space.sm }}>
+                      <Text style={styles.deleteBtn}>Delete</Text>
+                    </Pressable>
+                  </>
+                )}
               </>
             )}
           </View>
-        ))}
+          );
+        })}
 
         {rooms.length === 0 && !adding && (
           <Text style={styles.noRooms}>No rooms yet on this floor.</Text>
+        )}
+
+        {selectMode && selectedRoomIds.size > 0 && (
+          <Pressable style={styles.deleteSelectedBtn} onPress={confirmDeleteSelected}>
+            <Text style={styles.deleteSelectedBtnText}>Delete {selectedRoomIds.size} room{selectedRoomIds.size === 1 ? '' : 's'}</Text>
+          </Pressable>
         )}
 
         {adding && !customRoom ? (
@@ -215,9 +299,24 @@ const styles = StyleSheet.create({
   planBtn: { borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: 5, borderWidth: 1, borderColor: colors.hairline },
   planBtnText: { color: colors.accent, fontWeight: '700', fontSize: 12 },
 
+  roomsHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.md },
+  roomsHeaderTitle: { fontSize: 11, fontWeight: '700', color: colors.textMuted, letterSpacing: 1.2 },
+  roomsSelectToggle: { color: colors.accent, fontSize: 13, fontWeight: '700' },
   roomRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, borderRadius: radius.tile, borderWidth: 1, borderColor: colors.hairline, paddingHorizontal: space.md, paddingVertical: space.md, marginBottom: space.sm },
   roomName: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  roomMeta: { color: colors.textMuted, fontSize: 12, fontWeight: '500', marginTop: 2 },
   roomTotalText: { color: colors.accent, fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'], marginTop: 1 },
+  checkbox: {
+    width: 22, height: 22, borderRadius: 5, borderWidth: 2, borderColor: colors.hairline,
+    alignItems: 'center', justifyContent: 'center', marginRight: space.md,
+  },
+  checkboxChecked: { backgroundColor: colors.accent, borderColor: colors.accent },
+  checkboxTick: { color: colors.accentInk, fontSize: 13, fontWeight: '800' },
+  deleteSelectedBtn: {
+    backgroundColor: colors.danger, borderRadius: radius.pill,
+    paddingVertical: space.md, alignItems: 'center', marginTop: space.sm, marginBottom: space.sm,
+  },
+  deleteSelectedBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
   editBtn: { color: colors.accent, fontWeight: '700', fontSize: 13 },
   deleteBtn: { color: colors.danger, fontWeight: '700', fontSize: 13 },
   editInput: { backgroundColor: colors.ground, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.sm, color: colors.textPrimary, fontSize: 15, marginRight: space.sm },

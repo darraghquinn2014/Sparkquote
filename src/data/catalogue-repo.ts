@@ -88,6 +88,36 @@ export async function seedIfEmpty(): Promise<void> {
   });
 }
 
+/**
+ * Backfill any seed material rows missing from the catalogue (id-based,
+ * idempotent). Guards the default assemblies (which hard-reference seed
+ * material ids like 'mat_fcu') against ever losing their priceability —
+ * e.g. a device where seedIfEmpty's one-time gate (materials.count > 0)
+ * was already satisfied by an imported supplier catalogue before the
+ * built-in seed materials ever landed, leaving the seed assemblies'
+ * components pointing at ids that don't exist.
+ */
+export async function repairMissingSeedMaterials(): Promise<void> {
+  const table = database.get<MaterialModel>('materials');
+  const existingIds = new Set((await table.query().fetch()).map((r) => r.id));
+  const missing = seedMaterials.filter((m) => !existingIds.has(m.id));
+  if (missing.length === 0) return;
+
+  await database.write(async () => {
+    const batch = missing.map((m) =>
+      table.prepareCreate((r) => {
+        r._raw.id = m.id;
+        r.sku = m.sku;
+        r.description = m.description;
+        r.unit = m.unit;
+        r.unitCostMinor = m.unit_cost_minor;
+        r.catalogueId = m.catalogue_id;
+      }),
+    );
+    await database.batch(...batch);
+  });
+}
+
 /** Read the catalogue back out as domain objects via the existing mappers. */
 export async function loadCatalogue(): Promise<{
   materials: Material[];

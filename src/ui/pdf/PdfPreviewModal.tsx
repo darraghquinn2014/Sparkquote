@@ -8,17 +8,25 @@ interface Props {
   visible: boolean;
   html: string | null;
   onClose: () => void;
+  /** When provided, the toolbar becomes Back / Final review instead of a single Done button. */
+  onFinalReview?: () => void;
 }
 
-export function PdfPreviewModal({ visible, html, onClose }: Props) {
+export function PdfPreviewModal({ visible, html, onClose, onFinalReview }: Props) {
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <View style={styles.toolbar}>
-          <Text style={styles.toolbarTitle}>Quote preview</Text>
-          <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={12}>
-            <Text style={styles.closeText}>Done</Text>
+          {onFinalReview ? (
+            <Pressable onPress={onClose} hitSlop={12}>
+              <Text style={styles.backText}>‹ Back</Text>
+            </Pressable>
+          ) : (
+            <Text style={styles.toolbarTitle}>Quote preview</Text>
+          )}
+          <Pressable onPress={onFinalReview ?? onClose} style={styles.closeBtn} hitSlop={12}>
+            <Text style={styles.closeText}>{onFinalReview ? 'Final review ›' : 'Done'}</Text>
           </Pressable>
         </View>
         {html ? (
@@ -45,6 +53,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   toolbarTitle: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
+  backText: { color: colors.textSecondary, fontSize: 16, fontWeight: '600' },
   closeBtn: { backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.sm },
   closeText: { color: colors.accentInk, fontWeight: '800', fontSize: 14 },
   web: { flex: 1, backgroundColor: '#fff' },

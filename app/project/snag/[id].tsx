@@ -16,6 +16,7 @@ import {
 } from '@/src/data/snag-repo';
 import { loadProjects, loadLocations } from '@/src/data/project-repo';
 import { importSnagPhoto, deleteSnagPhoto } from '@/src/media/snag-photo-service';
+import { useCameraOrientation } from '@/src/media/useCameraOrientation';
 import { useVoiceAction } from '@/src/voice/voice-bus';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import type { SnagItem, Location } from '@/src/domain/types';
@@ -50,6 +51,7 @@ export default function SnagListScreen() {
   const [capturedUri, setCapturedUri] = useState<string | null>(null);
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
+  useCameraOrientation(cameraOpen);
 
   const [lightboxUri, setLightboxUri] = useState<string | null>(null);
 

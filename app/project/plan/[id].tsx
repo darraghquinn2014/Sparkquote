@@ -14,11 +14,14 @@
  * touches, which made wall taps register unreliably. Routing every tap
  * through one gesture-driven handler avoids that.
  *
- * Pinch-zoom works in every mode (reset to scale=1 whenever the mode is
- * switched). gesture-handler's e.x/e.y are always relative to the canvas's
- * untransformed layout, not its visually zoomed size, so every tap is first
- * projected back through the current scale (see unscaleContainerPoint)
- * before being converted to a normalized image point.
+ * Pinch-zoom and one-finger pan (while zoomed) work in every mode (reset to
+ * scale=1/translate=0 whenever the mode is switched). gesture-handler's
+ * e.x/e.y are always relative to the canvas's untransformed layout, not its
+ * visually zoomed/panned position, so every tap is first projected back
+ * through the current scale+translate (see unscaleContainerPoint) before
+ * being converted to a normalized image point. The canvas clips its
+ * contents (`overflow: 'hidden'`) so a zoomed-in image can't visually bleed
+ * over the header/mode-toggle above it and steal their touches.
  */
 import React, { useCallback, useState } from 'react';
 import {
@@ -126,9 +129,16 @@ export default function FloorPlanScreen() {
 
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const savedTranslateX = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
 
   const setMode = (next: Mode) => {
-    scale.value = 1; // start each mode unzoomed; pinch still works once in it
+    // start each mode unzoomed/uncentred; pinch and pan still work once in it
+    scale.value = 1;
+    translateX.value = 0;
+    translateY.value = 0;
     setModeState(next);
     setPendingStart(null);
     setCalibStart(null);
@@ -312,15 +322,22 @@ export default function FloorPlanScreen() {
   // ── Gestures ─────────────────────────────────────────────────────────────
 
   // Gesture-handler reports tap x/y relative to the canvas's own unscaled
-  // layout — the pinch transform below only visually magnifies the image
-  // about the canvas centre, it doesn't change that layout. So a raw tap
-  // while zoomed in lands on the wrong spot unless it's first projected
-  // back through the same centre-scale the image was given.
+  // layout — the pinch/pan transform below only visually magnifies/shifts
+  // the image, it doesn't change that layout. So a raw tap while zoomed
+  // and/or panned lands on the wrong spot unless it's first projected back
+  // through the same scale-about-centre-then-translate the image was given.
+  // Transform order in imageAnimStyle is [translateX, translateY, scale];
+  // RN composes that as scale applied first (about the view's own centre),
+  // THEN translate added on top in raw, unscaled screen pixels — so the
+  // inverse here undoes translate first, then unscales about the centre.
   const unscaleContainerPoint = (x: number, y: number) => {
     const s = scale.value;
     const cx = containerSize.width / 2;
     const cy = containerSize.height / 2;
-    return { x: (x - cx) / s + cx, y: (y - cy) / s + cy };
+    return {
+      x: (x - translateX.value - cx) / s + cx,
+      y: (y - translateY.value - cy) / s + cy,
+    };
   };
 
   const handleTap = (containerX: number, containerY: number) => {
@@ -331,20 +348,70 @@ export default function FloorPlanScreen() {
     else handleViewTap(norm);
   };
 
+  // Max pan offset (raw screen pixels, matching translateX/Y — translate is
+  // applied on top of scale, unscaled) that keeps the image from drifting
+  // fully off-canvas: the visual overhang a zoomed image has past the
+  // container edge on each side.
+  const clampTranslate = (value: number, containerDim: number, s: number) => {
+    'worklet';
+    const maxOffset = (containerDim * (s - 1)) / 2;
+    return Math.max(-maxOffset, Math.min(maxOffset, value));
+  };
+
   const pinchGesture = Gesture.Pinch()
     .onStart(() => { savedScale.value = scale.value; })
-    .onUpdate((e) => { scale.value = Math.max(1, Math.min(5, savedScale.value * e.scale)); });
+    .onUpdate((e) => {
+      scale.value = Math.max(1, Math.min(5, savedScale.value * e.scale));
+      translateX.value = clampTranslate(translateX.value, containerSize.width, scale.value);
+      translateY.value = clampTranslate(translateY.value, containerSize.height, scale.value);
+    })
+    .onEnd(() => {
+      if (scale.value <= 1) {
+        scale.value = withSpring(1);
+        translateX.value = withSpring(0);
+        translateY.value = withSpring(0);
+      }
+    });
+
+  const panGesture = Gesture.Pan()
+    .onStart(() => {
+      savedTranslateX.value = translateX.value;
+      savedTranslateY.value = translateY.value;
+    })
+    .onUpdate((e) => {
+      if (scale.value <= 1) return; // nothing to pan when not zoomed
+      translateX.value = clampTranslate(
+        savedTranslateX.value + e.translationX,
+        containerSize.width,
+        scale.value,
+      );
+      translateY.value = clampTranslate(
+        savedTranslateY.value + e.translationY,
+        containerSize.height,
+        scale.value,
+      );
+    });
 
   const doubleTap = Gesture.Tap()
     .numberOfTaps(2)
-    .onEnd(() => { scale.value = withSpring(1); });
+    .onEnd(() => {
+      scale.value = withSpring(1);
+      translateX.value = withSpring(0);
+      translateY.value = withSpring(0);
+    });
 
   const singleTap = Gesture.Tap()
     .onEnd((e) => { runOnJS(handleTap)(e.x, e.y); });
 
-  const gesture = Gesture.Exclusive(Gesture.Simultaneous(pinchGesture, doubleTap), singleTap);
+  const gesture = Gesture.Exclusive(Gesture.Simultaneous(pinchGesture, panGesture, doubleTap), singleTap);
 
-  const imageAnimStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const imageAnimStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
+  }));
 
   if (loading) {
     return (
@@ -601,7 +668,7 @@ const styles = StyleSheet.create({
   modeBtnText: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
   modeBtnTextActive: { color: colors.accentInk },
 
-  canvas: { flex: 1, position: 'relative', backgroundColor: '#000' },
+  canvas: { flex: 1, position: 'relative', backgroundColor: '#000', overflow: 'hidden' },
   hint: { color: colors.textMuted, fontSize: 12, textAlign: 'center', paddingVertical: space.md },
   scaleStatus: { color: colors.textMuted, fontSize: 12, textAlign: 'center', marginBottom: space.sm },
 

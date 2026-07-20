@@ -20,9 +20,10 @@ import {
   photosForLocation, addLocationPhoto, deleteLocationPhoto, updatePhotoDetails,
   markPhotoDimensionsStamped,
 } from '@/src/data/photo-repo';
-import { loadWallsForLocation, loadWallSymbols, loadFloorPlanForLocation, clearWallPhoto } from '@/src/data/floor-plan-repo';
+import { loadWallsForLocation, loadWallSymbols, loadFloorPlanForLocation, deleteWall } from '@/src/data/floor-plan-repo';
 import { roomFootprintMeters } from '@/src/domain/wall-geometry';
 import { saveCapture, deletePhoto, overwritePhotoFile } from '@/src/media/camera-service';
+import { useCameraOrientation } from '@/src/media/useCameraOrientation';
 import { useVoiceAction } from '@/src/voice/voice-bus';
 import { loadAnnotations, hasAnnotations, deleteAnnotations, type AnnotationStroke, type PlacedSymbol } from '@/src/media/annotation-service';
 import { AnnotationEditor } from '@/src/ui/annotations/AnnotationEditor';
@@ -31,6 +32,7 @@ import { WallShareCapture } from '@/src/ui/walls/WallShareCapture';
 import { PhotoDimensionStamp } from '@/src/ui/photos/PhotoDimensionStamp';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import * as Sharing from 'expo-sharing';
+import Share from 'react-native-share';
 import type { PhotoStage } from '@/src/media/media-types';
 
 const STAGE_LABELS: Record<PhotoStage, string> = { before: 'Before', during: 'During', after: 'After' };
@@ -60,8 +62,8 @@ function buildDimensionsCaption(
   footprint: { lengthM: number; widthM: number },
   heightMeters?: number,
 ): string {
-  const size = `${footprint.lengthM.toFixed(1)}m × ${footprint.widthM.toFixed(1)}m`;
-  return `${roomName} — ${size}${heightMeters != null ? ` × ${heightMeters.toFixed(1)}m` : ''}`;
+  const size = `L: ${footprint.lengthM.toFixed(1)}m${heightMeters != null ? `  H: ${heightMeters.toFixed(1)}m` : ''}`;
+  return `${roomName} — ${size}`;
 }
 
 export default function RoomScreen() {
@@ -78,6 +80,7 @@ export default function RoomScreen() {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedWallIds, setSelectedWallIds] = useState<Set<string>>(new Set());
   const [shareQueue, setShareQueue] = useState<Wall[]>([]);
+  const [renderedSharePaths, setRenderedSharePaths] = useState<string[]>([]);
   const [captureItem, setCaptureItem] = useState<{ wall: Wall; photo: Photo; symbols: WallSymbol[] } | null>(null);
   const [sharing, setSharing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -89,6 +92,7 @@ export default function RoomScreen() {
   const cameraRef = useRef<CameraView>(null);
 
   const [permission, requestPermission] = useCameraPermissions();
+  useCameraOrientation(cameraOpen);
   const [lightboxPhoto, setLightboxPhoto] = useState<Photo | null>(null);
   const [lightboxStrokes, setLightboxStrokes] = useState<AnnotationStroke[]>([]);
   const [lightboxSymbols, setLightboxSymbols] = useState<PlacedSymbol[]>([]);
@@ -279,18 +283,31 @@ export default function RoomScreen() {
     const selected = walls.filter((w) => selectedWallIds.has(w.id) && w.photoId);
     if (selected.length === 0) return;
     setSharing(true);
+    setRenderedSharePaths([]);
     setShareQueue(selected);
   };
 
   // Advance the queue: load the next wall's photo+symbols so WallShareCapture
-  // can render and capture it. expo-sharing only shares one file per call, so
-  // multiple selected walls share sequentially, one share-sheet at a time.
+  // can render and flatten it to a file. This is a render-only pass — nothing
+  // is shared until every selected wall has been flattened, then they're all
+  // handed to the OS share sheet in one ACTION_SEND_MULTIPLE call (see below),
+  // so WhatsApp/email get one message with every photo attached instead of a
+  // separate message per photo.
   useEffect(() => {
     if (shareQueue.length === 0) {
       if (sharing) {
         setSharing(false);
         setSelectMode(false);
         setSelectedWallIds(new Set());
+        if (renderedSharePaths.length > 0) {
+          Share.open({
+            urls: renderedSharePaths,
+            type: 'image/jpeg',
+            title: 'Wall photos',
+            failOnCancel: false,
+          }).catch(() => {});
+          setRenderedSharePaths([]);
+        }
       }
       return;
     }
@@ -307,16 +324,10 @@ export default function RoomScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shareQueue]);
 
-  const handleCaptured = async (filePath: string) => {
-    const wall = captureItem?.wall;
+  const handleCaptured = (filePath: string) => {
     setCaptureItem(null);
-    try {
-      await Sharing.shareAsync(filePath, { mimeType: 'image/jpeg', dialogTitle: wall?.label || 'Wall photo' });
-    } catch {
-      // user cancelled or share failed — move on to the next selected wall
-    } finally {
-      setShareQueue((q) => q.slice(1));
-    }
+    setRenderedSharePaths((prev) => [...prev, filePath]);
+    setShareQueue((q) => q.slice(1));
   };
 
   const handleCaptureError = (e: unknown) => {
@@ -340,9 +351,12 @@ export default function RoomScreen() {
   };
 
   const confirmDelete = (photo: Photo) => {
+    const attachedWall = walls.find((w) => w.photoId === photo.id);
     Alert.alert(
       'Delete photo?',
-      'This cannot be undone.',
+      attachedWall
+        ? `This cannot be undone. "${attachedWall.label || 'Wall'}" and its tagged symbols will also be deleted.`
+        : 'This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -352,12 +366,10 @@ export default function RoomScreen() {
             await deleteLocationPhoto(photo.id);
             await deletePhoto(photo);
             await deleteAnnotations(photo.id);
-            // Deleting a photo here doesn't delete the wall it's attached
-            // to (same rule as the wall screen's own "Remove photo") — but
-            // the wall's photoId must be cleared, or it's left pointing at
-            // a photo row that no longer exists.
-            const attachedWall = walls.find((w) => w.photoId === photo.id);
-            if (attachedWall) await clearWallPhoto(attachedWall.id);
+            // A wall's photo is its whole purpose here, so deleting it takes
+            // the wall (and its tagged symbols) with it — same rule as the
+            // wall screen's own delete action.
+            if (attachedWall) await deleteWall(attachedWall.id);
             reload();
           },
         },
@@ -427,8 +439,8 @@ export default function RoomScreen() {
           <View style={styles.sizeRow}>
             {footprint ? (
               <Text style={styles.sizeText}>
-                {footprint.lengthM.toFixed(1)}m × {footprint.widthM.toFixed(1)}m
-                {location.heightMeters != null ? ` × ${location.heightMeters.toFixed(1)}m` : ''}
+                L: {footprint.lengthM.toFixed(1)}m
+                {location.heightMeters != null ? `  H: ${location.heightMeters.toFixed(1)}m` : ''}
               </Text>
             ) : (
               <Pressable onPress={() => location.parentId && router.push(`/project/plan/${location.parentId}` as any)}>
