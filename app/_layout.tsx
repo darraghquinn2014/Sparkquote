@@ -28,6 +28,7 @@ export default function RootLayout() {
         <Stack.Screen name="import" options={{ headerShown: false }} />
         <Stack.Screen name="project/new" options={{ headerShown: false }} />
         <Stack.Screen name="project/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="project/floor/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="project/room/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="project/snag/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="project/drawings/[id]" options={{ headerShown: false }} />

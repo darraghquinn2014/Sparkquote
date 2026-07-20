@@ -273,8 +273,8 @@ export default function ProjectDetailScreen() {
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12}><Text style={styles.back}>‹ Back</Text></Pressable>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-          <Pressable style={styles.quoteBtn} onPress={() => router.push(`/project/quote/${id}` as any)} hitSlop={8}>
-            <Text style={styles.quoteBtnText}>Quote</Text>
+          <Pressable style={styles.reportBtn} onPress={() => router.push(`/project/quote/${id}` as any)} hitSlop={8}>
+            <Text style={styles.reportBtnText}>Quote</Text>
           </Pressable>
           <Pressable style={styles.reportBtn} onPress={() => router.push(`/project/snag/${id}` as any)} hitSlop={8}>
             <Text style={styles.reportBtnText}>Snags</Text>
@@ -324,6 +324,9 @@ export default function ProjectDetailScreen() {
             <Pressable style={styles.floorChip} onPress={() => setCustomFloor(true)}>
               <Text style={styles.floorChipText}>+ Custom</Text>
             </Pressable>
+            <Pressable style={styles.floorChip} onPress={() => setAddingTo(null)}>
+              <Text style={styles.floorChipText}>Cancel</Text>
+            </Pressable>
           </View>
         )}
 
@@ -338,6 +341,7 @@ export default function ProjectDetailScreen() {
               autoFocus
               onSubmitEditing={() => commitAdd(undefined)}
             />
+            <Pressable style={styles.addCancel} onPress={() => setAddingTo(null)}><Text style={styles.addCancelText}>Cancel</Text></Pressable>
             <Pressable style={styles.addConfirm} onPress={() => commitAdd(undefined)}><Text style={styles.addConfirmText}>Add</Text></Pressable>
           </View>
         )}
@@ -352,12 +356,12 @@ export default function ProjectDetailScreen() {
                 </>
               ) : (
                 <>
-                  <View style={{ flex: 1 }}>
+                  <Pressable style={{ flex: 1 }} onPress={() => router.push(`/project/floor/${floor.id}` as any)}>
                     <Text style={styles.floorName}>{floor.name}</Text>
                     {floorTotal(floor.id) > 0 && (
                       <Text style={styles.floorTotalText}>{formatMoney(floorTotal(floor.id), 'GBP')}</Text>
                     )}
-                  </View>
+                  </Pressable>
                   <View style={styles.floorRowActions}>
                     <Pressable
                       style={styles.planBtn}
@@ -372,6 +376,9 @@ export default function ProjectDetailScreen() {
                     </Pressable>
                     <Pressable onPress={() => startEdit(floor.id, floor.name)} hitSlop={8}>
                       <Text style={styles.editBtn}>Edit</Text>
+                    </Pressable>
+                    <Pressable onPress={() => confirmDeleteLocation(floor)} hitSlop={8}>
+                      <Text style={styles.deleteBtn}>Delete</Text>
                     </Pressable>
                   </View>
                 </>
@@ -398,6 +405,12 @@ export default function ProjectDetailScreen() {
                         <Text style={styles.roomTotalText}>{formatMoney(roomTotals.get(room.id)!, 'GBP')}</Text>
                       )}
                     </View>
+                    <Pressable onPress={() => startEdit(room.id, room.name)} hitSlop={8}>
+                      <Text style={styles.editBtn}>Edit</Text>
+                    </Pressable>
+                    <Pressable onPress={() => confirmDeleteLocation(room)} hitSlop={8} style={{ marginLeft: space.sm }}>
+                      <Text style={styles.deleteBtn}>Delete</Text>
+                    </Pressable>
                     <Text style={styles.roomChevron}>›</Text>
                   </>
                 )}
@@ -414,6 +427,9 @@ export default function ProjectDetailScreen() {
                 <Pressable style={styles.floorChip} onPress={() => setCustomRoom(true)}>
                   <Text style={styles.floorChipText}>+ Custom</Text>
                 </Pressable>
+                <Pressable style={styles.floorChip} onPress={() => setAddingTo(null)}>
+                  <Text style={styles.floorChipText}>Cancel</Text>
+                </Pressable>
               </View>
             ) : addingTo === floor.id && customRoom ? (
               <View style={styles.addRow}>
@@ -426,6 +442,7 @@ export default function ProjectDetailScreen() {
                   autoFocus
                   onSubmitEditing={() => commitAdd(floor.id)}
                 />
+                <Pressable style={styles.addCancel} onPress={() => setAddingTo(null)}><Text style={styles.addCancelText}>Cancel</Text></Pressable>
                 <Pressable style={styles.addConfirm} onPress={() => commitAdd(floor.id)}><Text style={styles.addConfirmText}>Add</Text></Pressable>
               </View>
             ) : (
@@ -451,8 +468,6 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ground },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.lg, paddingVertical: space.md },
   back: { color: colors.textSecondary, fontSize: 16, fontWeight: '600' },
-  quoteBtn: { backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.sm },
-  quoteBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 13 },
   reportBtn: { borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.hairline },
   reportBtnText: { color: colors.textSecondary, fontWeight: '700', fontSize: 13 },
   moreBtn: { color: colors.textSecondary, fontSize: 20, fontWeight: '700', letterSpacing: 2 },
@@ -460,6 +475,7 @@ const styles = StyleSheet.create({
   busyText: { color: colors.accent, fontWeight: '700', fontSize: 15 },
   nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   editBtn: { color: colors.accent, fontWeight: '700', fontSize: 13 },
+  deleteBtn: { color: colors.danger, fontWeight: '700', fontSize: 13 },
   editRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   editInput: { flex: 1, backgroundColor: colors.surface, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.sm, color: colors.textPrimary, fontSize: 18, fontWeight: '700' },
   projectName: { color: colors.textPrimary, fontSize: 26, fontWeight: '800' },
@@ -489,5 +505,7 @@ const styles = StyleSheet.create({
   addInput: { flex: 1, backgroundColor: colors.ground, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.sm, color: colors.textPrimary, fontSize: 15 },
   addConfirm: { backgroundColor: colors.accent, borderRadius: radius.tile, paddingHorizontal: space.lg, paddingVertical: space.sm },
   addConfirmText: { color: colors.accentInk, fontWeight: '800', fontSize: 14 },
+  addCancel: { borderRadius: radius.tile, paddingHorizontal: space.lg, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.hairline },
+  addCancelText: { color: colors.textSecondary, fontWeight: '700', fontSize: 14 },
   empty: { color: colors.textMuted, textAlign: 'center', marginTop: space.xxl },
 });
