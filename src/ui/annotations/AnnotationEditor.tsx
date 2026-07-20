@@ -10,7 +10,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, Pressable, StyleSheet, Modal, Image, ScrollView,
+  View, Text, Pressable, StyleSheet, Modal, Image, ScrollView, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
@@ -21,6 +21,20 @@ import { PlacedSymbolGroup, SYMBOL_TYPES, SYMBOL_LABELS } from './symbols';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
+
+// Invisible hit-target laid over an already-placed symbol so it can be
+// tapped to remove — the visible glyph itself stays in the shared Svg
+// (drawn by PlacedSymbolGroup there), this only catches the tap. Same
+// nested-GestureDetector-over-a-shared-canvas-gesture pattern as the wall
+// screen's DraggableSymbol.
+function PlacedSymbolTapTarget({ x, y, onRemove }: { x: number; y: number; onRemove: () => void }) {
+  const tapGesture = Gesture.Tap().onEnd(() => { runOnJS(onRemove)(); });
+  return (
+    <GestureDetector gesture={tapGesture}>
+      <View style={{ position: 'absolute', left: x - 20, top: y - 20, width: 40, height: 40 }} />
+    </GestureDetector>
+  );
+}
 
 const COLORS = [
   { hex: '#FF3B30', label: 'Fault' },
@@ -96,6 +110,17 @@ export function AnnotationEditor({
     setHistory(prev => [
       ...prev,
       { kind: 'symbol', data: { id, type: selectedSymbol, x, y, color: COLORS[colorIdx].hex } },
+    ]);
+  };
+
+  const removeSymbol = (id: string) => {
+    Alert.alert('Remove symbol?', undefined, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => setHistory(prev => prev.filter(h => !(h.kind === 'symbol' && h.data.id === id))),
+      },
     ]);
   };
 
@@ -247,6 +272,9 @@ export function AnnotationEditor({
                   strokeLinejoin="round"
                 />
               </Svg>
+              {drawMode === 'symbol' && symbols.map((sym) => (
+                <PlacedSymbolTapTarget key={sym.id} x={sym.x} y={sym.y} onRemove={() => removeSymbol(sym.id)} />
+              ))}
             </View>
           </GestureDetector>
 
@@ -307,7 +335,7 @@ export function AnnotationEditor({
                   ))}
                 </View>
                 <Text style={styles.toolHint}>
-                  Tap photo to place · {COLORS[colorIdx].label}
+                  Tap empty photo to place · Tap a symbol to remove it · {COLORS[colorIdx].label}
                 </Text>
               </>
             )}
