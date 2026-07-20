@@ -165,6 +165,8 @@ export default function ProjectQuoteScreen() {
     setRateEditing(false);
   };
 
+  const cancelRate = () => setRateEditing(false);
+
   if (loading) {
     return <SafeAreaView style={styles.screen}><ActivityIndicator color={colors.accent} style={{ marginTop: space.xxl }} /></SafeAreaView>;
   }
@@ -190,12 +192,9 @@ export default function ProjectQuoteScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Labour rate */}
-        <Pressable
-          style={styles.rateRow}
-          onPress={() => { setRateText(String(estimate.hourlyRateMinor / 100)); setRateEditing(true); }}
-        >
-          <Text style={styles.rateLabel}>Labour rate</Text>
-          {rateEditing ? (
+        {rateEditing ? (
+          <View style={styles.rateRow}>
+            <Text style={styles.rateLabel}>Labour rate</Text>
             <View style={styles.rateEditRow}>
               <Text style={styles.rateCurrency}>£</Text>
               <TextInput
@@ -204,15 +203,26 @@ export default function ProjectQuoteScreen() {
                 keyboardType="decimal-pad"
                 autoFocus
                 style={styles.rateInput}
-                onBlur={commitRate}
                 onSubmitEditing={commitRate}
               />
               <Text style={styles.ratePerHr}>/hr</Text>
+              <Pressable onPress={cancelRate} hitSlop={8}>
+                <Text style={styles.rateCancel}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.rateSave} onPress={commitRate}>
+                <Text style={styles.rateSaveText}>Save</Text>
+              </Pressable>
             </View>
-          ) : (
+          </View>
+        ) : (
+          <Pressable
+            style={styles.rateRow}
+            onPress={() => { setRateText(String(estimate.hourlyRateMinor / 100)); setRateEditing(true); }}
+          >
+            <Text style={styles.rateLabel}>Labour rate</Text>
             <Text style={styles.rateValue}>{formatMoney(estimate.hourlyRateMinor, estimate.currency)}/hr</Text>
-          )}
-        </Pressable>
+          </Pressable>
+        )}
 
         {floors.length === 0 && (
           <Text style={styles.noRooms}>Add floors and rooms to the project first, then come back to quote here.</Text>
@@ -374,10 +384,13 @@ const styles = StyleSheet.create({
   rateRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.tile, padding: space.lg, marginBottom: space.lg },
   rateLabel: { color: colors.textSecondary, fontSize: 15, fontWeight: '600' },
   rateValue: { color: colors.accent, fontSize: 17, fontWeight: '700' },
-  rateEditRow: { flexDirection: 'row', alignItems: 'center' },
+  rateEditRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   rateCurrency: { color: colors.textPrimary, fontSize: 17, fontWeight: '700' },
   rateInput: { color: colors.textPrimary, fontSize: 17, fontWeight: '700', minWidth: 60, paddingHorizontal: 4 },
   ratePerHr: { color: colors.textSecondary, fontSize: 15 },
+  rateCancel: { color: colors.textSecondary, fontSize: 14, fontWeight: '600' },
+  rateSave: { backgroundColor: colors.accent, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.xs },
+  rateSaveText: { color: colors.accentInk, fontWeight: '800', fontSize: 13 },
 
   noRooms: { color: colors.textMuted, fontSize: 14, fontStyle: 'italic', paddingVertical: space.sm },
 
