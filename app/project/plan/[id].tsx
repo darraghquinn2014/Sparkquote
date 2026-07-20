@@ -14,18 +14,18 @@
  * touches, which made wall taps register unreliably. Routing every tap
  * through one gesture-driven handler avoids that.
  *
- * Pinch-zoom is only enabled in View mode and reset to scale=1 whenever
- * leaving it — Trace tap math assumes the container is unscaled, and
- * gesture-handler's e.x/e.y are relative to the view's untransformed layout,
- * not its visually zoomed size, so combining live zoom with precise tap
- * placement would misplace every wall.
+ * Pinch-zoom works in every mode (reset to scale=1 whenever the mode is
+ * switched). gesture-handler's e.x/e.y are always relative to the canvas's
+ * untransformed layout, not its visually zoomed size, so every tap is first
+ * projected back through the current scale (see unscaleContainerPoint)
+ * before being converted to a normalized image point.
  */
 import React, { useCallback, useState } from 'react';
 import {
   View, Text, Pressable, StyleSheet, Alert, ActivityIndicator, ScrollView, Modal,
   TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -33,8 +33,8 @@ import { Image } from 'expo-image';
 import Svg from 'react-native-svg';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, runOnJS } from 'react-native-reanimated';
-import type { Location, Wall, WallSymbol } from '@/src/domain/types';
-import { loadLocation, loadLocations } from '@/src/data/project-repo';
+import type { Project, Location, Wall, WallSymbol } from '@/src/domain/types';
+import { loadProjects, loadLocation, loadLocations, setLocationHeight } from '@/src/data/project-repo';
 import {
   loadFloorPlanForLocation, addFloorPlan, updateFloorPlanFile, deleteFloorPlan,
   addWall, loadWallsForFloorPlan, loadWallSymbolsForFloorPlan, setFloorPlanScale,
@@ -94,7 +94,9 @@ export default function FloorPlanScreen() {
   const router = useRouter();
   const { id: floorId } = useLocalSearchParams<{ id: string }>();
 
+  const insets = useSafeAreaInsets();
   const [floor, setFloor] = useState<Location | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
   const [rooms, setRooms] = useState<Location[]>([]);
   const [floorPlan, setFloorPlan] = useState<{
     id: string; filePath: string; width: number; height: number; pxPerMeter?: number;
@@ -116,11 +118,17 @@ export default function FloorPlanScreen() {
   const [calibPrompt, setCalibPrompt] = useState<{ start: Point; end: Point } | null>(null);
   const [calibDistanceText, setCalibDistanceText] = useState('');
 
+  // Optional follow-up after saving scale — ceiling height, applied to every
+  // room on this floor at once since calibration itself has no single room
+  // in mind (it's just two taps on the plan).
+  const [heightPromptOpen, setHeightPromptOpen] = useState(false);
+  const [heightText, setHeightText] = useState('');
+
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
 
   const setMode = (next: Mode) => {
-    if (next !== 'view') scale.value = 1; // tap math assumes an unscaled container
+    scale.value = 1; // start each mode unzoomed; pinch still works once in it
     setModeState(next);
     setPendingStart(null);
     setCalibStart(null);
@@ -130,8 +138,12 @@ export default function FloorPlanScreen() {
     if (!floorId) return;
     const loc = await loadLocation(floorId);
     setFloor(loc);
-    const allLocs = await loadLocations(loc.projectId);
+    const [allLocs, projects] = await Promise.all([
+      loadLocations(loc.projectId),
+      loadProjects(),
+    ]);
     setRooms(allLocs.filter((l) => l.parentId === floorId));
+    setProject(projects.find((p) => p.id === loc.projectId) ?? null);
 
     const plan = await loadFloorPlanForLocation(floorId);
     setFloorPlan(plan);
@@ -267,7 +279,24 @@ export default function FloorPlanScreen() {
     }
     const pxPerMeter = calibrateScale(calibPrompt.start, calibPrompt.end, imageSize, meters);
     await setFloorPlanScale(floorPlan.id, pxPerMeter);
-    cancelCalibration();
+    setCalibPrompt(null);
+    setCalibDistanceText('');
+    setHeightText('');
+    setHeightPromptOpen(true);
+    await reload();
+  };
+
+  const skipHeight = () => { setHeightPromptOpen(false); setHeightText(''); };
+
+  const saveFloorHeight = async () => {
+    const meters = parseFloat(heightText);
+    if (!Number.isFinite(meters) || meters <= 0) {
+      Alert.alert('Enter a height', 'Type the ceiling height in metres, e.g. 2.4 — or Skip.');
+      return;
+    }
+    await Promise.all(rooms.map((room) => setLocationHeight(room.id, meters)));
+    setHeightPromptOpen(false);
+    setHeightText('');
     await reload();
   };
 
@@ -282,21 +311,32 @@ export default function FloorPlanScreen() {
 
   // ── Gestures ─────────────────────────────────────────────────────────────
 
+  // Gesture-handler reports tap x/y relative to the canvas's own unscaled
+  // layout — the pinch transform below only visually magnifies the image
+  // about the canvas centre, it doesn't change that layout. So a raw tap
+  // while zoomed in lands on the wrong spot unless it's first projected
+  // back through the same centre-scale the image was given.
+  const unscaleContainerPoint = (x: number, y: number) => {
+    const s = scale.value;
+    const cx = containerSize.width / 2;
+    const cy = containerSize.height / 2;
+    return { x: (x - cx) / s + cx, y: (y - cy) / s + cy };
+  };
+
   const handleTap = (containerX: number, containerY: number) => {
-    const norm = containerPointToImageNorm({ x: containerX, y: containerY }, containerSize, imageSize);
+    const unscaled = unscaleContainerPoint(containerX, containerY);
+    const norm = containerPointToImageNorm(unscaled, containerSize, imageSize);
     if (mode === 'trace') handleTraceTap(norm);
     else if (mode === 'calibrate') handleCalibrateTap(norm);
     else handleViewTap(norm);
   };
 
   const pinchGesture = Gesture.Pinch()
-    .enabled(mode === 'view')
     .onStart(() => { savedScale.value = scale.value; })
     .onUpdate((e) => { scale.value = Math.max(1, Math.min(5, savedScale.value * e.scale)); });
 
   const doubleTap = Gesture.Tap()
     .numberOfTaps(2)
-    .enabled(mode === 'view')
     .onEnd(() => { scale.value = withSpring(1); });
 
   const singleTap = Gesture.Tap()
@@ -332,7 +372,6 @@ export default function FloorPlanScreen() {
           <Pressable onPress={() => router.back()} hitSlop={12}>
             <Text style={styles.back}>‹ Back</Text>
           </Pressable>
-          <Text style={styles.title} numberOfLines={1}>{floor.name}</Text>
           {floorPlan ? (
             <Pressable onPress={openOverflow} hitSlop={12}>
               <Text style={styles.moreBtn}>•••</Text>
@@ -340,6 +379,10 @@ export default function FloorPlanScreen() {
           ) : (
             <View style={{ width: 24 }} />
           )}
+          <View style={styles.headerTitleOverlay} pointerEvents="none">
+            <Text style={styles.title} numberOfLines={1}>{floor.name.toUpperCase()}</Text>
+            {project?.name ? <Text style={styles.sub} numberOfLines={1}>{project.name}</Text> : null}
+          </View>
         </View>
 
         {!floorPlan ? (
@@ -432,7 +475,7 @@ export default function FloorPlanScreen() {
           canvas underneath. */}
       <Modal visible={roomPicker != null} transparent animationType="fade" onRequestClose={() => setRoomPicker(null)}>
         <Pressable style={styles.sheetOverlay} onPress={() => setRoomPicker(null)}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
+          <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + space.xxl }]} onPress={() => {}}>
             <Text style={styles.sheetTitle}>Which room is this wall in?</Text>
             {rooms.length === 0 ? (
               <Text style={styles.emptyHint}>No rooms under this floor yet — add one from the project screen first.</Text>
@@ -459,7 +502,7 @@ export default function FloorPlanScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <Pressable style={StyleSheet.absoluteFillObject} onPress={cancelCalibration} />
-          <View style={styles.sheet}>
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + space.xxl }]}>
             <Text style={styles.sheetTitle}>How far apart are those two points?</Text>
             <Text style={styles.emptyHint}>Measure it on site (e.g. a wall length) and enter it here.</Text>
             <View style={styles.calibInputRow}>
@@ -487,6 +530,45 @@ export default function FloorPlanScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Optional follow-up after saving scale — set every room's ceiling
+          height on this floor in one go, or skip it entirely. */}
+      <Modal visible={heightPromptOpen} transparent animationType="fade" onRequestClose={skipHeight}>
+        <KeyboardAvoidingView
+          style={styles.sheetOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={skipHeight} />
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + space.xxl }]}>
+            <Text style={styles.sheetTitle}>Ceiling height for this floor? (optional)</Text>
+            <Text style={styles.emptyHint}>
+              Applied to every room on this floor — adjust any single room later from its own screen. Skip if it varies room to room.
+            </Text>
+            <View style={styles.calibInputRow}>
+              <TextInput
+                style={styles.calibInput}
+                value={heightText}
+                onChangeText={setHeightText}
+                placeholder="2.4"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="decimal-pad"
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={saveFloorHeight}
+              />
+              <Text style={styles.calibUnit}>metres</Text>
+            </View>
+            <View style={styles.calibBtnRow}>
+              <Pressable onPress={skipHeight} style={styles.sheetCancel}>
+                <Text style={styles.sheetCancelText}>Skip</Text>
+              </Pressable>
+              <Pressable onPress={saveFloorHeight} style={styles.calibSaveBtn}>
+                <Text style={styles.calibSaveBtnText}>Save height</Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </GestureHandlerRootView>
   );
 }
@@ -497,8 +579,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: space.lg, paddingVertical: space.md,
   },
-  back: { color: colors.textSecondary, fontSize: 16, fontWeight: '600', width: 60 },
-  title: { flex: 1, color: colors.textPrimary, fontSize: 17, fontWeight: '800', textAlign: 'center' },
+  headerTitleOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  back: { color: colors.textSecondary, fontSize: 16, fontWeight: '600' },
+  title: { color: colors.textPrimary, fontSize: 16, fontWeight: '800', letterSpacing: 0.5 },
+  sub: { color: colors.accent, fontSize: 12, fontWeight: '700', marginTop: 1 },
   moreBtn: { color: colors.textSecondary, fontSize: 20, fontWeight: '700', letterSpacing: 2, width: 24, textAlign: 'right' },
   empty: { color: colors.textMuted, textAlign: 'center', marginTop: space.xxl },
 
