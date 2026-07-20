@@ -22,6 +22,7 @@ import type { ReportFloor, ReportRoom, ReportPhoto } from '@/src/pdf/render-proj
 import { priceEstimate } from '@/src/domain/pricing';
 import { formatMoney } from '@/src/domain/money';
 import { COMMON_FLOOR_NAMES } from '@/src/domain/floor-names';
+import { COMMON_ROOM_NAMES } from '@/src/domain/room-names';
 import { toLaborToggle } from '@/src/data/mappers';
 import { seedLaborToggles } from '@/src/data/seed/assemblies';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
@@ -43,6 +44,7 @@ export default function ProjectDetailScreen() {
   const [addingTo, setAddingTo] = useState<string | 'floor' | null>(null);
   const [draftName, setDraftName] = useState('');
   const [customFloor, setCustomFloor] = useState(false);
+  const [customRoom, setCustomRoom] = useState(false);
   const [editingId, setEditingId] = useState<string | 'project' | null>(null);
   const [editName, setEditName] = useState('');
 
@@ -176,6 +178,7 @@ export default function ProjectDetailScreen() {
     setDraftName('');
     setAddingTo(null);
     setCustomFloor(false);
+    setCustomRoom(false);
     reload();
   };
 
@@ -184,6 +187,14 @@ export default function ProjectDetailScreen() {
     await addLocation(id, name, undefined);
     setAddingTo(null);
     setCustomFloor(false);
+    reload();
+  };
+
+  const quickAddRoom = async (parentId: string, name: string) => {
+    if (!id) return;
+    await addLocation(id, name, parentId);
+    setAddingTo(null);
+    setCustomRoom(false);
     reload();
   };
 
@@ -393,7 +404,18 @@ export default function ProjectDetailScreen() {
               </Pressable>
             ))}
 
-            {addingTo === floor.id ? (
+            {addingTo === floor.id && !customRoom ? (
+              <View style={styles.floorChipRow}>
+                {COMMON_ROOM_NAMES.map((name) => (
+                  <Pressable key={name} style={styles.floorChip} onPress={() => quickAddRoom(floor.id, name)}>
+                    <Text style={styles.floorChipText}>{name}</Text>
+                  </Pressable>
+                ))}
+                <Pressable style={styles.floorChip} onPress={() => setCustomRoom(true)}>
+                  <Text style={styles.floorChipText}>+ Custom</Text>
+                </Pressable>
+              </View>
+            ) : addingTo === floor.id && customRoom ? (
               <View style={styles.addRow}>
                 <TextInput
                   value={draftName}
@@ -407,7 +429,7 @@ export default function ProjectDetailScreen() {
                 <Pressable style={styles.addConfirm} onPress={() => commitAdd(floor.id)}><Text style={styles.addConfirmText}>Add</Text></Pressable>
               </View>
             ) : (
-              <Pressable style={styles.addRoomBtn} onPress={() => { setAddingTo(floor.id); setDraftName(''); }}>
+              <Pressable style={styles.addRoomBtn} onPress={() => { setAddingTo(floor.id); setDraftName(''); setCustomRoom(false); }}>
                 
                 <Text style={styles.addRoomText}>+ Add room</Text>
               </Pressable>
