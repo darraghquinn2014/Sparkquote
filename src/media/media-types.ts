@@ -47,6 +47,8 @@ export interface Photo {
   caption?: string;
   note?: string;
   stage?: PhotoStage;
+  /** True once a room-dimensions caption has been burned into the file. */
+  dimensionsStamped?: boolean;
 }
 
 /** Root of app-private storage (set by the app from FileSystem.documentDirectory). */

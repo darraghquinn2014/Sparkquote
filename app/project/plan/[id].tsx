@@ -23,6 +23,7 @@
 import React, { useCallback, useState } from 'react';
 import {
   View, Text, Pressable, StyleSheet, Alert, ActivityIndicator, ScrollView, Modal,
+  TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -36,12 +37,12 @@ import type { Location, Wall, WallSymbol } from '@/src/domain/types';
 import { loadLocation, loadLocations } from '@/src/data/project-repo';
 import {
   loadFloorPlanForLocation, addFloorPlan, updateFloorPlanFile, deleteFloorPlan,
-  addWall, loadWallsForFloorPlan, loadWallSymbolsForFloorPlan,
+  addWall, loadWallsForFloorPlan, loadWallSymbolsForFloorPlan, setFloorPlanScale,
 } from '@/src/data/floor-plan-repo';
 import { importFloorPlanImage, deleteFloorPlanImage } from '@/src/media/floor-plan-service';
 import {
   containerPointToImageNorm, imageNormToContainerPoint,
-  findNearestWall, wallPointAt, NEAREST_WALL_MAX_DISTANCE,
+  findNearestWall, wallPointAt, NEAREST_WALL_MAX_DISTANCE, calibrateScale,
   type Point,
 } from '@/src/domain/wall-geometry';
 import { PlacedSymbolGroup } from '@/src/ui/annotations/symbols';
@@ -52,7 +53,7 @@ const mediaPaths = {
   cacheDir: FileSystem.cacheDirectory ?? '',
 };
 
-type Mode = 'view' | 'trace';
+type Mode = 'view' | 'trace' | 'calibrate';
 
 function Dot({ point, color }: { point: Point; color: string }) {
   return (
@@ -96,7 +97,7 @@ export default function FloorPlanScreen() {
   const [floor, setFloor] = useState<Location | null>(null);
   const [rooms, setRooms] = useState<Location[]>([]);
   const [floorPlan, setFloorPlan] = useState<{
-    id: string; filePath: string; width: number; height: number;
+    id: string; filePath: string; width: number; height: number; pxPerMeter?: number;
   } | null>(null);
   const [walls, setWalls] = useState<Wall[]>([]);
   const [symbols, setSymbols] = useState<WallSymbol[]>([]);
@@ -110,6 +111,11 @@ export default function FloorPlanScreen() {
   const [pendingStart, setPendingStart] = useState<Point | null>(null);
   const [roomPicker, setRoomPicker] = useState<{ start: Point; end: Point } | null>(null);
 
+  // Calibrate-scale state
+  const [calibStart, setCalibStart] = useState<Point | null>(null);
+  const [calibPrompt, setCalibPrompt] = useState<{ start: Point; end: Point } | null>(null);
+  const [calibDistanceText, setCalibDistanceText] = useState('');
+
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
 
@@ -117,6 +123,7 @@ export default function FloorPlanScreen() {
     if (next !== 'view') scale.value = 1; // tap math assumes an unscaled container
     setModeState(next);
     setPendingStart(null);
+    setCalibStart(null);
   };
 
   const reload = useCallback(async () => {
@@ -235,6 +242,35 @@ export default function FloorPlanScreen() {
     router.push(`/project/wall/${newWallId}` as any);
   };
 
+  // ── Calibrate scale ──────────────────────────────────────────────────────
+
+  const handleCalibrateTap = (norm: Point) => {
+    if (!calibStart) {
+      setCalibStart(norm);
+    } else {
+      setCalibPrompt({ start: calibStart, end: norm });
+      setCalibStart(null);
+    }
+  };
+
+  const cancelCalibration = () => {
+    setCalibPrompt(null);
+    setCalibDistanceText('');
+  };
+
+  const commitCalibration = async () => {
+    if (!floorPlan || !calibPrompt) return;
+    const meters = parseFloat(calibDistanceText);
+    if (!Number.isFinite(meters) || meters <= 0) {
+      Alert.alert('Enter a distance', 'Type how many metres apart the two points you tapped are.');
+      return;
+    }
+    const pxPerMeter = calibrateScale(calibPrompt.start, calibPrompt.end, imageSize, meters);
+    await setFloorPlanScale(floorPlan.id, pxPerMeter);
+    cancelCalibration();
+    await reload();
+  };
+
   // ── View mode: tap a wall to open it ─────────────────────────────────────
 
   const handleViewTap = (norm: Point) => {
@@ -249,6 +285,7 @@ export default function FloorPlanScreen() {
   const handleTap = (containerX: number, containerY: number) => {
     const norm = containerPointToImageNorm({ x: containerX, y: containerY }, containerSize, imageSize);
     if (mode === 'trace') handleTraceTap(norm);
+    else if (mode === 'calibrate') handleCalibrateTap(norm);
     else handleViewTap(norm);
   };
 
@@ -316,7 +353,7 @@ export default function FloorPlanScreen() {
         ) : (
           <>
             <View style={styles.modeToggle}>
-              {(['view', 'trace'] as const).map((m) => (
+              {(['view', 'trace', 'calibrate'] as const).map((m) => (
                 <Pressable
                   key={m}
                   style={[styles.modeBtn, mode === m && styles.modeBtnActive]}
@@ -324,11 +361,17 @@ export default function FloorPlanScreen() {
                   hitSlop={6}
                 >
                   <Text style={[styles.modeBtnText, mode === m && styles.modeBtnTextActive]}>
-                    {m === 'view' ? 'View' : 'Trace walls'}
+                    {m === 'view' ? 'View' : m === 'trace' ? 'Trace walls' : 'Calibrate'}
                   </Text>
                 </Pressable>
               ))}
             </View>
+
+            <Text style={styles.scaleStatus}>
+              {floorPlan.pxPerMeter
+                ? `Scale set — room sizes will show on each room's screen`
+                : 'Scale not set — calibrate to see room sizes'}
+            </Text>
 
             <GestureDetector gesture={gesture}>
               <View
@@ -367,6 +410,9 @@ export default function FloorPlanScreen() {
                   {pendingStart && (
                     <Dot point={imageNormToContainerPoint(pendingStart, containerSize, imageSize)} color={colors.accent} />
                   )}
+                  {calibStart && (
+                    <Dot point={imageNormToContainerPoint(calibStart, containerSize, imageSize)} color="#3B82F6" />
+                  )}
                 </Animated.View>
               </View>
             </GestureDetector>
@@ -374,6 +420,7 @@ export default function FloorPlanScreen() {
             <Text style={styles.hint}>
               {mode === 'view' && 'Pinch to zoom · Tap a wall to attach/view its photo'}
               {mode === 'trace' && (pendingStart ? 'Tap the wall\'s other end' : 'Tap one end of a wall')}
+              {mode === 'calibrate' && (calibStart ? 'Tap the second point' : 'Tap two points a known distance apart (e.g. skirting board ends)')}
             </Text>
           </>
         )}
@@ -403,6 +450,42 @@ export default function FloorPlanScreen() {
             </Pressable>
           </Pressable>
         </Pressable>
+      </Modal>
+
+      {/* Calibration prompt — after tapping two points, ask their real-world distance. */}
+      <Modal visible={calibPrompt != null} transparent animationType="fade" onRequestClose={cancelCalibration}>
+        <KeyboardAvoidingView
+          style={styles.sheetOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={cancelCalibration} />
+          <View style={styles.sheet}>
+            <Text style={styles.sheetTitle}>How far apart are those two points?</Text>
+            <Text style={styles.emptyHint}>Measure it on site (e.g. a wall length) and enter it here.</Text>
+            <View style={styles.calibInputRow}>
+              <TextInput
+                style={styles.calibInput}
+                value={calibDistanceText}
+                onChangeText={setCalibDistanceText}
+                placeholder="4.2"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="decimal-pad"
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={commitCalibration}
+              />
+              <Text style={styles.calibUnit}>metres</Text>
+            </View>
+            <View style={styles.calibBtnRow}>
+              <Pressable onPress={cancelCalibration} style={styles.sheetCancel}>
+                <Text style={styles.sheetCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable onPress={commitCalibration} style={styles.calibSaveBtn}>
+                <Text style={styles.calibSaveBtnText}>Save scale</Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </GestureHandlerRootView>
   );
@@ -436,6 +519,17 @@ const styles = StyleSheet.create({
 
   canvas: { flex: 1, position: 'relative', backgroundColor: '#000' },
   hint: { color: colors.textMuted, fontSize: 12, textAlign: 'center', paddingVertical: space.md },
+  scaleStatus: { color: colors.textMuted, fontSize: 12, textAlign: 'center', marginBottom: space.sm },
+
+  calibInputRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.md },
+  calibInput: {
+    flex: 1, backgroundColor: colors.ground, color: colors.textPrimary,
+    borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.sm, fontSize: 16,
+  },
+  calibUnit: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
+  calibBtnRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.lg },
+  calibSaveBtn: { backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: space.xl, paddingVertical: space.sm },
+  calibSaveBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 15 },
 
   dot: {
     position: 'absolute', width: 16, height: 16, borderRadius: 8,

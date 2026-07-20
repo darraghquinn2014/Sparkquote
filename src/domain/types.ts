@@ -165,6 +165,8 @@ export interface Location {
   name: string;
   /** Ordering among siblings. */
   sortOrder: number;
+  /** Ceiling height in metres, manually entered (a 2D plan carries no height). */
+  heightMeters?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -187,6 +189,8 @@ export interface FloorPlan {
   width: number;
   height: number;
   createdAt: number;
+  /** Real-world scale from a user calibration tap, in pixels per metre (at width/height above). */
+  pxPerMeter?: number;
 }
 
 export interface Wall {

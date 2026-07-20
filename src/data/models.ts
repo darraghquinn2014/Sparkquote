@@ -64,6 +64,7 @@ export class LocationModel extends Model {
   @text('parent_id') parentId!: string | null;
   @text('name') name!: string;
   @field('sort_order') sortOrder!: number;
+  @field('height_meters') heightMeters!: number | null;
 }
 
 export class EstimateModel extends Model {
@@ -108,6 +109,7 @@ export class PhotoModel extends Model {
   @text('caption') caption!: string | null;
   @text('note') note!: string | null;
   @text('stage') stage!: string | null;
+  @field('dimensions_stamped') dimensionsStamped!: boolean | null;
 }
 
 export class FloorPlanModel extends Model {
@@ -118,6 +120,7 @@ export class FloorPlanModel extends Model {
   @field('width') width!: number;
   @field('height') height!: number;
   @field('created_at') createdAt!: number;
+  @field('px_per_meter') pxPerMeter!: number | null;
 }
 
 export class WallModel extends Model {

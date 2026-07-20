@@ -134,6 +134,56 @@ export function imageNormToContainerPoint(point: Point, containerSize: Size, ima
   };
 }
 
+/** Real-world pixel length of a normalized point-to-point span, given the image's native pixel size. */
+function normSpanToPixelLength(a: Point, b: Point, imageSize: Size): number {
+  const dx = (b.x - a.x) * imageSize.width;
+  const dy = (b.y - a.y) * imageSize.height;
+  return Math.hypot(dx, dy);
+}
+
+/** Derive pixels-per-metre from two calibration taps a known real-world distance apart. */
+export function calibrateScale(a: Point, b: Point, imageSize: Size, realWorldMeters: number): number {
+  return normSpanToPixelLength(a, b, imageSize) / realWorldMeters;
+}
+
+/** Real-world length (metres) of a traced wall segment, given the plan's calibrated scale. */
+export function wallLengthMeters(wall: WallSegment, imageSize: Size, pxPerMeter: number): number {
+  return normSpanToPixelLength(wall.start, wall.end, imageSize) / pxPerMeter;
+}
+
+/**
+ * Approximate a room's footprint as the bounding box of its traced walls'
+ * endpoints, converted to real-world metres via the plan's calibrated scale.
+ * This is a bounding-box estimate, not the true room polygon area — good
+ * enough for a quick "how big is this room" reading, not for exact quoting.
+ * Returns null if there are no walls to measure. lengthM is always >= widthM.
+ */
+export function roomFootprintMeters(
+  walls: WallSegment[],
+  imageSize: Size,
+  pxPerMeter: number,
+): { lengthM: number; widthM: number } | null {
+  if (walls.length === 0) return null;
+
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const wall of walls) {
+    for (const p of [wall.start, wall.end]) {
+      minX = Math.min(minX, p.x);
+      maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y);
+      maxY = Math.max(maxY, p.y);
+    }
+  }
+
+  const widthPx = (maxX - minX) * imageSize.width;
+  const heightPx = (maxY - minY) * imageSize.height;
+  const [lengthM, widthM] = [widthPx / pxPerMeter, heightPx / pxPerMeter].sort((a, b) => b - a) as [number, number];
+  return { lengthM, widthM };
+}
+
 /** Horizontal pixel position on a wall's photo for a given position along the wall. */
 export function symbolPhotoX(positionAlongWall: number, photoWidthPx: number): number {
   return positionAlongWall * photoWidthPx;

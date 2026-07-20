@@ -23,6 +23,7 @@ function toLocation(r: LocationModel): Location {
     sortOrder: r.sortOrder,
   };
   if (r.parentId != null) loc.parentId = r.parentId;
+  if (r.heightMeters != null) loc.heightMeters = r.heightMeters;
   return loc;
 }
 
@@ -112,6 +113,14 @@ export async function renameLocation(id: string, name: string): Promise<void> {
   await database.write(async () => {
     const row = await database.get<LocationModel>('locations').find(id);
     await row.update((r) => { r.name = name; });
+  });
+}
+
+/** Set (or clear, passing null) a room's manually-entered ceiling height in metres. */
+export async function setLocationHeight(id: string, heightMeters: number | null): Promise<void> {
+  await database.write(async () => {
+    const row = await database.get<LocationModel>('locations').find(id);
+    await row.update((r) => { r.heightMeters = heightMeters; });
   });
 }
 

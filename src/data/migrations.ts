@@ -110,5 +110,27 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 10,
+      steps: [
+        addColumns({
+          table: 'floor_plans',
+          columns: [{ name: 'px_per_meter', type: 'number', isOptional: true }],
+        }),
+        addColumns({
+          table: 'locations',
+          columns: [{ name: 'height_meters', type: 'number', isOptional: true }],
+        }),
+      ],
+    },
+    {
+      toVersion: 11,
+      steps: [
+        addColumns({
+          table: 'photos',
+          columns: [{ name: 'dimensions_stamped', type: 'boolean', isOptional: true }],
+        }),
+      ],
+    },
   ],
 });

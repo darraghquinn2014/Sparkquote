@@ -30,6 +30,7 @@ function toPhoto(r: PhotoModel): Photo {
   if (r.stage != null && (STAGES as readonly string[]).includes(r.stage)) {
     photo.stage = r.stage as PhotoStage;
   }
+  if (r.dimensionsStamped != null) photo.dimensionsStamped = r.dimensionsStamped;
   return photo;
 }
 
@@ -89,6 +90,14 @@ export async function updatePhotoDetails(
       r.note = note || null;
       r.stage = stage;
     });
+  });
+}
+
+/** Mark a photo as having had its room-dimensions caption burned into the file. */
+export async function markPhotoDimensionsStamped(id: string): Promise<void> {
+  await database.write(async () => {
+    const row = await database.get<PhotoModel>('photos').find(id);
+    await row.update((r) => { r.dimensionsStamped = true; });
   });
 }
 

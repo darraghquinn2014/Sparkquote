@@ -18,7 +18,7 @@ import type { FloorPlan, Wall, WallSymbol } from '../domain/types';
 import type { SymbolType } from '../media/annotation-service';
 
 function toFloorPlan(r: FloorPlanModel): FloorPlan {
-  return {
+  const plan: FloorPlan = {
     id: r.id,
     projectId: r.projectId,
     locationId: r.locationId,
@@ -27,6 +27,8 @@ function toFloorPlan(r: FloorPlanModel): FloorPlan {
     height: r.height,
     createdAt: r.createdAt,
   };
+  if (r.pxPerMeter != null) plan.pxPerMeter = r.pxPerMeter;
+  return plan;
 }
 
 function toWall(r: WallModel): Wall {
@@ -95,6 +97,14 @@ export async function updateFloorPlanFile(
       r.width = width;
       r.height = height;
     });
+  });
+}
+
+/** Save a plan's real-world scale from a user calibration tap (pixels per metre). */
+export async function setFloorPlanScale(id: string, pxPerMeter: number): Promise<void> {
+  await database.write(async () => {
+    const row = await database.get<FloorPlanModel>('floor_plans').find(id);
+    await row.update((r) => { r.pxPerMeter = pxPerMeter; });
   });
 }
 

@@ -59,3 +59,9 @@ export async function saveCapture(input: SaveCaptureInput): Promise<Photo> {
 export async function deletePhoto(photo: Photo): Promise<void> {
   await FileSystem.deleteAsync(photo.filePath, { idempotent: true });
 }
+
+/** Replace a photo's file in place with a newly composited version (e.g. a dimensions stamp). */
+export async function overwritePhotoFile(photo: Photo, newUri: string): Promise<void> {
+  await FileSystem.deleteAsync(photo.filePath, { idempotent: true });
+  await FileSystem.moveAsync({ from: newUri, to: photo.filePath });
+}

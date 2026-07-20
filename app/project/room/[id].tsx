@@ -15,15 +15,20 @@ import * as FileSystem from 'expo-file-system/legacy';
 import Svg, { Path } from 'react-native-svg';
 import type { Location, Wall, WallSymbol } from '@/src/domain/types';
 import type { Photo } from '@/src/media/media-types';
-import { loadLocation } from '@/src/data/project-repo';
-import { photosForLocation, addLocationPhoto, deleteLocationPhoto, updatePhotoDetails } from '@/src/data/photo-repo';
-import { loadWallsForLocation, loadWallSymbols } from '@/src/data/floor-plan-repo';
-import { saveCapture, deletePhoto } from '@/src/media/camera-service';
+import { loadLocation, setLocationHeight } from '@/src/data/project-repo';
+import {
+  photosForLocation, addLocationPhoto, deleteLocationPhoto, updatePhotoDetails,
+  markPhotoDimensionsStamped,
+} from '@/src/data/photo-repo';
+import { loadWallsForLocation, loadWallSymbols, loadFloorPlanForLocation, clearWallPhoto } from '@/src/data/floor-plan-repo';
+import { roomFootprintMeters } from '@/src/domain/wall-geometry';
+import { saveCapture, deletePhoto, overwritePhotoFile } from '@/src/media/camera-service';
 import { useVoiceAction } from '@/src/voice/voice-bus';
 import { loadAnnotations, hasAnnotations, deleteAnnotations, type AnnotationStroke, type PlacedSymbol } from '@/src/media/annotation-service';
 import { AnnotationEditor } from '@/src/ui/annotations/AnnotationEditor';
 import { PlacedSymbolGroup } from '@/src/ui/annotations/symbols';
 import { WallShareCapture } from '@/src/ui/walls/WallShareCapture';
+import { PhotoDimensionStamp } from '@/src/ui/photos/PhotoDimensionStamp';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import * as Sharing from 'expo-sharing';
 import type { PhotoStage } from '@/src/media/media-types';
@@ -42,12 +47,34 @@ const mediaPaths = {
 
 type CameraState = 'live' | 'preview';
 
+type PlanInfo = { width: number; height: number; pxPerMeter?: number } | null;
+
+function computeFootprint(plan: PlanInfo, walls: Wall[]) {
+  return plan?.pxPerMeter && walls.length > 0
+    ? roomFootprintMeters(walls, { width: plan.width, height: plan.height }, plan.pxPerMeter)
+    : null;
+}
+
+function buildDimensionsCaption(
+  roomName: string,
+  footprint: { lengthM: number; widthM: number },
+  heightMeters?: number,
+): string {
+  const size = `${footprint.lengthM.toFixed(1)}m × ${footprint.widthM.toFixed(1)}m`;
+  return `${roomName} — ${size}${heightMeters != null ? ` × ${heightMeters.toFixed(1)}m` : ''}`;
+}
+
 export default function RoomScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [location, setLocation] = useState<Location | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [walls, setWalls] = useState<Wall[]>([]);
+  const [floorPlan, setFloorPlan] = useState<PlanInfo>(null);
+  const [heightModalOpen, setHeightModalOpen] = useState(false);
+  const [heightText, setHeightText] = useState('');
+  const [stampQueue, setStampQueue] = useState<{ photo: Photo; caption: string }[]>([]);
+  const [stampItem, setStampItem] = useState<{ photo: Photo; caption: string } | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedWallIds, setSelectedWallIds] = useState<Set<string>>(new Set());
   const [shareQueue, setShareQueue] = useState<Wall[]>([]);
@@ -80,7 +107,23 @@ export default function RoomScreen() {
     setLocation(loc);
     const ps = await photosForLocation(id);
     setPhotos(ps);
-    setWalls(await loadWallsForLocation(id));
+    const w = await loadWallsForLocation(id);
+    setWalls(w);
+    const plan = loc.parentId ? await loadFloorPlanForLocation(loc.parentId) : null;
+    setFloorPlan(plan);
+
+    // Queue any photo that hasn't had the room-dimensions caption burned in
+    // yet — covers both photos taken before the room's size was known and
+    // freshly captured ones (which always start unstamped).
+    const fp = computeFootprint(plan, w);
+    if (fp) {
+      const caption = buildDimensionsCaption(loc.name, fp, loc.heightMeters);
+      const unstamped = ps.filter((p) => !p.dimensionsStamped);
+      setStampQueue(unstamped.map((photo) => ({ photo, caption })));
+    } else {
+      setStampQueue([]);
+    }
+
     // Check which photos have saved annotations
     const ids = new Set<string>();
     await Promise.all(ps.map(async (p) => { if (await hasAnnotations(p.id)) ids.add(p.id); }));
@@ -90,7 +133,50 @@ export default function RoomScreen() {
 
   useFocusEffect(useCallback(() => { reload(); }, [reload]));
 
+  // Process the stamp queue one photo at a time (an off-screen captureRef
+  // composite, like WallShareCapture, can only reliably do one at once).
+  useEffect(() => {
+    if (stampQueue.length === 0 || stampItem) return;
+    setStampItem(stampQueue[0]!);
+  }, [stampQueue, stampItem]);
+
+  const handleStamped = async (newUri: string) => {
+    const item = stampItem;
+    setStampItem(null);
+    if (item) {
+      await overwritePhotoFile(item.photo, newUri);
+      await markPhotoDimensionsStamped(item.photo.id);
+      // Default cachePolicy is 'disk' — clearing only memory would still let
+      // a disk-cached pre-stamp bitmap resurface for this same file path.
+      await Image.clearMemoryCache();
+      await Image.clearDiskCache();
+      setPhotos((prev) => prev.map((p) => (p.id === item.photo.id ? { ...p, dimensionsStamped: true } : p)));
+    }
+    setStampQueue((q) => q.slice(1));
+  };
+
+  const handleStampError = (e: unknown) => {
+    console.warn('Dimension stamp failed', e);
+    setStampItem(null);
+    setStampQueue((q) => q.slice(1));
+  };
+
+  const footprint = computeFootprint(floorPlan, walls);
+
   const openCamera = async () => {
+    if (!footprint) {
+      Alert.alert(
+        'Room size needed',
+        "This room's dimensions aren't set yet, so photos can't be stamped with them. Calibrate the floor plan and trace this room's walls first.",
+        [
+          { text: 'Cancel', style: 'cancel' },
+          ...(location?.parentId
+            ? [{ text: 'Open floor plan', onPress: () => router.push(`/project/plan/${location.parentId}` as any) }]
+            : []),
+        ],
+      );
+      return;
+    }
     if (!permission?.granted) {
       const result = await requestPermission();
       if (!result.granted) {
@@ -266,11 +352,39 @@ export default function RoomScreen() {
             await deleteLocationPhoto(photo.id);
             await deletePhoto(photo);
             await deleteAnnotations(photo.id);
+            // Deleting a photo here doesn't delete the wall it's attached
+            // to (same rule as the wall screen's own "Remove photo") — but
+            // the wall's photoId must be cleared, or it's left pointing at
+            // a photo row that no longer exists.
+            const attachedWall = walls.find((w) => w.photoId === photo.id);
+            if (attachedWall) await clearWallPhoto(attachedWall.id);
             reload();
           },
         },
       ],
     );
+  };
+
+  const openHeightEdit = () => {
+    setHeightText(location?.heightMeters != null ? String(location.heightMeters) : '');
+    setHeightModalOpen(true);
+  };
+
+  const saveHeight = async () => {
+    if (!location) return;
+    const trimmed = heightText.trim();
+    if (trimmed === '') {
+      await setLocationHeight(location.id, null);
+    } else {
+      const meters = parseFloat(trimmed);
+      if (!Number.isFinite(meters) || meters <= 0) {
+        Alert.alert('Enter a height', 'Type the ceiling height in metres, e.g. 2.4.');
+        return;
+      }
+      await setLocationHeight(location.id, meters);
+    }
+    setHeightModalOpen(false);
+    await reload();
   };
 
   if (loading) {
@@ -308,6 +422,26 @@ export default function RoomScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.roomName}>{location.name}</Text>
         <Text style={styles.subtitle}>Reference photos</Text>
+
+        {(footprint || walls.length > 0) && (
+          <View style={styles.sizeRow}>
+            {footprint ? (
+              <Text style={styles.sizeText}>
+                {footprint.lengthM.toFixed(1)}m × {footprint.widthM.toFixed(1)}m
+                {location.heightMeters != null ? ` × ${location.heightMeters.toFixed(1)}m` : ''}
+              </Text>
+            ) : (
+              <Pressable onPress={() => location.parentId && router.push(`/project/plan/${location.parentId}` as any)}>
+                <Text style={styles.sizeHint}>Calibrate the floor plan to see room size ›</Text>
+              </Pressable>
+            )}
+            {footprint && (
+              <Pressable onPress={openHeightEdit} hitSlop={8}>
+                <Text style={styles.sizeEditLink}>{location.heightMeters != null ? 'Edit height' : '+ Add height'}</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
 
         {/* Stage filter bar */}
         {photos.length > 0 && (
@@ -453,6 +587,16 @@ export default function RoomScreen() {
           symbols={captureItem.symbols}
           onReady={handleCaptured}
           onError={handleCaptureError}
+        />
+      )}
+
+      {/* Off-screen capture used to burn the room-dimensions caption into a photo */}
+      {stampItem && (
+        <PhotoDimensionStamp
+          photoUri={stampItem.photo.filePath}
+          caption={stampItem.caption}
+          onReady={handleStamped}
+          onError={handleStampError}
         />
       )}
 
@@ -609,6 +753,44 @@ export default function RoomScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* Ceiling height edit sheet */}
+      <Modal
+        visible={heightModalOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setHeightModalOpen(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.captionOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <Pressable style={styles.captionBackdrop} onPress={() => setHeightModalOpen(false)} />
+          <View style={styles.captionSheet}>
+            <Text style={styles.captionSheetTitle}>Ceiling height</Text>
+            <Text style={styles.captionLabel}>Metres</Text>
+            <TextInput
+              style={styles.captionInput}
+              value={heightText}
+              onChangeText={setHeightText}
+              placeholder="e.g. 2.4"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="decimal-pad"
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={saveHeight}
+            />
+            <View style={styles.captionBtns}>
+              <Pressable onPress={() => setHeightModalOpen(false)} hitSlop={8}>
+                <Text style={styles.captionCancel}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.captionSaveBtn} onPress={saveHeight}>
+                <Text style={styles.captionSaveBtnText}>Save</Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* Camera modal */}
       <Modal
         visible={cameraOpen}
@@ -680,6 +862,13 @@ const styles = StyleSheet.create({
   scroll: { padding: space.lg, paddingBottom: space.xxl },
   roomName: { color: colors.textPrimary, fontSize: 26, fontWeight: '800', marginBottom: 2 },
   subtitle: { color: colors.textMuted, fontSize: 13, marginBottom: space.xl },
+  sizeRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: space.xl,
+  },
+  sizeText: { color: colors.textSecondary, fontSize: 14, fontWeight: '700' },
+  sizeHint: { color: colors.accent, fontSize: 13, fontWeight: '600' },
+  sizeEditLink: { color: colors.accent, fontSize: 13, fontWeight: '700' },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

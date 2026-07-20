@@ -11,6 +11,7 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Image as RNImage, StyleSheet } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import Svg from 'react-native-svg';
 import { captureRef } from 'react-native-view-shot';
 import type { Photo } from '@/src/media/media-types';
@@ -78,11 +79,16 @@ export function WallShareCapture({ photo, symbols, onReady, onError }: Props) {
       collapsable={false}
       style={[styles.offscreen, { width: size.width, height: size.height }]}
     >
-      <RNImage
+      {/* expo-image with cachePolicy="none" — plain RN Image can serve a
+          stale cached bitmap for a local file path that was overwritten in
+          place (e.g. after PhotoDimensionStamp burns a caption into it),
+          which would silently drop that caption from the flattened share. */}
+      <ExpoImage
         source={{ uri: photo.filePath }}
         style={{ width: size.width, height: size.height }}
+        cachePolicy="none"
         onLoad={() => setLoaded(true)}
-        onError={(e) => onError(e.nativeEvent)}
+        onError={(e) => onError(e)}
       />
       <Svg width={size.width} height={size.height} style={StyleSheet.absoluteFillObject}>
         {symbols.map((symbol) => (

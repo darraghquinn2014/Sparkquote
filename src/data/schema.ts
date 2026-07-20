@@ -13,7 +13,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 9,
+  version: 11,
   tables: [
     // ── Catalogue ────────────────────────────────────────────────────────
     tableSchema({
@@ -83,6 +83,7 @@ export const schema = appSchema({
         { name: 'parent_id', type: 'string', isOptional: true, isIndexed: true },
         { name: 'name', type: 'string' },
         { name: 'sort_order', type: 'number' },
+        { name: 'height_meters', type: 'number', isOptional: true }, // ceiling height, manual entry
       ],
     }),
 
@@ -137,6 +138,9 @@ export const schema = appSchema({
         { name: 'caption', type: 'string', isOptional: true },
         { name: 'note', type: 'string', isOptional: true },
         { name: 'stage', type: 'string', isOptional: true },
+        // true once a room-dimensions caption has been burned into the file —
+        // guards against re-stamping on top of an already-stamped image
+        { name: 'dimensions_stamped', type: 'boolean', isOptional: true },
       ],
     }),
 
@@ -150,6 +154,9 @@ export const schema = appSchema({
         { name: 'width', type: 'number' },
         { name: 'height', type: 'number' },
         { name: 'created_at', type: 'number' },
+        // real-world scale from a user calibration tap (pixels per metre, at
+        // the plan image's native width/height above)
+        { name: 'px_per_meter', type: 'number', isOptional: true },
       ],
     }),
     tableSchema({

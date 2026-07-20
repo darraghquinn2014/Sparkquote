@@ -9,6 +9,9 @@ import {
   imageNormToContainerPoint,
   symbolPhotoX,
   DEFAULT_PHOTO_Y,
+  calibrateScale,
+  wallLengthMeters,
+  roomFootprintMeters,
   type WallSegment,
 } from '../wall-geometry';
 
@@ -145,5 +148,62 @@ describe('symbolPhotoX', () => {
 describe('DEFAULT_PHOTO_Y', () => {
   it('is mid-height', () => {
     expect(DEFAULT_PHOTO_Y).toBe(0.5);
+  });
+});
+
+describe('calibrateScale', () => {
+  it('derives pixels-per-metre from two taps and a known real-world distance', () => {
+    const imageSize = { width: 1000, height: 1000 };
+    // 0.4 of the image width = 400px, spanning a real 2m -> 200 px/m
+    const pxPerMeter = calibrateScale({ x: 0, y: 0.5 }, { x: 0.4, y: 0.5 }, imageSize, 2);
+    expect(pxPerMeter).toBeCloseTo(200);
+  });
+
+  it('handles a diagonal calibration span', () => {
+    const imageSize = { width: 1000, height: 1000 };
+    // 300px + 400px legs -> 500px hypotenuse, spanning a real 5m -> 100 px/m
+    const pxPerMeter = calibrateScale({ x: 0, y: 0 }, { x: 0.3, y: 0.4 }, imageSize, 5);
+    expect(pxPerMeter).toBeCloseTo(100);
+  });
+});
+
+describe('wallLengthMeters', () => {
+  it('converts a traced wall to real-world metres using the plan scale', () => {
+    const imageSize = { width: 1000, height: 1000 };
+    const wall: WallSegment = { start: { x: 0, y: 0 }, end: { x: 0.3, y: 0.4 } };
+    expect(wallLengthMeters(wall, imageSize, 100)).toBeCloseTo(5);
+  });
+});
+
+describe('roomFootprintMeters', () => {
+  it('returns null when there are no walls', () => {
+    expect(roomFootprintMeters([], { width: 1000, height: 1000 }, 100)).toBeNull();
+  });
+
+  it('bounding-boxes a rectangular room and reports the longer side as lengthM', () => {
+    const imageSize = { width: 1000, height: 1000 };
+    // Room spans x: 0-0.5 (500px -> 5m), y: 0-0.3 (300px -> 3m) at 100 px/m
+    const walls: WallSegment[] = [
+      { start: { x: 0, y: 0 }, end: { x: 0.5, y: 0 } },
+      { start: { x: 0.5, y: 0 }, end: { x: 0.5, y: 0.3 } },
+      { start: { x: 0.5, y: 0.3 }, end: { x: 0, y: 0.3 } },
+      { start: { x: 0, y: 0.3 }, end: { x: 0, y: 0 } },
+    ];
+    const result = roomFootprintMeters(walls, imageSize, 100);
+    expect(result?.lengthM).toBeCloseTo(5);
+    expect(result?.widthM).toBeCloseTo(3);
+  });
+
+  it('measures a partial trace (just two opposite corner walls) the same way', () => {
+    const imageSize = { width: 2000, height: 1000 };
+    // Only two walls traced, but their endpoints still span the full room.
+    const walls: WallSegment[] = [
+      { start: { x: 0.1, y: 0.1 }, end: { x: 0.6, y: 0.1 } },
+      { start: { x: 0.6, y: 0.1 }, end: { x: 0.6, y: 0.5 } },
+    ];
+    const result = roomFootprintMeters(walls, imageSize, 200);
+    // width span: (0.6-0.1)*2000 = 1000px -> 5m; height span: (0.5-0.1)*1000 = 400px -> 2m
+    expect(result?.lengthM).toBeCloseTo(5);
+    expect(result?.widthM).toBeCloseTo(2);
   });
 });
