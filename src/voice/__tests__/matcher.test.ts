@@ -145,6 +145,36 @@ describe('matchRoomWithFloor', () => {
     expect(results).toHaveLength(1);
     expect(results[0]?.location.id).toBe('r2');
   });
+
+  const numberedFloors: Location[] = [
+    { id: 'nf1', projectId: 'p1', name: 'Floor 1', sortOrder: 0 },
+    { id: 'nf2', projectId: 'p1', name: 'Floor 2', sortOrder: 1 },
+  ];
+  const numberedKitchens: Location[] = [
+    { id: 'nr1', projectId: 'p1', parentId: 'nf1', name: 'Kitchen', sortOrder: 0 },
+    { id: 'nr2', projectId: 'p1', parentId: 'nf2', name: 'Kitchen', sortOrder: 0 },
+  ];
+
+  it('matches a spoken ordinal ("first floor") against a numerically-named floor ("Floor 1")', () => {
+    // Voice-created floors are auto-named "Floor 1"/"Floor 2" (see
+    // GlobalVoiceControl's floor-count flow), while a user speaking
+    // naturally says "first floor" — these must resolve to each other.
+    const results = matchRoomWithFloor('first floor, kitchen', numberedKitchens, numberedFloors);
+    expect(results).toHaveLength(1);
+    expect(results[0]?.location.id).toBe('nr1');
+  });
+
+  it('matches the other numbered floor too', () => {
+    const results = matchRoomWithFloor('second floor, kitchen', numberedKitchens, numberedFloors);
+    expect(results).toHaveLength(1);
+    expect(results[0]?.location.id).toBe('nr2');
+  });
+
+  it('matches a spoken digit form ("floor 1") against an ordinally-named floor ("First Floor")', () => {
+    const results = matchRoomWithFloor('floor 1, kitchen', twoKitchens, floors);
+    expect(results).toHaveLength(1);
+    expect(results[0]?.location.id).toBe('r2');
+  });
 });
 
 describe('matchSnags', () => {

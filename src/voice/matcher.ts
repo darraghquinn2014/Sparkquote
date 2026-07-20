@@ -116,28 +116,60 @@ export function splitRoomFloorClause(query: string): { roomPart: string; floorPa
   return { roomPart: m[1].trim(), floorPart: m[2].trim() };
 }
 
+const ORDINAL_WORDS: Record<string, number> = {
+  first: 1, second: 2, third: 3, fourth: 4, fifth: 5,
+  sixth: 6, seventh: 7, eighth: 8, ninth: 9, tenth: 10,
+};
+const ORDINAL_BY_NUMBER = new Map(Object.entries(ORDINAL_WORDS).map(([word, n]) => [n, word]));
+
 /**
- * Looks for one of the project's actual floor names appearing literally
- * inside the spoken clause (case-insensitive, word-bounded), e.g. "ground
- * floor" inside "kitchen ground floor" — checked longest-name-first so a
- * more specific floor ("First Floor") wins over a shorter one that happens
- * to be a substring of it. This is tried before any grammar-based split
- * because real speech is often connector-free: "kitchen ground floor" has
- * no comma or "on"/"to" to split on at all, but the floor names themselves
- * are known data, so they can be found directly rather than guessed at
- * from sentence structure.
+ * Floors created via voice ("add 3 floors") are auto-named "Floor 1",
+ * "Floor 2", etc, while floors added through the UI's quick-pick chips get
+ * names like "First Floor" — so a spoken "first floor" needs to match a
+ * floor literally named "Floor 1", and a spoken "floor one" or "floor 1"
+ * needs to match one named "First Floor". Returns extra name forms to try
+ * alongside the floor's actual stored name.
+ */
+function floorNameAliases(name: string): string[] {
+  const numeric = name.match(/^floor\s+(\d+)$/i);
+  if (numeric) {
+    const n = parseInt(numeric[1], 10);
+    const word = ORDINAL_BY_NUMBER.get(n);
+    return word ? [`${word} floor`, `floor ${word}`] : [];
+  }
+  const ordinal = name.match(/^(\w+)\s+floor$/i);
+  if (ordinal) {
+    const n = ORDINAL_WORDS[ordinal[1].toLowerCase()];
+    return n != null ? [`floor ${n}`] : [];
+  }
+  return [];
+}
+
+/**
+ * Looks for one of the project's actual floor names (or a spoken-number
+ * alias of it, see floorNameAliases) appearing literally inside the spoken
+ * clause (case-insensitive, word-bounded), e.g. "ground floor" inside
+ * "kitchen ground floor" — checked longest-name-first so a more specific
+ * floor ("First Floor") wins over a shorter one that happens to be a
+ * substring of it. This is tried before any grammar-based split because
+ * real speech is often connector-free: "kitchen ground floor" has no comma
+ * or "on"/"to" to split on at all, but the floor names themselves are known
+ * data, so they can be found directly rather than guessed at from sentence
+ * structure.
  */
 export function stripKnownFloorName(query: string, floors: Location[]): { rest: string; floor?: Location } {
   const sorted = [...floors].sort((a, b) => b.name.length - a.name.length);
   for (const floor of sorted) {
     const name = floor.name.trim();
     if (name.length < 3) continue;
-    const re = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-    const m = query.match(re);
-    if (m) {
-      const rest = (query.slice(0, m.index) + ' ' + query.slice((m.index ?? 0) + m[0].length))
-        .replace(/\s+/g, ' ').trim();
-      return { rest, floor };
+    for (const candidate of [name, ...floorNameAliases(name)]) {
+      const re = new RegExp(`\\b${candidate.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      const m = query.match(re);
+      if (m) {
+        const rest = (query.slice(0, m.index) + ' ' + query.slice((m.index ?? 0) + m[0].length))
+          .replace(/\s+/g, ' ').replace(/^[,\s]+|[,\s]+$/g, '').trim();
+        return { rest, floor };
+      }
     }
   }
   return { rest: query };
