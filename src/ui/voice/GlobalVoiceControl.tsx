@@ -1643,9 +1643,14 @@ export function GlobalVoiceControl() {
 
   const settingsHourlyRateMinor = useSettingsStore((s) => s.hourlyRateMinor);
   const assemblyQtyNum = parseFloat(addAssemblyQtyText);
-  const assemblyUnitPriceMinor = addAssemblyTarget
-    ? priceLine(lineFromAssembly(addAssemblyTarget, assemblyLookup), settingsHourlyRateMinor, laborToggleIndex, []).lineTotalMinor
-    : 0;
+  let assemblyUnitPriceMinor = 0;
+  if (addAssemblyTarget) {
+    try {
+      assemblyUnitPriceMinor = priceLine(lineFromAssembly(addAssemblyTarget, assemblyLookup), settingsHourlyRateMinor, laborToggleIndex, []).lineTotalMinor;
+    } catch (e) {
+      console.error('confirm-add-assembly: could not price assembly', addAssemblyTarget.id, e);
+    }
+  }
   const assemblyPreviewTotal = Number.isFinite(assemblyQtyNum) ? Math.round(assemblyQtyNum * assemblyUnitPriceMinor) : 0;
 
   const entityLabel = (kind: EntityKind) => kind === 'project' ? 'job' : kind === 'floor' ? 'floor' : kind === 'room' ? 'room' : 'snag';

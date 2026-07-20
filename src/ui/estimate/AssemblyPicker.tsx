@@ -50,9 +50,16 @@ export function AssemblyPicker({
   const unitPrice = useMemo(() => {
     const map = new Map<string, number>();
     for (const a of assemblies) {
-      const line = lineFromAssembly(a, lookup);
-      const b = priceLine(line, hourlyRateMinor, toggleIndex, []);
-      map.set(a.id, b.lineTotalMinor);
+      try {
+        const line = lineFromAssembly(a, lookup);
+        const b = priceLine(line, hourlyRateMinor, toggleIndex, []);
+        map.set(a.id, b.lineTotalMinor);
+      } catch (e) {
+        // A component material is missing from the catalogue (e.g. deleted
+        // after this job was built) — skip it rather than crash the whole
+        // picker; it just won't be offered until the job is fixed/rebuilt.
+        console.error('AssemblyPicker: skipping unpriceable assembly', a.id, e);
+      }
     }
     return map;
   }, [assemblies, lookup, toggleIndex, hourlyRateMinor]);
@@ -69,9 +76,10 @@ export function AssemblyPicker({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return assemblies
+      .filter((a) => unitPrice.has(a.id))
       .filter((a) => (activeCategory ? a.category === activeCategory : true))
       .filter((a) => (q ? a.name.toLowerCase().includes(q) : true));
-  }, [assemblies, activeCategory, query]);
+  }, [assemblies, unitPrice, activeCategory, query]);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
