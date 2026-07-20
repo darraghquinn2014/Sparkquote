@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Material, Currency } from '../../domain/types';
 import { colors, space, radius, type } from '../theme/tokens';
 import { formatMoney } from '../../domain/money';
+import { drumLengthMeters, drumsNeededFor } from '../../domain/drum-size';
 
 interface Props {
   visible: boolean;
@@ -48,15 +49,21 @@ export function MaterialPicker({ visible, materials, currency, onAdd, onClose }:
   }, [materials, query, activeSupplier]);
 
   const isMetres = selected?.unit === 'm';
+  const drumLen = selected && !isMetres ? drumLengthMeters(selected.description) : null;
+  const isDrum = drumLen != null;
   const amountNum = parseFloat(amountText);
+  const drumsBilled = isDrum && drumLen && Number.isFinite(amountNum) && amountNum > 0
+    ? drumsNeededFor(amountNum, drumLen)
+    : null;
   const previewTotal = selected && Number.isFinite(amountNum)
-    ? Math.round(amountNum * selected.unitCostMinor)
+    ? Math.round((isDrum ? (drumsBilled ?? 1) : amountNum) * selected.unitCostMinor)
     : 0;
 
   const confirmAdd = () => {
     if (!selected) return;
     const n = parseFloat(amountText);
-    const amount = Number.isFinite(n) && n > 0 ? n : 1;
+    const metresOrQty = Number.isFinite(n) && n > 0 ? n : 1;
+    const amount = isDrum && drumLen ? drumsNeededFor(metresOrQty, drumLen) : metresOrQty;
     onAdd(selected, amount);
     setJustAdded(selected.description);
     setSelected(null);
@@ -152,8 +159,13 @@ export function MaterialPicker({ visible, materials, currency, onAdd, onClose }:
                 <View style={{ flex: 1 }}>
                   <Text style={styles.addItemName} numberOfLines={1}>{selected.description}</Text>
                   <Text style={styles.addLabel}>
-                    {isMetres ? 'Metres' : 'Quantity'} · {formatMoney(selected.unitCostMinor, currency)} / {selected.unit}
+                    {isDrum ? 'Metres needed' : isMetres ? 'Metres' : 'Quantity'} · {formatMoney(selected.unitCostMinor, currency)} / {selected.unit}
                   </Text>
+                  {isDrum && drumsBilled != null && (
+                    <Text style={styles.addDrumHint}>
+                      = {drumsBilled} drum{drumsBilled === 1 ? '' : 's'} billed ({drumLen}m each)
+                    </Text>
+                  )}
                   <Text style={styles.addTotal}>Total: {formatMoney(previewTotal, currency)}</Text>
                 </View>
                 <TextInput
@@ -166,7 +178,7 @@ export function MaterialPicker({ visible, materials, currency, onAdd, onClose }:
                   keyboardType="decimal-pad"
                   style={styles.amountInput}
                   selectTextOnFocus
-                  accessibilityLabel={isMetres ? 'Metres' : 'Quantity'}
+                  accessibilityLabel={isDrum ? 'Metres needed' : isMetres ? 'Metres' : 'Quantity'}
                 />
                 <Pressable style={styles.addBtn} onPress={confirmAdd}>
                   <Text style={styles.addBtnText}>Add</Text>
@@ -202,6 +214,7 @@ const styles = StyleSheet.create({
   addRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.surface, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.md, marginTop: space.sm },
   addItemName: { fontSize: 13, fontWeight: '700', color: colors.textPrimary, marginBottom: 2 },
   addLabel: { fontSize: 11, fontWeight: '700', color: colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
+  addDrumHint: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginTop: 2 },
   addTotal: { fontSize: 13, fontWeight: '700', color: colors.accent, marginTop: 3 },
   amountInput: { width: 80, backgroundColor: colors.ground, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.sm, color: colors.textPrimary, fontSize: 18, fontWeight: '700', fontVariant: ['tabular-nums'], textAlign: 'center' },
   addBtn: { backgroundColor: colors.accent, borderRadius: radius.tile, paddingHorizontal: space.xl, paddingVertical: space.sm },
