@@ -16,7 +16,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedProps, runOnJS } from 'react-native-reanimated';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { saveAnnotations, type AnnotationStroke, type PlacedSymbol, type SymbolType } from '@/src/media/annotation-service';
+import {
+  saveAnnotations, normalizeStroke, denormalizeStroke, normalizeSymbolPoint, denormalizeSymbol,
+  type AnnotationStroke, type PlacedSymbol, type SymbolType,
+} from '@/src/media/annotation-service';
 import { PlacedSymbolGroup, SYMBOL_TYPES, SYMBOL_LABELS } from './symbols';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 
@@ -27,8 +30,16 @@ const AnimatedPath = Animated.createAnimatedComponent(Path);
 // (drawn by PlacedSymbolGroup there), this only catches the tap. Same
 // nested-GestureDetector-over-a-shared-canvas-gesture pattern as the wall
 // screen's DraggableSymbol.
-function PlacedSymbolTapTarget({ x, y, onRemove }: { x: number; y: number; onRemove: () => void }) {
-  const tapGesture = Gesture.Tap().onEnd(() => { runOnJS(onRemove)(); });
+function PlacedSymbolTapTarget({
+  x, y, onRemove, blockGesture,
+}: { x: number; y: number; onRemove: () => void; blockGesture: ReturnType<typeof Gesture.Tap> }) {
+  // blocksExternalGesture makes this win outright over the canvas's own
+  // place-a-new-symbol tap gesture when they overlap — without it, both are
+  // independent recognizers with no defined priority, so a tap meant to
+  // remove a symbol could just as easily place a new one on top of it.
+  const tapGesture = Gesture.Tap()
+    .onEnd(() => { runOnJS(onRemove)(); })
+    .blocksExternalGesture(blockGesture);
   return (
     <GestureDetector gesture={tapGesture}>
       <View style={{ position: 'absolute', left: x - 20, top: y - 20, width: 40, height: 40 }} />
@@ -57,13 +68,15 @@ interface Props {
   photoId: string;
   initialStrokes: AnnotationStroke[];
   initialSymbols: PlacedSymbol[];
+  /** When set, this photo is a wall's attached photo — symbols placed here also sync to that wall (floor plan overlay, wall-photo shares). */
+  linkedWallLabel?: string;
   onClose: () => void;
   onSaved: (strokes: AnnotationStroke[], symbols: PlacedSymbol[]) => void;
 }
 
 export function AnnotationEditor({
   visible, photoUri, photoId,
-  initialStrokes, initialSymbols,
+  initialStrokes, initialSymbols, linkedWallLabel,
   onClose, onSaved,
 }: Props) {
   const insets = useSafeAreaInsets();
@@ -83,6 +96,20 @@ export function AnnotationEditor({
   const [widthIdx, setWidthIdx] = useState(1);
   const [saving, setSaving] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
+  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
+
+  // Needed to convert taps <-> normalized image coordinates (see
+  // normalizeStroke/normalizeSymbolPoint) — without it, placement/removal
+  // and rendering are both disabled below rather than risk using the wrong
+  // (canvas-pixel) coordinate space.
+  useEffect(() => {
+    setImageSize(null);
+    Image.getSize(
+      photoUri,
+      (width, height) => setImageSize({ width, height }),
+      () => setImageSize(null),
+    );
+  }, [photoUri]);
 
   const currentPath = useSharedValue('');
   const svColor = useSharedValue(COLORS[0].hex);
@@ -100,18 +127,29 @@ export function AnnotationEditor({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [photoId]);
 
-  const commitStroke = (path: string, color: string, width: number) => {
-    if (path.length < 4) return;
+  // Raw path/point in here are in THIS canvas's own pixel space (canvasSize)
+  // — converted to normalized image coordinates before being stored, so the
+  // same data renders correctly in any other container (e.g. the lightbox).
+  const commitStroke = (rawPath: string, color: string, rawWidth: number) => {
+    if (rawPath.length < 4 || !imageSize) return;
+    const { path, width } = normalizeStroke(rawPath, rawWidth, canvasSize, imageSize);
     setHistory(prev => [...prev, { kind: 'stroke', data: { color, width, path } }]);
   };
 
-  const placeSymbol = (x: number, y: number) => {
+  const placeSymbol = (rawX: number, rawY: number) => {
+    if (!imageSize) return;
+    const { x, y } = normalizeSymbolPoint(rawX, rawY, canvasSize, imageSize);
     const id = `sym_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
     setHistory(prev => [
       ...prev,
       { kind: 'symbol', data: { id, type: selectedSymbol, x, y, color: COLORS[colorIdx].hex } },
     ]);
   };
+
+  // Denormalized (pixel) versions for rendering in THIS canvas — the stored
+  // strokes/symbols/history above stay normalized, unaffected by zoom/layout.
+  const renderedStrokes = imageSize ? strokes.map((s) => denormalizeStroke(s, canvasSize, imageSize)) : [];
+  const renderedSymbols = imageSize ? symbols.map((s) => denormalizeSymbol(s, canvasSize, imageSize)) : [];
 
   const removeSymbol = (id: string) => {
     Alert.alert('Remove symbol?', undefined, [
@@ -125,7 +163,7 @@ export function AnnotationEditor({
   };
 
   const panGesture = Gesture.Pan()
-    .enabled(drawMode === 'draw')
+    .enabled(drawMode === 'draw' && imageSize != null)
     .minDistance(0)
     .onStart((e) => {
       currentPath.value = `M ${e.x.toFixed(1)} ${e.y.toFixed(1)}`;
@@ -141,13 +179,13 @@ export function AnnotationEditor({
       currentPath.value = '';
     });
 
-  const tapGesture = Gesture.Tap()
-    .enabled(drawMode === 'symbol')
+  const placeTapGesture = Gesture.Tap()
+    .enabled(drawMode === 'symbol' && imageSize != null)
     .onEnd((e) => {
       runOnJS(placeSymbol)(e.x, e.y);
     });
 
-  const gesture = Gesture.Exclusive(panGesture, tapGesture);
+  const gesture = Gesture.Exclusive(panGesture, placeTapGesture);
 
   const animatedProps = useAnimatedProps(() => ({ d: currentPath.value }));
 
@@ -249,7 +287,7 @@ export function AnnotationEditor({
                 height={canvasSize.height}
                 style={StyleSheet.absoluteFillObject}
               >
-                {strokes.map((s, i) => (
+                {renderedStrokes.map((s, i) => (
                   <Path
                     key={i}
                     d={s.path}
@@ -260,7 +298,7 @@ export function AnnotationEditor({
                     strokeLinejoin="round"
                   />
                 ))}
-                {symbols.map((sym) => (
+                {renderedSymbols.map((sym) => (
                   <PlacedSymbolGroup key={sym.id} symbol={sym} />
                 ))}
                 <AnimatedPath
@@ -272,8 +310,14 @@ export function AnnotationEditor({
                   strokeLinejoin="round"
                 />
               </Svg>
-              {drawMode === 'symbol' && symbols.map((sym) => (
-                <PlacedSymbolTapTarget key={sym.id} x={sym.x} y={sym.y} onRemove={() => removeSymbol(sym.id)} />
+              {drawMode === 'symbol' && renderedSymbols.map((sym) => (
+                <PlacedSymbolTapTarget
+                  key={sym.id}
+                  x={sym.x}
+                  y={sym.y}
+                  onRemove={() => removeSymbol(sym.id)}
+                  blockGesture={placeTapGesture}
+                />
               ))}
             </View>
           </GestureDetector>
@@ -336,6 +380,7 @@ export function AnnotationEditor({
                 </View>
                 <Text style={styles.toolHint}>
                   Tap empty photo to place · Tap a symbol to remove it · {COLORS[colorIdx].label}
+                  {linkedWallLabel ? `\nSymbols sync to "${linkedWallLabel}" on the floor plan` : ''}
                 </Text>
               </>
             )}

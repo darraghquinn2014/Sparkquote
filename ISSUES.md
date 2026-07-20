@@ -105,3 +105,34 @@ How to use this file:
   with all selected photos attached. Device-verified 2026-07-20.
   _Changed: `app/project/room/[id].tsx`, `package.json` (added
   `react-native-share`)_
+
+- [x] **Room photo annotations: no way to remove a symbol, and symbols
+  landed in the wrong place (floating above the photo) once you left the
+  editor.** Root cause: symbols/strokes were stored as raw screen pixels
+  tied to whatever container placed them — the annotation editor's canvas
+  (squeezed by its header/toolbar) and the room lightbox (full screen) are
+  different sizes, so the same raw coordinates landed in different spots.
+  Switched to normalized (0-1) coordinates relative to the photo's own
+  content, the same approach already used for wall/floor-plan symbols, and
+  convert to/from pixels at render time in each screen. Also made the
+  remove-symbol tap explicitly win over the place-a-new-symbol tap (they
+  were two independent, unrelated gesture recognizers with no defined
+  priority). Note: any photo annotated before this fix has its symbols
+  stored in the old broken format and needs to be cleared (✕ in the
+  Annotate screen) and redrawn — existing data isn't auto-migrated.
+  Device-verified 2026-07-20.
+  _Changed: `src/domain/wall-geometry.ts`, `src/media/annotation-service.ts`,
+  `src/ui/annotations/AnnotationEditor.tsx`, `app/project/room/[id].tsx`_
+
+- [x] **Symbols placed on a wall's photo via the room lightbox's Annotate
+  screen didn't show up on that wall's own screen or the floor plan.**
+  These were two entirely separate systems — Annotate saved to a
+  per-photo JSON file, while the wall screen/floor-plan overlay/wall-photo
+  shares all read from the `wall_symbols` DB table. When the open lightbox
+  photo is a wall's attached photo, Annotate now loads that wall's
+  symbols and syncs additions/removals back into `wall_symbols` on Done,
+  so they show up in both places. Freehand drawing (Draw mode) is
+  unaffected and still stays local to the photo only — `wall_symbols` has
+  no concept of freehand strokes. Device-verified 2026-07-20.
+  _Changed: `src/ui/annotations/AnnotationEditor.tsx`,
+  `app/project/room/[id].tsx`_

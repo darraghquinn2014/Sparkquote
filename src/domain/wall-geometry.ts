@@ -102,35 +102,42 @@ export function pixelToPlan(point: Point, planSize: Size): Point {
 }
 
 /**
+ * The rendered rect of a contentFit="contain" image within its container —
+ * position + size in container pixels. Shared by containerPointToImageNorm/
+ * imageNormToContainerPoint below, and by anything that needs to size an
+ * overlay (e.g. an SVG) to exactly cover the visible image content, not the
+ * letterboxed container around it.
+ */
+export function imageFitRect(
+  containerSize: Size,
+  imageSize: Size,
+): { x: number; y: number; width: number; height: number } {
+  const scale = Math.min(containerSize.width / imageSize.width, containerSize.height / imageSize.height);
+  const width = imageSize.width * scale;
+  const height = imageSize.height * scale;
+  return { x: (containerSize.width - width) / 2, y: (containerSize.height - height) / 2, width, height };
+}
+
+/**
  * Correct a tap/point captured relative to a contentFit="contain" image's
  * CONTAINER for letterboxing, returning a normalized (0-1) point relative to
  * the visible IMAGE content. Points landing in the letterbox margin clamp to
  * the nearest edge.
  */
 export function containerPointToImageNorm(point: Point, containerSize: Size, imageSize: Size): Point {
-  const scale = Math.min(containerSize.width / imageSize.width, containerSize.height / imageSize.height);
-  const renderedWidth = imageSize.width * scale;
-  const renderedHeight = imageSize.height * scale;
-  const offsetX = (containerSize.width - renderedWidth) / 2;
-  const offsetY = (containerSize.height - renderedHeight) / 2;
-
+  const rect = imageFitRect(containerSize, imageSize);
   return {
-    x: clamp01((point.x - offsetX) / renderedWidth),
-    y: clamp01((point.y - offsetY) / renderedHeight),
+    x: clamp01((point.x - rect.x) / rect.width),
+    y: clamp01((point.y - rect.y) / rect.height),
   };
 }
 
 /** Inverse of containerPointToImageNorm — image-normalized point -> container pixel. */
 export function imageNormToContainerPoint(point: Point, containerSize: Size, imageSize: Size): Point {
-  const scale = Math.min(containerSize.width / imageSize.width, containerSize.height / imageSize.height);
-  const renderedWidth = imageSize.width * scale;
-  const renderedHeight = imageSize.height * scale;
-  const offsetX = (containerSize.width - renderedWidth) / 2;
-  const offsetY = (containerSize.height - renderedHeight) / 2;
-
+  const rect = imageFitRect(containerSize, imageSize);
   return {
-    x: offsetX + point.x * renderedWidth,
-    y: offsetY + point.y * renderedHeight,
+    x: rect.x + point.x * rect.width,
+    y: rect.y + point.y * rect.height,
   };
 }
 

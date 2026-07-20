@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, Pressable, ScrollView, StyleSheet, Alert,
   ActivityIndicator, Modal, Dimensions, TextInput, KeyboardAvoidingView, Platform,
+  Image as RNImage,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -20,12 +21,18 @@ import {
   photosForLocation, addLocationPhoto, deleteLocationPhoto, updatePhotoDetails,
   markPhotoDimensionsStamped,
 } from '@/src/data/photo-repo';
-import { loadWallsForLocation, loadWallSymbols, loadFloorPlanForLocation, deleteWall } from '@/src/data/floor-plan-repo';
+import {
+  loadWallsForLocation, loadWallSymbols, loadFloorPlanForLocation, deleteWall,
+  addWallSymbol, deleteWallSymbol,
+} from '@/src/data/floor-plan-repo';
 import { roomFootprintMeters } from '@/src/domain/wall-geometry';
 import { saveCapture, deletePhoto, overwritePhotoFile } from '@/src/media/camera-service';
 import { useCameraOrientation } from '@/src/media/useCameraOrientation';
 import { useVoiceAction } from '@/src/voice/voice-bus';
-import { loadAnnotations, hasAnnotations, deleteAnnotations, type AnnotationStroke, type PlacedSymbol } from '@/src/media/annotation-service';
+import {
+  loadAnnotations, hasAnnotations, deleteAnnotations, denormalizeStroke, denormalizeSymbol,
+  type AnnotationStroke, type PlacedSymbol,
+} from '@/src/media/annotation-service';
 import { AnnotationEditor } from '@/src/ui/annotations/AnnotationEditor';
 import { PlacedSymbolGroup } from '@/src/ui/annotations/symbols';
 import { WallShareCapture } from '@/src/ui/walls/WallShareCapture';
@@ -96,6 +103,14 @@ export default function RoomScreen() {
   const [lightboxPhoto, setLightboxPhoto] = useState<Photo | null>(null);
   const [lightboxStrokes, setLightboxStrokes] = useState<AnnotationStroke[]>([]);
   const [lightboxSymbols, setLightboxSymbols] = useState<PlacedSymbol[]>([]);
+  const [lightboxImageSize, setLightboxImageSize] = useState<{ width: number; height: number } | null>(null);
+  // Set when the open lightbox photo is a wall's attached photo — its
+  // symbols are then sourced from (and synced back to) wall_symbols instead
+  // of the photo's own local annotation file, so they also show up on the
+  // floor plan overlay and in wall-photo shares. positionAlongWall/photoY
+  // and PlacedSymbol's x/y are the same normalized-to-photo-content space
+  // (see wall/[id].tsx), so no conversion is needed either direction.
+  const [lightboxAttachedWall, setLightboxAttachedWall] = useState<Wall | null>(null);
   const [annotatedIds, setAnnotatedIds] = useState<Set<string>>(new Set());
   const [annotatorOpen, setAnnotatorOpen] = useState(false);
 
@@ -243,9 +258,25 @@ export default function RoomScreen() {
 
   const openLightbox = async (photo: Photo) => {
     const { strokes, symbols } = await loadAnnotations(photo.id);
+    const attachedWall = walls.find((w) => w.photoId === photo.id) ?? null;
+    setLightboxAttachedWall(attachedWall);
     setLightboxStrokes(strokes);
-    setLightboxSymbols(symbols);
+    if (attachedWall) {
+      const wallSymbols = await loadWallSymbols(attachedWall.id);
+      setLightboxSymbols(wallSymbols.map((s) => ({ id: s.id, type: s.type, x: s.positionAlongWall, y: s.photoY, color: s.color ?? '#FFFFFF' })));
+    } else {
+      setLightboxSymbols(symbols);
+    }
     setLightboxPhoto(photo);
+    // Strokes/symbols are stored normalized to the photo's own image content
+    // (see annotation-service.ts) — need the photo's natural pixel size to
+    // convert them into this full-screen lightbox's own letterboxing.
+    setLightboxImageSize(null);
+    RNImage.getSize(
+      photo.filePath,
+      (width, height) => setLightboxImageSize({ width, height }),
+      () => setLightboxImageSize(null),
+    );
   };
 
   const openCaptionEdit = () => {
@@ -627,15 +658,20 @@ export default function RoomScreen() {
               contentFit="contain"
             />
           )}
-          {/* Annotation overlay — strokes + symbols */}
-          {(lightboxStrokes.length > 0 || lightboxSymbols.length > 0) && (
+          {/* Annotation overlay — strokes + symbols, denormalized to this
+              full-screen container's own letterboxing (see openLightbox). */}
+          {lightboxImageSize && (lightboxStrokes.length > 0 || lightboxSymbols.length > 0) && (
             <Svg width={SCREEN_W} height={SCREEN_H} style={StyleSheet.absoluteFillObject} pointerEvents="none">
-              {lightboxStrokes.map((s, i) => (
-                <Path key={i} d={s.path} stroke={s.color} strokeWidth={s.width} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-              ))}
-              {lightboxSymbols.map((sym) => (
-                <PlacedSymbolGroup key={sym.id} symbol={sym} />
-              ))}
+              {lightboxStrokes
+                .map((s) => denormalizeStroke(s, { width: SCREEN_W, height: SCREEN_H }, lightboxImageSize))
+                .map((s, i) => (
+                  <Path key={i} d={s.path} stroke={s.color} strokeWidth={s.width} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                ))}
+              {lightboxSymbols
+                .map((sym) => denormalizeSymbol(sym, { width: SCREEN_W, height: SCREEN_H }, lightboxImageSize))
+                .map((sym) => (
+                  <PlacedSymbolGroup key={sym.id} symbol={sym} />
+                ))}
             </Svg>
           )}
           <SafeAreaView style={styles.lightboxClose} edges={['top']}>
@@ -683,17 +719,37 @@ export default function RoomScreen() {
           photoId={lightboxPhoto.id}
           initialStrokes={lightboxStrokes}
           initialSymbols={lightboxSymbols}
+          linkedWallLabel={lightboxAttachedWall?.label}
           onClose={() => setAnnotatorOpen(false)}
-          onSaved={(strokes, symbols) => {
+          onSaved={async (strokes, symbols) => {
+            let finalSymbols = symbols;
+            if (lightboxAttachedWall) {
+              // lightboxSymbols here is still the pre-edit snapshot loaded in
+              // openLightbox — diff by id against the newly-returned list to
+              // find what changed, and push that into wall_symbols (the
+              // source of truth for the floor plan overlay / wall shares).
+              const wall = lightboxAttachedWall;
+              const beforeIds = new Set(lightboxSymbols.map((s) => s.id));
+              const afterIds = new Set(symbols.map((s) => s.id));
+              const removed = lightboxSymbols.filter((s) => !afterIds.has(s.id));
+              const added = symbols.filter((s) => !beforeIds.has(s.id));
+              await Promise.all([
+                ...removed.map((s) => deleteWallSymbol(s.id)),
+                ...added.map((s) => addWallSymbol(wall.id, s.type, s.x, s.y, s.color)),
+              ]);
+              const refreshed = await loadWallSymbols(wall.id);
+              finalSymbols = refreshed.map((s) => ({ id: s.id, type: s.type, x: s.positionAlongWall, y: s.photoY, color: s.color ?? '#FFFFFF' }));
+            }
             setLightboxStrokes(strokes);
-            setLightboxSymbols(symbols);
+            setLightboxSymbols(finalSymbols);
             setAnnotatedIds((prev) => {
               const next = new Set(prev);
-              if (strokes.length > 0 || symbols.length > 0) next.add(lightboxPhoto.id);
+              if (strokes.length > 0 || finalSymbols.length > 0) next.add(lightboxPhoto.id);
               else next.delete(lightboxPhoto.id);
               return next;
             });
             setAnnotatorOpen(false);
+            reload();
           }}
         />
       )}
