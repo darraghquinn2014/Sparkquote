@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import {
   View, Text, Pressable, FlatList, TextInput,
-  StyleSheet, Alert, ActivityIndicator, Modal, ScrollView,
+  StyleSheet, Alert, ActivityIndicator, Modal, ScrollView, Share,
 } from 'react-native';
+import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -141,6 +142,33 @@ export default function SnagListScreen() {
     ]);
   };
 
+  const shareSnag = async (item: SnagItem) => {
+    const loc = locationLabel(item.locationId);
+    const message = `${item.description}${loc ? ` (${loc})` : ''} — resolved`;
+    try {
+      if (item.photoPath && (await Sharing.isAvailableAsync())) {
+        await Sharing.shareAsync(item.photoPath, { dialogTitle: message });
+        return;
+      }
+      await Share.share({ message });
+    } catch (e) {
+      Alert.alert('Could not share', String(e));
+    }
+  };
+
+  const shareAll = async () => {
+    const lines = items.map((i) => {
+      const loc = locationLabel(i.locationId);
+      return `${i.resolved ? '[x]' : '[ ]'} ${i.description}${loc ? ` — ${loc}` : ''}`;
+    });
+    const message = `Snag list — ${projectName}\n\n${lines.join('\n')}`;
+    try {
+      await Share.share({ message });
+    } catch (e) {
+      Alert.alert('Could not share', String(e));
+    }
+  };
+
   // ── Location picker ───────────────────────────────────────────────────────
 
   const floors = locations.filter((l) => l.parentId == null);
@@ -233,16 +261,16 @@ export default function SnagListScreen() {
         <Pressable onPress={() => router.back()} hitSlop={12}>
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
-        <View style={{ flex: 1, marginHorizontal: space.md }}>
-          <Text style={styles.title}>Snag List</Text>
-          {projectName ? <Text style={styles.sub}>{projectName}</Text> : null}
-        </View>
         <Pressable
           style={styles.addBtn}
           onPress={() => { setAdding(true); setDraft(''); setDraftLocationId(undefined); setDraftPhotoUri(undefined); }}
         >
           <Text style={styles.addBtnText}>+ Add</Text>
         </Pressable>
+        <View style={styles.headerTitleOverlay} pointerEvents="none">
+          <Text style={styles.title}>Snag List</Text>
+          {projectName ? <Text style={styles.sub}>{projectName}</Text> : null}
+        </View>
       </View>
 
       <FlatList
@@ -308,7 +336,12 @@ export default function SnagListScreen() {
         }
         ListFooterComponent={
           done.length > 0 ? (
-            <Text style={styles.doneLabel}>{done.length} resolved</Text>
+            <View style={styles.footerRow}>
+              <Text style={styles.doneLabel}>{done.length} resolved</Text>
+              <Pressable onPress={shareAll} hitSlop={8}>
+                <Text style={styles.shareAllLink}>Share all</Text>
+              </Pressable>
+            </View>
           ) : null
         }
         renderItem={({ item }) => (
@@ -343,6 +376,12 @@ export default function SnagListScreen() {
                   <Text style={styles.rowLocation}>{locationLabel(item.locationId)}</Text>
                 )}
               </View>
+              {item.resolved && (
+                <Pressable onPress={() => shareSnag(item)} hitSlop={8}>
+                  <Text style={styles.shareLink}>Share</Text>
+                </Pressable>
+              )}
+              <Text style={styles.swipeHint}>‹</Text>
             </Pressable>
           </Swipeable>
         )}
@@ -441,13 +480,16 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ground },
 
   header: {
-    flexDirection: 'row', alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: space.lg, paddingVertical: space.md,
     borderBottomWidth: 1, borderBottomColor: colors.hairline,
   },
+  headerTitleOverlay: {
+    ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center',
+  },
   back: { color: colors.textSecondary, fontSize: 16, fontWeight: '600' },
-  title: { color: colors.textPrimary, fontSize: 18, fontWeight: '800' },
-  sub: { color: colors.textMuted, fontSize: 12, marginTop: 1 },
+  title: { color: colors.textPrimary, fontSize: 18, fontWeight: '800', textAlign: 'center' },
+  sub: { color: colors.textMuted, fontSize: 12, marginTop: 1, textAlign: 'center' },
   addBtn: {
     backgroundColor: ACCENT, borderRadius: radius.pill,
     paddingHorizontal: space.md, paddingVertical: space.sm,
@@ -514,10 +556,17 @@ const styles = StyleSheet.create({
   desc: { flex: 1, fontSize: 15, color: colors.textPrimary, fontWeight: '500' },
   descDone: { textDecorationLine: 'line-through', color: colors.textMuted },
 
+  footerRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: space.md, marginTop: space.lg,
+  },
   doneLabel: {
     fontSize: 11, fontWeight: '700', color: colors.textMuted,
-    letterSpacing: 1, textAlign: 'center', marginTop: space.lg,
+    letterSpacing: 1,
   },
+  shareAllLink: { fontSize: 12, fontWeight: '700', color: ACCENT },
+  shareLink: { color: ACCENT, fontSize: 13, fontWeight: '700' },
+  swipeHint: { color: colors.textMuted, fontSize: 16, fontWeight: '600', opacity: 0.5 },
 
   deleteAction: {
     backgroundColor: colors.danger, justifyContent: 'center',
