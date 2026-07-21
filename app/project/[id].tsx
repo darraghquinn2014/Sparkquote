@@ -273,14 +273,14 @@ export default function ProjectDetailScreen() {
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12}><Text style={styles.back}>‹ Back</Text></Pressable>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-          <Pressable style={styles.reportBtn} onPress={() => router.push(`/project/quote/${id}` as any)} hitSlop={8}>
-            <Text style={styles.reportBtnText}>Quote</Text>
+          <Pressable style={[styles.reportBtn, { backgroundColor: `${colors.accent}1A`, borderColor: `${colors.accent}55` }]} onPress={() => router.push(`/project/quote/${id}` as any)} hitSlop={8}>
+            <Text style={[styles.reportBtnText, { color: colors.accent }]}>Quote</Text>
           </Pressable>
-          <Pressable style={styles.reportBtn} onPress={() => router.push(`/project/snag/${id}` as any)} hitSlop={8}>
-            <Text style={styles.reportBtnText}>Snags</Text>
+          <Pressable style={[styles.reportBtn, { backgroundColor: `${colors.danger}1A`, borderColor: `${colors.danger}55` }]} onPress={() => router.push(`/project/snag/${id}` as any)} hitSlop={8}>
+            <Text style={[styles.reportBtnText, { color: colors.danger }]}>Snags</Text>
           </Pressable>
-          <Pressable style={styles.reportBtn} onPress={generateReport} disabled={reportBusy} hitSlop={8}>
-            <Text style={styles.reportBtnText}>{reportBusy ? '…' : 'Report'}</Text>
+          <Pressable style={[styles.reportBtn, { backgroundColor: `${colors.accentSecondary}1A`, borderColor: `${colors.accentSecondary}55` }]} onPress={generateReport} disabled={reportBusy} hitSlop={8}>
+            <Text style={[styles.reportBtnText, { color: colors.accentSecondary }]}>{reportBusy ? '…' : 'Report'}</Text>
           </Pressable>
           <Pressable onPress={openOverflow} hitSlop={12}>
             <Text style={styles.moreBtn}>•••</Text>

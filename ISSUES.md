@@ -25,13 +25,38 @@ How to use this file:
   floor" as equivalent, both directions.
   _Changed: `src/voice/matcher.ts`_
 
-- [ ] **Cable added as drums, not metres.** Turned out to be correct
+- [x] **Cable added as drums, not metres.** Turned out to be correct
   behaviour for genuinely drum-sold cable (not a bug), but there was no way
   to just say "I need 200m" and let the app work out how many drums to
   bill. Material Picker now reads the drum length straight out of the
-  catalogue description (the number before the word "Drum") and lets you
-  type metres needed — rounds up to whole drums billed.
+  catalogue (the number before the word "Drum") and lets you type metres
+  needed — rounds up to whole drums billed. Device-verified 2026-07-21.
   _Changed: `src/domain/drum-size.ts`, `src/ui/catalogue/MaterialPicker.tsx`_
+  Follow-up (2026-07-21, two rounds of device testing):
+  1. Drum detection didn't trigger at all — the real catalogue puts "100m
+     drum" in the item's `unit` field (shown as "CEF-001 · 100m drum · cef"
+     under the description), not in the description text, so the
+     description-only search always came back null. Now checks `unit` as a
+     fallback.
+  2. Once detected, the amount input/drum-hint/Add button were unreachable
+     behind the numeric keypad — several attempts at tuning
+     `KeyboardAvoidingView`/sheet height math (Android double-resizes:
+     `AndroidManifest.xml` sets `windowSoftInputMode="adjustResize"` *and*
+     the sheet was also doing its own height math, so both together either
+     hid content behind the keyboard or collapsed the sheet to ~0 height)
+     didn't hold up. Fixed properly by sidestepping the problem instead:
+     the selected-item card is no longer part of the scrollable
+     sheet/keyboard-avoiding flow at all — it now floats as its own
+     absolutely-positioned panel pinned near the top of the screen (with a
+     ✕ to dismiss), safely clear of the keyboard regardless of platform
+     quirks. Device-verified 2026-07-21.
+  Note: five other sheets have the same
+  `Platform.OS === 'ios' ? 'padding' : 'height'` KeyboardAvoidingView
+  pattern (`LabourSheet.tsx`, `catalogue.tsx`, `plan/[id].tsx` ×2,
+  `room/[id].tsx` ×2) and may have the same latent keyboard-overlap bug —
+  not touched yet, flagging for a future round if they turn out to be
+  affected too.
+  _Changed: `src/ui/catalogue/MaterialPicker.tsx`_
 
 ### Everything else
 
@@ -41,9 +66,14 @@ How to use this file:
   both floor and room rows (long-press still works too).
   _Changed: `app/project/[id].tsx`_
 
-- [ ] **"Quote" button looked already-active.** It was styled as a solid
+- [x] **"Quote" button looked already-active.** It was styled as a solid
   filled pill (like a selected tab) even though it's just a link to the
   Quote screen. Restyled to match the other nav links (Snags/Report).
+  Device-verified 2026-07-21. Follow-up: Darragh wanted some colour added
+  back — Quote/Snags/Report are now tinted pills (accent blue / danger red /
+  accent-secondary cyan), each a light background+border+text tint of its
+  own colour, same pill shape/size across all three. Device-verified
+  2026-07-21.
   _Changed: `app/project/[id].tsx`_
 
 - [ ] **Snag list: no share, no delete hint, header cramped.** Resolved
@@ -54,15 +84,15 @@ How to use this file:
   properly centered instead of crowding the Back button.
   _Changed: `app/project/snag/[id].tsx`_
 
-- [ ] **Labour rate had no Cancel.** Tapping away used to silently save
+- [x] **Labour rate had no Cancel.** Tapping away used to silently save
   whatever was typed. Now there are explicit Save/Cancel buttons — nothing
-  changes until you tap Save.
+  changes until you tap Save. Device-verified 2026-07-21.
   _Changed: `app/project/quote/[id].tsx`_
 
-- [ ] **Wanted a dedicated page per floor.** New page at a floor's own
+- [x] **Wanted a dedicated page per floor.** New page at a floor's own
   screen (tap a floor's name on the project screen) listing just that
   floor's rooms to add/edit/delete — in addition to the existing inline
-  list on the project screen, not instead of it.
+  list on the project screen, not instead of it. Device-verified 2026-07-21.
   _New file: `app/project/floor/[id].tsx`_
 
 - [x] **Calibration screen: can't zoom, no height prompt, Android nav bar
@@ -81,9 +111,10 @@ How to use this file:
   Device-verified 2026-07-20.
   _Changed: `app/project/plan/[id].tsx`_
 
-- [ ] **Plan screen header off-centre, no project name.** Header now shows
+- [x] **Plan screen header off-centre, no project name.** Header now shows
   the floor name (capitals, accent-coloured project name underneath),
-  properly centered regardless of the Back/••• button widths.
+  properly centered regardless of the Back/••• button widths. Device-verified
+  2026-07-21.
   _Changed: `app/project/plan/[id].tsx`_
 
 ---

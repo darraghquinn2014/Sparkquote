@@ -8,10 +8,8 @@
  */
 import React, { useMemo, useState } from 'react';
 import {
-  Dimensions, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, StyleSheet,
+  KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, StyleSheet, useWindowDimensions,
 } from 'react-native';
-
-const SHEET_HEIGHT = Dimensions.get('window').height * 0.85;
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Material, Currency } from '../../domain/types';
 import { colors, space, radius, type } from '../theme/tokens';
@@ -28,6 +26,8 @@ interface Props {
 
 export function MaterialPicker({ visible, materials, currency, onAdd, onClose }: Props) {
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
+  const sheetHeight = windowHeight * 0.85;
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Material | null>(null);
   const [amountText, setAmountText] = useState('1');
@@ -49,7 +49,9 @@ export function MaterialPicker({ visible, materials, currency, onAdd, onClose }:
   }, [materials, query, activeSupplier]);
 
   const isMetres = selected?.unit === 'm';
-  const drumLen = selected && !isMetres ? drumLengthMeters(selected.description) : null;
+  const drumLen = selected && !isMetres
+    ? drumLengthMeters(selected.description) ?? drumLengthMeters(selected.unit)
+    : null;
   const isDrum = drumLen != null;
   const amountNum = parseFloat(amountText);
   const drumsBilled = isDrum && drumLen && Number.isFinite(amountNum) && amountNum > 0
@@ -79,7 +81,7 @@ export function MaterialPicker({ visible, materials, currency, onAdd, onClose }:
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.kavWrapper}
         >
-          <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }]}>
+          <View style={[styles.sheet, { height: sheetHeight, paddingBottom: insets.bottom + 12 }]}>
             <View style={styles.grabber} />
             <View style={styles.headerRow}>
               <Text style={styles.title}>Add material</Text>
@@ -153,40 +155,44 @@ export function MaterialPicker({ visible, materials, currency, onAdd, onClose }:
                 <Text style={styles.empty}>No materials match "{query}".</Text>
               )}
             </ScrollView>
-
-            {selected && (
-              <View style={styles.addRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.addItemName} numberOfLines={1}>{selected.description}</Text>
-                  <Text style={styles.addLabel}>
-                    {isDrum ? 'Metres needed' : isMetres ? 'Metres' : 'Quantity'} · {formatMoney(selected.unitCostMinor, currency)} / {selected.unit}
-                  </Text>
-                  {isDrum && drumsBilled != null && (
-                    <Text style={styles.addDrumHint}>
-                      = {drumsBilled} drum{drumsBilled === 1 ? '' : 's'} billed ({drumLen}m each)
-                    </Text>
-                  )}
-                  <Text style={styles.addTotal}>Total: {formatMoney(previewTotal, currency)}</Text>
-                </View>
-                <TextInput
-                  value={amountText}
-                  onChangeText={(t) => {
-                    const cleaned = t.replace(/[^0-9.]/g, '');
-                    const parts = cleaned.split('.');
-                    setAmountText(parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : cleaned);
-                  }}
-                  keyboardType="decimal-pad"
-                  style={styles.amountInput}
-                  selectTextOnFocus
-                  accessibilityLabel={isDrum ? 'Metres needed' : isMetres ? 'Metres' : 'Quantity'}
-                />
-                <Pressable style={styles.addBtn} onPress={confirmAdd}>
-                  <Text style={styles.addBtnText}>Add</Text>
-                </Pressable>
-              </View>
-            )}
           </View>
         </KeyboardAvoidingView>
+
+        {selected && (
+          <View style={[styles.floatingAddRow, { top: insets.top + space.sm }]}>
+            <Text style={styles.addItemName} numberOfLines={1}>{selected.description}</Text>
+            <Text style={styles.addLabel}>
+              {isDrum ? 'Metres needed' : isMetres ? 'Metres' : 'Quantity'} · {formatMoney(selected.unitCostMinor, currency)} / {selected.unit}
+            </Text>
+            {isDrum && drumsBilled != null && (
+              <Text style={styles.addDrumHint}>
+                = {drumsBilled} drum{drumsBilled === 1 ? '' : 's'} billed ({drumLen}m each)
+              </Text>
+            )}
+            <Text style={styles.addTotal}>Total: {formatMoney(previewTotal, currency)}</Text>
+            <View style={styles.floatingAddRowControls}>
+              <TextInput
+                value={amountText}
+                onChangeText={(t) => {
+                  const cleaned = t.replace(/[^0-9.]/g, '');
+                  const parts = cleaned.split('.');
+                  setAmountText(parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : cleaned);
+                }}
+                keyboardType="decimal-pad"
+                style={styles.amountInput}
+                selectTextOnFocus
+                autoFocus
+                accessibilityLabel={isDrum ? 'Metres needed' : isMetres ? 'Metres' : 'Quantity'}
+              />
+              <Pressable style={styles.addBtn} onPress={confirmAdd}>
+                <Text style={styles.addBtnText}>Add</Text>
+              </Pressable>
+              <Pressable style={styles.floatingCancelBtn} onPress={() => setSelected(null)} hitSlop={8}>
+                <Text style={styles.floatingCancelBtnText}>✕</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
       </View>
     </Modal>
   );
@@ -196,7 +202,7 @@ const styles = StyleSheet.create({
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   scrimTap: { flex: 1 },
   kavWrapper: { width: '100%' },
-  sheet: { height: SHEET_HEIGHT, backgroundColor: colors.ground, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: space.lg, paddingTop: space.sm },
+  sheet: { backgroundColor: colors.ground, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: space.lg, paddingTop: space.sm },
   grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.hairline, marginBottom: space.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.md },
   title: { fontSize: 20, fontWeight: '800', color: colors.textPrimary },
@@ -211,13 +217,29 @@ const styles = StyleSheet.create({
   rowMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   rowPrice: { fontSize: 15, fontWeight: '700', color: colors.textSecondary, fontVariant: ['tabular-nums'] },
   rowPriceActive: { color: colors.accent },
-  addRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.surface, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.md, marginTop: space.sm },
+  floatingAddRow: {
+    position: 'absolute',
+    left: space.md,
+    right: space.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.tile,
+    padding: space.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 20,
+  },
+  floatingAddRowControls: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginTop: space.sm },
+  floatingCancelBtn: { paddingHorizontal: space.sm, paddingVertical: space.sm },
+  floatingCancelBtnText: { color: colors.textSecondary, fontSize: 16, fontWeight: '700' },
   addItemName: { fontSize: 13, fontWeight: '700', color: colors.textPrimary, marginBottom: 2 },
   addLabel: { fontSize: 11, fontWeight: '700', color: colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
   addDrumHint: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginTop: 2 },
   addTotal: { fontSize: 13, fontWeight: '700', color: colors.accent, marginTop: 3 },
   amountInput: { width: 80, backgroundColor: colors.ground, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.sm, color: colors.textPrimary, fontSize: 18, fontWeight: '700', fontVariant: ['tabular-nums'], textAlign: 'center' },
-  addBtn: { backgroundColor: colors.accent, borderRadius: radius.tile, paddingHorizontal: space.xl, paddingVertical: space.sm },
+  addBtn: { flex: 1, backgroundColor: colors.accent, borderRadius: radius.tile, paddingHorizontal: space.xl, paddingVertical: space.sm, alignItems: 'center' },
   addBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 15 },
   empty: { color: colors.textMuted, textAlign: 'center', paddingVertical: space.xl },
   supplierContainer: { height: 44, marginBottom: space.sm },
