@@ -154,6 +154,8 @@ export class SnagItemModel extends Model {
   @text('description') description!: string;
   @field('resolved') resolved!: boolean;
   @text('photo_path') photoPath!: string | null;
+  @text('resolution_note') resolutionNote!: string | null;
+  @text('resolved_photo_path') resolvedPhotoPath!: string | null;
   @field('sort_order') sortOrder!: number;
   @field('created_at') createdAt!: number;
 }

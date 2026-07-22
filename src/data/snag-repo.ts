@@ -14,6 +14,8 @@ function toSnagItem(r: SnagItemModel): SnagItem {
   };
   if (r.locationId != null) item.locationId = r.locationId;
   if (r.photoPath != null) item.photoPath = r.photoPath;
+  if (r.resolutionNote != null) item.resolutionNote = r.resolutionNote;
+  if (r.resolvedPhotoPath != null) item.resolvedPhotoPath = r.resolvedPhotoPath;
   return item;
 }
 
@@ -41,6 +43,8 @@ export async function createSnagItem(
       r.locationId = locationId ?? null;
       r.description = description;
       r.resolved = false;
+      r.resolutionNote = null;
+      r.resolvedPhotoPath = null;
       r.sortOrder = existing;
       r.createdAt = Date.now();
     });
@@ -56,17 +60,28 @@ export async function updateSnagItemPhoto(id: string, photoPath: string): Promis
   });
 }
 
-export async function toggleSnagItem(id: string): Promise<void> {
+export async function setSnagResolved(id: string, resolved: boolean, resolutionNote?: string): Promise<void> {
   await database.write(async () => {
     const row = await database.get<SnagItemModel>('snag_items').find(id);
-    await row.update((r) => { r.resolved = !r.resolved; });
+    await row.update((r) => {
+      r.resolved = resolved;
+      if (resolutionNote !== undefined) r.resolutionNote = resolutionNote.trim() || null;
+    });
   });
 }
 
-export async function setSnagResolved(id: string, resolved: boolean): Promise<void> {
+export async function updateSnagResolutionNote(id: string, note: string): Promise<void> {
   await database.write(async () => {
     const row = await database.get<SnagItemModel>('snag_items').find(id);
-    await row.update((r) => { r.resolved = resolved; });
+    await row.update((r) => { r.resolutionNote = note.trim() || null; });
+  });
+}
+
+/** Patch a snag item's "after" (fix) photo path, or clear it by passing undefined. */
+export async function updateSnagResolvedPhoto(id: string, photoPath: string | undefined): Promise<void> {
+  await database.write(async () => {
+    const row = await database.get<SnagItemModel>('snag_items').find(id);
+    await row.update((r) => { r.resolvedPhotoPath = photoPath ?? null; });
   });
 }
 

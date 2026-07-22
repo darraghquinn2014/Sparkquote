@@ -146,6 +146,10 @@ export interface SnagItem {
   description: string;
   resolved: boolean;
   photoPath?: string;
+  /** Optional note on how the snag was fixed, set when marking it resolved. */
+  resolutionNote?: string;
+  /** Optional "after" photo showing the fix, alongside the original (before) photoPath. */
+  resolvedPhotoPath?: string;
   sortOrder: number;
   createdAt: number;
 }

@@ -78,13 +78,34 @@ How to use this file:
   2026-07-21.
   _Changed: `app/project/[id].tsx`_
 
-- [ ] **Snag list: no share, no delete hint, header cramped.** Resolved
+- [x] **Snag list: no share, no delete hint, header cramped.** Resolved
   snags now have a "Share" link (shares the photo + note, or just the note
   if there's no photo). A "Share all" link exports the whole list (open +
   resolved) as a text summary. Swipe-to-delete still swipes left, but each
   row now shows a small "‹" hint so it's discoverable. Header title is now
-  properly centered instead of crowding the Back button.
+  properly centered instead of crowding the Back button. Device-verified
+  2026-07-22.
   _Changed: `app/project/snag/[id].tsx`_
+  Follow-up (2026-07-22): added an optional resolution note + "after" photo
+  when marking a snag resolved (schema v12→v13, `resolution_note` +
+  `resolved_photo_path` columns). Ticking the checkbox (only the checkbox,
+  not the whole row) opens a "Mark resolved" card anchored near the top of
+  the screen — not a bottom sheet — so it stays clear of the keyboard;
+  resolved rows show before/after thumbnails and an "Edit note" link. Also
+  fixed two pre-existing share bugs found along the way: (1) sharing a
+  resolved snag's photo via `expo-sharing` silently sent only the photo,
+  dropping the description/note text entirely (`dialogTitle` isn't part of
+  the shared message) — switched to `react-native-share`, matching the
+  wall-photo share pattern; (2) that in turn crashed with a null-Uri
+  exception because react-native-share's Android FileProvider only exposes
+  the cache dir by default, not the app-private "files" storage where snag
+  photos live (logcat: "Failed to find configured root") — fixed by copying
+  the photo(s) into cache before sharing. Share now attaches both photos
+  when both exist, with a single-photo call shaped for more reliable Gmail
+  attachment (`url` singular) vs. multi-photo (`urls` array).
+  _Changed: `app/project/snag/[id].tsx`, `src/data/schema.ts`,
+  `src/data/migrations.ts`, `src/data/models.ts`, `src/data/snag-repo.ts`,
+  `src/domain/types.ts`_
 
 - [x] **Labour rate had no Cancel.** Tapping away used to silently save
   whatever was typed. Now there are explicit Save/Cancel buttons — nothing

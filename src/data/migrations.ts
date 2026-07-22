@@ -132,5 +132,23 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 12,
+      steps: [
+        addColumns({
+          table: 'snag_items',
+          columns: [{ name: 'resolution_note', type: 'string', isOptional: true }],
+        }),
+      ],
+    },
+    {
+      toVersion: 13,
+      steps: [
+        addColumns({
+          table: 'snag_items',
+          columns: [{ name: 'resolved_photo_path', type: 'string', isOptional: true }],
+        }),
+      ],
+    },
   ],
 });

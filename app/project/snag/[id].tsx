@@ -3,7 +3,7 @@ import {
   View, Text, Pressable, FlatList, TextInput,
   StyleSheet, Alert, ActivityIndicator, Modal, ScrollView, Share,
 } from 'react-native';
-import * as Sharing from 'expo-sharing';
+import RNShare from 'react-native-share';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -12,7 +12,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import { Image } from 'expo-image';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
-  snagItemsForProject, createSnagItem, toggleSnagItem, deleteSnagItem, updateSnagItemPhoto,
+  snagItemsForProject, createSnagItem, setSnagResolved, updateSnagResolutionNote,
+  updateSnagResolvedPhoto, deleteSnagItem, updateSnagItemPhoto,
 } from '@/src/data/snag-repo';
 import { loadProjects, loadLocations } from '@/src/data/project-repo';
 import { importSnagPhoto, deleteSnagPhoto } from '@/src/media/snag-photo-service';
@@ -54,6 +55,13 @@ export default function SnagListScreen() {
   useCameraOrientation(cameraOpen);
 
   const [lightboxUri, setLightboxUri] = useState<string | null>(null);
+
+  const [noteModalItem, setNoteModalItem] = useState<SnagItem | null>(null);
+  const [noteModalIsNewResolve, setNoteModalIsNewResolve] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [resolvePhotoUri, setResolvePhotoUri] = useState<string | undefined>(undefined);
+  const [resolvePhotoIsNew, setResolvePhotoIsNew] = useState(false);
+  const [resolvePhotoRemoved, setResolvePhotoRemoved] = useState(false);
 
   // When set, the next captured/picked photo attaches to this ALREADY-CREATED
   // item (a snag voice just added) instead of the "+ Add" draft flow.
@@ -125,8 +133,67 @@ export default function SnagListScreen() {
 
   const toggle = async (item: SnagItem) => {
     swipeRefs.current.get(item.id)?.close();
-    await toggleSnagItem(item.id);
+    if (!item.resolved) {
+      setNoteModalIsNewResolve(true);
+      setNoteDraft('');
+      setResolvePhotoUri(undefined);
+      setResolvePhotoIsNew(false);
+      setResolvePhotoRemoved(false);
+      setNoteModalItem(item);
+      return;
+    }
+    await setSnagResolved(item.id, false);
     reload();
+  };
+
+  const openEditNote = (item: SnagItem) => {
+    setNoteModalIsNewResolve(false);
+    setNoteDraft(item.resolutionNote ?? '');
+    setResolvePhotoUri(item.resolvedPhotoPath);
+    setResolvePhotoIsNew(false);
+    setResolvePhotoRemoved(false);
+    setNoteModalItem(item);
+  };
+
+  const closeNoteModal = () => {
+    setNoteModalItem(null);
+    setNoteDraft('');
+    setResolvePhotoUri(undefined);
+    setResolvePhotoIsNew(false);
+    setResolvePhotoRemoved(false);
+  };
+
+  const removeResolvePhoto = () => {
+    setResolvePhotoUri(undefined);
+    setResolvePhotoIsNew(false);
+    setResolvePhotoRemoved(true);
+  };
+
+  const saveNote = async () => {
+    if (!noteModalItem) return;
+    let resolvedPhotoPath = noteModalItem.resolvedPhotoPath;
+    try {
+      if (resolvePhotoIsNew && resolvePhotoUri) {
+        const filePath = await importSnagPhoto(resolvePhotoUri, mediaPaths, projectId, `${noteModalItem.id}-after`);
+        if (noteModalItem.resolvedPhotoPath) await deleteSnagPhoto(noteModalItem.resolvedPhotoPath);
+        resolvedPhotoPath = filePath;
+      } else if (resolvePhotoRemoved && noteModalItem.resolvedPhotoPath) {
+        await deleteSnagPhoto(noteModalItem.resolvedPhotoPath);
+        resolvedPhotoPath = undefined;
+      }
+      if (noteModalIsNewResolve) {
+        await setSnagResolved(noteModalItem.id, true, noteDraft);
+      } else {
+        await updateSnagResolutionNote(noteModalItem.id, noteDraft);
+      }
+      if (resolvedPhotoPath !== noteModalItem.resolvedPhotoPath) {
+        await updateSnagResolvedPhoto(noteModalItem.id, resolvedPhotoPath);
+      }
+      closeNoteModal();
+      reload();
+    } catch (e) {
+      Alert.alert('Could not save', String(e));
+    }
   };
 
   const confirmDelete = (item: SnagItem) => {
@@ -138,6 +205,7 @@ export default function SnagListScreen() {
         onPress: async () => {
           await deleteSnagItem(item.id);
           if (item.photoPath) await deleteSnagPhoto(item.photoPath);
+          if (item.resolvedPhotoPath) await deleteSnagPhoto(item.resolvedPhotoPath);
           reload();
         },
       },
@@ -146,10 +214,30 @@ export default function SnagListScreen() {
 
   const shareSnag = async (item: SnagItem) => {
     const loc = locationLabel(item.locationId);
-    const message = `${item.description}${loc ? ` (${loc})` : ''} — resolved`;
+    const hasBoth = !!item.photoPath && !!item.resolvedPhotoPath;
+    const message = `${item.description}${loc ? ` (${loc})` : ''} — resolved`
+      + (item.resolutionNote ? `\nNote: ${item.resolutionNote}` : '')
+      + (hasBoth ? '\n(Before & after photos attached)' : '');
     try {
-      if (item.photoPath && (await Sharing.isAvailableAsync())) {
-        await Sharing.shareAsync(item.photoPath, { dialogTitle: message });
+      const photos = [item.photoPath, item.resolvedPhotoPath].filter((p): p is string => !!p);
+      if (photos.length > 0) {
+        // react-native-share's Android FileProvider only exposes the cache
+        // dir by default, not app-private "files" storage where snag photos
+        // live — sharing the raw path fails silently (logcat: "Failed to
+        // find configured root"). Copy into cache first.
+        const cachePaths = await Promise.all(photos.map(async (p, i) => {
+          const cachePath = `${mediaPaths.cacheDir}share-snag-${item.id}-${i}.jpg`;
+          await FileSystem.copyAsync({ from: p, to: cachePath });
+          return cachePath;
+        }));
+        // Some mail apps (Gmail) are more reliable attaching a single file
+        // via `url` than a one-item `urls` array — only use `urls` when
+        // there's genuinely more than one photo to attach.
+        if (cachePaths.length === 1) {
+          await RNShare.open({ url: cachePaths[0], type: 'image/jpeg', message, failOnCancel: false });
+        } else {
+          await RNShare.open({ urls: cachePaths, type: 'image/jpeg', message, failOnCancel: false });
+        }
         return;
       }
       await Share.share({ message });
@@ -161,7 +249,8 @@ export default function SnagListScreen() {
   const shareAll = async () => {
     const lines = items.map((i) => {
       const loc = locationLabel(i.locationId);
-      return `${i.resolved ? '[x]' : '[ ]'} ${i.description}${loc ? ` — ${loc}` : ''}`;
+      const note = i.resolved && i.resolutionNote ? ` — ${i.resolutionNote}` : '';
+      return `${i.resolved ? '[x]' : '[ ]'} ${i.description}${loc ? ` — ${loc}` : ''}${note}`;
     });
     const message = `Snag list — ${projectName}\n\n${lines.join('\n')}`;
     try {
@@ -223,6 +312,10 @@ export default function SnagListScreen() {
     if (!capturedUri) return;
     if (voicePhotoTargetId) {
       attachPhotoToVoiceSnag(capturedUri, voicePhotoTargetId).catch((e) => Alert.alert('Could not save photo', String(e)));
+    } else if (noteModalItem) {
+      setResolvePhotoUri(capturedUri);
+      setResolvePhotoIsNew(true);
+      setResolvePhotoRemoved(false);
     } else {
       setDraftPhotoUri(capturedUri);
     }
@@ -241,6 +334,10 @@ export default function SnagListScreen() {
     const uri = result.assets[0]!.uri;
     if (voicePhotoTargetId) {
       attachPhotoToVoiceSnag(uri, voicePhotoTargetId).catch((e) => Alert.alert('Could not save photo', String(e)));
+    } else if (noteModalItem) {
+      setResolvePhotoUri(uri);
+      setResolvePhotoIsNew(true);
+      setResolvePhotoRemoved(false);
     } else {
       setDraftPhotoUri(uri);
     }
@@ -361,14 +458,25 @@ export default function SnagListScreen() {
               </Pressable>
             )}
           >
-            <Pressable style={[styles.row, item.resolved && styles.rowDone]} onPress={() => toggle(item)}>
-              <View style={[styles.checkbox, item.resolved && styles.checkboxDone]}>
-                {item.resolved && <Text style={styles.checkmark}>✓</Text>}
-              </View>
-              {item.photoPath && (
-                <Pressable onPress={() => setLightboxUri(item.photoPath!)} hitSlop={4}>
-                  <Image source={{ uri: item.photoPath }} style={styles.rowThumb} contentFit="cover" />
-                </Pressable>
+            <View style={[styles.row, item.resolved && styles.rowDone]}>
+              <Pressable onPress={() => toggle(item)} hitSlop={10}>
+                <View style={[styles.checkbox, item.resolved && styles.checkboxDone]}>
+                  {item.resolved && <Text style={styles.checkmark}>✓</Text>}
+                </View>
+              </Pressable>
+              {(item.photoPath || item.resolvedPhotoPath) && (
+                <View style={styles.thumbPair}>
+                  {item.photoPath && (
+                    <Pressable onPress={() => setLightboxUri(item.photoPath!)} hitSlop={4}>
+                      <Image source={{ uri: item.photoPath }} style={styles.rowThumb} contentFit="cover" />
+                    </Pressable>
+                  )}
+                  {item.resolvedPhotoPath && (
+                    <Pressable onPress={() => setLightboxUri(item.resolvedPhotoPath!)} hitSlop={4}>
+                      <Image source={{ uri: item.resolvedPhotoPath }} style={styles.rowThumb} contentFit="cover" />
+                    </Pressable>
+                  )}
+                </View>
               )}
               <View style={{ flex: 1 }}>
                 <Text style={[styles.desc, item.resolved && styles.descDone]} numberOfLines={2}>
@@ -377,14 +485,22 @@ export default function SnagListScreen() {
                 {locationLabel(item.locationId) && (
                   <Text style={styles.rowLocation}>{locationLabel(item.locationId)}</Text>
                 )}
+                {item.resolved && item.resolutionNote && (
+                  <Text style={styles.resolutionNote} numberOfLines={3}>{item.resolutionNote}</Text>
+                )}
               </View>
               {item.resolved && (
-                <Pressable onPress={() => shareSnag(item)} hitSlop={8}>
-                  <Text style={styles.shareLink}>Share</Text>
-                </Pressable>
+                <View style={styles.resolvedLinks}>
+                  <Pressable onPress={() => shareSnag(item)} hitSlop={8}>
+                    <Text style={styles.shareLink}>Share</Text>
+                  </Pressable>
+                  <Pressable onPress={() => openEditNote(item)} hitSlop={8}>
+                    <Text style={styles.noteLink}>{item.resolutionNote ? 'Edit note' : '+ Note'}</Text>
+                  </Pressable>
+                </View>
               )}
               <Text style={styles.swipeHint}>‹</Text>
-            </Pressable>
+            </View>
           </Swipeable>
         )}
       />
@@ -427,6 +543,57 @@ export default function SnagListScreen() {
             <Pressable onPress={() => setLocationPickerOpen(false)} style={styles.sheetCancel}>
               <Text style={styles.sheetCancelText}>Close</Text>
             </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Resolution note — anchored near the top of the screen (not a bottom
+          sheet) so it stays clear of the keyboard regardless of platform
+          resize quirks, same fix as MaterialPicker's floating panel. */}
+      <Modal visible={noteModalItem != null} transparent animationType="fade" onRequestClose={closeNoteModal}>
+        <Pressable style={styles.noteOverlay} onPress={closeNoteModal}>
+          <Pressable style={styles.noteCard} onPress={() => {}}>
+            <Text style={styles.sheetTitle}>{noteModalIsNewResolve ? 'Mark resolved' : 'Resolution note'}</Text>
+            {noteModalItem && (
+              <Text style={styles.noteItemDesc} numberOfLines={2}>{noteModalItem.description}</Text>
+            )}
+            <TextInput
+              style={styles.noteInput}
+              value={noteDraft}
+              onChangeText={setNoteDraft}
+              placeholder="How was this fixed? (optional)"
+              placeholderTextColor={colors.textMuted}
+              multiline
+              autoFocus
+            />
+
+            <Text style={styles.fieldLabel}>After photo (optional)</Text>
+            {resolvePhotoUri ? (
+              <View style={styles.draftPhotoRow}>
+                <Image source={{ uri: resolvePhotoUri }} style={styles.draftPhotoThumb} contentFit="cover" />
+                <Pressable onPress={removeResolvePhoto} hitSlop={8}>
+                  <Text style={styles.draftPhotoRemove}>Remove photo</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={styles.photoBtnRow}>
+                <Pressable style={styles.photoBtn} onPress={openCamera}>
+                  <Text style={styles.photoBtnText}>Take photo</Text>
+                </Pressable>
+                <Pressable style={styles.photoBtnSecondary} onPress={pickFromLibrary}>
+                  <Text style={styles.photoBtnSecondaryText}>Choose from library</Text>
+                </Pressable>
+              </View>
+            )}
+
+            <View style={[styles.addRow, { marginTop: space.md }]}>
+              <Pressable onPress={closeNoteModal} hitSlop={8}>
+                <Text style={styles.addCancel}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.addConfirm} onPress={saveNote}>
+                <Text style={styles.addConfirmText}>{noteModalIsNewResolve ? 'Mark resolved' : 'Save'}</Text>
+              </Pressable>
+            </View>
           </Pressable>
         </Pressable>
       </Modal>
@@ -520,6 +687,13 @@ const styles = StyleSheet.create({
   },
   addConfirmText: { color: colors.accentInk, fontWeight: '800', fontSize: 14 },
 
+  noteInput: {
+    backgroundColor: colors.ground, borderRadius: radius.tile,
+    paddingHorizontal: space.md, paddingVertical: space.md,
+    color: colors.textPrimary, fontSize: 15, minHeight: 80, textAlignVertical: 'top',
+    marginBottom: space.md,
+  },
+
   locationBtn: {
     backgroundColor: colors.ground, borderRadius: radius.tile,
     paddingHorizontal: space.md, paddingVertical: space.sm,
@@ -544,8 +718,10 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.hairline,
   },
   rowDone: { opacity: 0.5 },
+  thumbPair: { flexDirection: 'row', gap: 4 },
   rowThumb: { width: 40, height: 40, borderRadius: radius.tile / 2 },
   rowLocation: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
+  resolutionNote: { color: colors.textSecondary, fontSize: 12, fontStyle: 'italic', marginTop: 4 },
 
   checkbox: {
     width: 24, height: 24, borderRadius: 6,
@@ -567,7 +743,9 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   shareAllLink: { fontSize: 12, fontWeight: '700', color: ACCENT },
+  resolvedLinks: { alignItems: 'flex-end', gap: 4 },
   shareLink: { color: ACCENT, fontSize: 13, fontWeight: '700' },
+  noteLink: { color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
   swipeHint: { color: colors.textMuted, fontSize: 16, fontWeight: '600', opacity: 0.5 },
 
   deleteAction: {
@@ -583,6 +761,16 @@ const styles = StyleSheet.create({
   emptyHintSmall: { color: colors.textMuted, fontSize: 13, fontStyle: 'italic', paddingVertical: space.md },
 
   sheetOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
+  noteOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center', paddingTop: space.xxl * 2, paddingHorizontal: space.lg,
+  },
+  noteCard: { width: '100%', backgroundColor: colors.surface, borderRadius: radius.bar, padding: space.xl },
+  noteItemDesc: { color: colors.textSecondary, fontSize: 14, fontWeight: '600', marginBottom: space.md },
+  fieldLabel: {
+    color: colors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 0.5,
+    textTransform: 'uppercase', marginBottom: space.xs,
+  },
   sheet: {
     backgroundColor: colors.surface, borderTopLeftRadius: radius.bar, borderTopRightRadius: radius.bar,
     padding: space.xl, paddingBottom: space.xxl,
