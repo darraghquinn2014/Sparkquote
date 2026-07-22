@@ -258,7 +258,7 @@ export default function FloorDetailScreen() {
               <Text style={styles.chipText}>+ Custom</Text>
             </Pressable>
             <Pressable style={styles.chip} onPress={resetAdd}>
-              <Text style={styles.chipText}>Cancel</Text>
+              <Text style={[styles.chipText, { color: colors.danger }]}>Cancel</Text>
             </Pressable>
           </View>
         ) : adding && customRoom ? (
@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
   addConfirm: { backgroundColor: colors.accent, borderRadius: radius.tile, paddingHorizontal: space.lg, paddingVertical: space.sm },
   addConfirmText: { color: colors.accentInk, fontWeight: '800', fontSize: 14 },
   addCancel: { borderRadius: radius.tile, paddingHorizontal: space.lg, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.hairline },
-  addCancelText: { color: colors.textSecondary, fontWeight: '700', fontSize: 14 },
+  addCancelText: { color: colors.danger, fontWeight: '700', fontSize: 14 },
 
   empty: { color: colors.textMuted, textAlign: 'center', marginTop: space.xxl },
 });

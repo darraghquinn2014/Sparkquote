@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: space.md, marginTop: space.lg },
   btn: { flex: 1, paddingVertical: space.md, borderRadius: radius.tile, alignItems: 'center' },
   cancelBtn: { backgroundColor: colors.surface },
-  cancelText: { color: colors.textSecondary, fontWeight: '700', fontSize: 15 },
+  cancelText: { color: colors.danger, fontWeight: '700', fontSize: 15 },
   saveBtn: { backgroundColor: colors.accent },
   saveBtnDisabled: { opacity: 0.4 },
   saveText: { color: colors.accentInk, fontWeight: '800', fontSize: 15 },

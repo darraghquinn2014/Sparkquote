@@ -508,7 +508,7 @@ const styles = StyleSheet.create({
   addRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
   },
-  addCancel: { color: colors.textSecondary, fontSize: 14, fontWeight: '600' },
+  addCancel: { color: colors.danger, fontSize: 14, fontWeight: '600' },
   addInput: {
     backgroundColor: colors.ground, borderRadius: radius.tile,
     paddingHorizontal: space.md, paddingVertical: space.md,

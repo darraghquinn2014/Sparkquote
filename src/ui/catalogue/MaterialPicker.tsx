@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
   },
   floatingAddRowControls: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginTop: space.sm },
   floatingCancelBtn: { paddingHorizontal: space.sm, paddingVertical: space.sm },
-  floatingCancelBtnText: { color: colors.textSecondary, fontSize: 16, fontWeight: '700' },
+  floatingCancelBtnText: { color: colors.danger, fontSize: 16, fontWeight: '700' },
   addItemName: { fontSize: 13, fontWeight: '700', color: colors.textPrimary, marginBottom: 2 },
   addLabel: { fontSize: 11, fontWeight: '700', color: colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
   addDrumHint: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginTop: 2 },

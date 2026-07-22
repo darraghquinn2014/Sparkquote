@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: space.md, marginTop: space.xl },
   actionBtn: { flex: 1, paddingVertical: space.md, borderRadius: radius.tile, alignItems: 'center' },
   cancelBtn: { backgroundColor: colors.surface },
-  cancelText: { color: colors.textSecondary, fontWeight: '700', fontSize: 15 },
+  cancelText: { color: colors.danger, fontWeight: '700', fontSize: 15 },
   addBtn: { backgroundColor: colors.accent },
   addBtnDisabled: { opacity: 0.4 },
   addText: { color: colors.accentInk, fontWeight: '800', fontSize: 15 },

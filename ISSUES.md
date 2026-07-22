@@ -17,12 +17,13 @@ How to use this file:
 
 ### Bugs
 
-- [ ] **Voice add lands in the wrong room.** Saying a floor+room before an
+- [x] **Voice add lands in the wrong room.** Saying a floor+room before an
   add-material command (e.g. "first floor, kitchen, add 200m of cable")
   wasn't reaching the spoken room — root cause was floors auto-named
   "Floor 1"/"Floor 2" (voice-created) not matching spoken ordinals like
   "first floor". Fixed floor-name matching to treat "Floor 1" and "first
-  floor" as equivalent, both directions.
+  floor" as equivalent, both directions. Device-verified 2026-07-21
+  ("first floor kitchen, add 2 sockets" landed correctly).
   _Changed: `src/voice/matcher.ts`_
 
 - [x] **Cable added as drums, not metres.** Turned out to be correct
@@ -60,10 +61,11 @@ How to use this file:
 
 ### Everything else
 
-- [ ] **No way to cancel adding a floor/room, and deleting one was hidden.**
+- [x] **No way to cancel adding a floor/room, and deleting one was hidden.**
   Add-floor/add-room now has a visible Cancel in both the quick-pick chips
   and the custom-name step. Delete is now a visible link next to Edit on
-  both floor and room rows (long-press still works too).
+  both floor and room rows (long-press still works too). Device-verified
+  2026-07-21.
   _Changed: `app/project/[id].tsx`_
 
 - [x] **"Quote" button looked already-active.** It was styled as a solid

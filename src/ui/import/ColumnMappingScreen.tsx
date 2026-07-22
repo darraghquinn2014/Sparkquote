@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
   },
   actionBtn: { flex: 1, paddingVertical: space.md, borderRadius: radius.bar, alignItems: 'center' },
   cancelBtn: { backgroundColor: colors.surface },
-  cancelText: { ...type.body, color: colors.textSecondary, fontWeight: '700' },
+  cancelText: { ...type.body, color: colors.danger, fontWeight: '700' },
   commitBtn: { backgroundColor: colors.accent },
   commitDisabled: { backgroundColor: colors.surfacePressed },
   commitText: { ...type.body, color: colors.accentInk, fontWeight: '800' },

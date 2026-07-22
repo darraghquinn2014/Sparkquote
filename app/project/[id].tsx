@@ -325,7 +325,7 @@ export default function ProjectDetailScreen() {
               <Text style={styles.floorChipText}>+ Custom</Text>
             </Pressable>
             <Pressable style={styles.floorChip} onPress={() => setAddingTo(null)}>
-              <Text style={styles.floorChipText}>Cancel</Text>
+              <Text style={[styles.floorChipText, { color: colors.danger }]}>Cancel</Text>
             </Pressable>
           </View>
         )}
@@ -428,7 +428,7 @@ export default function ProjectDetailScreen() {
                   <Text style={styles.floorChipText}>+ Custom</Text>
                 </Pressable>
                 <Pressable style={styles.floorChip} onPress={() => setAddingTo(null)}>
-                  <Text style={styles.floorChipText}>Cancel</Text>
+                  <Text style={[styles.floorChipText, { color: colors.danger }]}>Cancel</Text>
                 </Pressable>
               </View>
             ) : addingTo === floor.id && customRoom ? (
@@ -506,6 +506,6 @@ const styles = StyleSheet.create({
   addConfirm: { backgroundColor: colors.accent, borderRadius: radius.tile, paddingHorizontal: space.lg, paddingVertical: space.sm },
   addConfirmText: { color: colors.accentInk, fontWeight: '800', fontSize: 14 },
   addCancel: { borderRadius: radius.tile, paddingHorizontal: space.lg, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.hairline },
-  addCancelText: { color: colors.textSecondary, fontWeight: '700', fontSize: 14 },
+  addCancelText: { color: colors.danger, fontWeight: '700', fontSize: 14 },
   empty: { color: colors.textMuted, textAlign: 'center', marginTop: space.xxl },
 });

@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
   pickBtnDisabled: { opacity: 0.4 },
   pickText: { fontSize: 16, fontWeight: '800', color: '#FFFFFF' },
   cancelBtn: { paddingVertical: 14, alignItems: 'center' },
-  cancelText: { fontSize: 15, color: '#6B8DAE', fontWeight: '600' },
+  cancelText: { fontSize: 15, color: '#E5564B', fontWeight: '600' },
   supplierInput: { backgroundColor: '#0C1928', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, color: '#E8F1FF', fontSize: 18, fontWeight: '600', borderWidth: 1, borderColor: '#1A3060' },
   overlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.6)' },
   overlayText: { color: '#1B8FFF', marginTop: 12, fontWeight: '700' },

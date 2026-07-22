@@ -386,7 +386,7 @@ const styles = StyleSheet.create({
   rateCurrency: { color: colors.textPrimary, fontSize: 17, fontWeight: '700' },
   rateInput: { color: colors.textPrimary, fontSize: 17, fontWeight: '700', minWidth: 60, paddingHorizontal: 4 },
   ratePerHr: { color: colors.textSecondary, fontSize: 15 },
-  rateCancel: { color: colors.textSecondary, fontSize: 14, fontWeight: '600' },
+  rateCancel: { color: colors.danger, fontSize: 14, fontWeight: '600' },
   rateSave: { backgroundColor: colors.accent, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.xs },
   rateSaveText: { color: colors.accentInk, fontWeight: '800', fontSize: 13 },
 

@@ -53,7 +53,7 @@ export default function NewProjectScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ground },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.lg, paddingVertical: space.md, borderBottomWidth: 1, borderBottomColor: colors.hairline },
-  cancel: { color: colors.textSecondary, fontSize: 16, fontWeight: '600' },
+  cancel: { color: colors.danger, fontSize: 16, fontWeight: '600' },
   title: { color: colors.textPrimary, fontSize: 18, fontWeight: '800' },
   save: { color: colors.accent, fontSize: 16, fontWeight: '800' },
   saveDisabled: { opacity: 0.4 },

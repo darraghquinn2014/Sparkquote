@@ -80,7 +80,7 @@ export function SignAndSendScreen({ estimate, onSigned, onCancel }: Props) {
           <Text style={styles.secondaryText}>Clear</Text>
         </Pressable>
         <Pressable onPress={onCancel} style={[styles.actionBtn, styles.secondaryBtn]}>
-          <Text style={styles.secondaryText}>Cancel</Text>
+          <Text style={[styles.secondaryText, { color: colors.danger }]}>Cancel</Text>
         </Pressable>
         <Pressable
           onPress={confirm}

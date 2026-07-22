@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.hairline,
   },
-  headerCancel: { color: colors.textSecondary, fontSize: 15, fontWeight: '600', width: 56 },
+  headerCancel: { color: colors.danger, fontSize: 15, fontWeight: '600', width: 56 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: space.md, width: 56, justifyContent: 'flex-end' },
   headerIconBtn: { padding: 2 },
   headerIcon: { color: '#fff', fontSize: 20, fontWeight: '700' },

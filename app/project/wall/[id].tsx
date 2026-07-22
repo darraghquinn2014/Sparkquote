@@ -538,7 +538,7 @@ const styles = StyleSheet.create({
   sheetConfirm: { backgroundColor: colors.accent, borderRadius: radius.tile, paddingVertical: space.md, alignItems: 'center', marginTop: space.md },
   sheetConfirmText: { color: colors.accentInk, fontWeight: '800', fontSize: 15 },
   sheetCancel: { alignItems: 'center', paddingTop: space.md },
-  sheetCancelText: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
+  sheetCancelText: { color: colors.danger, fontSize: 14, fontWeight: '600' },
 
   symbolRow: { gap: space.sm, paddingBottom: space.xs },
   symbolBtn: {

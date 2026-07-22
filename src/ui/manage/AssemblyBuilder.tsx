@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
   sheet: { backgroundColor: colors.ground, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '92%', paddingHorizontal: space.lg, paddingTop: space.sm },
   grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.hairline, marginBottom: space.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.lg },
-  cancel: { color: colors.textSecondary, fontSize: 16, fontWeight: '600' },
+  cancel: { color: colors.danger, fontSize: 16, fontWeight: '600' },
   title: { color: colors.textPrimary, fontSize: 18, fontWeight: '800' },
   save: { color: colors.accent, fontSize: 16, fontWeight: '800' },
   saveDisabled: { opacity: 0.4 },

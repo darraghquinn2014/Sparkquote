@@ -244,7 +244,7 @@ export function VoiceAddModal({
                   <Text style={styles.empty}>No projects yet — create one first.</Text>
                 )}
               </ScrollView>
-              <Pressable style={styles.cancelLink} onPress={backToIdle}><Text style={styles.cancelLinkText}>Cancel</Text></Pressable>
+              <Pressable style={styles.cancelLink} onPress={backToIdle}><Text style={[styles.cancelLinkText, { color: colors.danger }]}>Cancel</Text></Pressable>
             </View>
           )}
 
@@ -290,7 +290,7 @@ export function VoiceAddModal({
                   <Text style={styles.empty}>No materials match "{manualQuery}".</Text>
                 )}
               </ScrollView>
-              <Pressable style={styles.cancelLink} onPress={backToIdle}><Text style={styles.cancelLinkText}>Cancel</Text></Pressable>
+              <Pressable style={styles.cancelLink} onPress={backToIdle}><Text style={[styles.cancelLinkText, { color: colors.danger }]}>Cancel</Text></Pressable>
             </View>
           )}
 
@@ -389,7 +389,7 @@ const styles = StyleSheet.create({
   confirmActions: { flexDirection: 'row', gap: space.md, marginTop: space.md },
   bigBtn: { flex: 1, paddingVertical: space.lg, borderRadius: radius.tile, alignItems: 'center' },
   cancelBtn: { backgroundColor: colors.surface },
-  cancelBtnText: { color: colors.textSecondary, fontWeight: '800', fontSize: 17 },
+  cancelBtnText: { color: colors.danger, fontWeight: '800', fontSize: 17 },
   confirmBtn: { backgroundColor: colors.accent },
   confirmBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 17 },
   savedText: { color: colors.accent, fontWeight: '800', fontSize: 20 },

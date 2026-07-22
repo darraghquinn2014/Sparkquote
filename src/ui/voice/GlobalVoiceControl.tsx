@@ -2263,7 +2263,7 @@ const styles = StyleSheet.create({
   pickRowMeta: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
   empty: { color: colors.textMuted, textAlign: 'center', paddingVertical: space.xl },
   cancelLink: { alignSelf: 'center', paddingVertical: space.md },
-  cancelLinkText: { color: colors.textSecondary, fontWeight: '600', fontSize: 14 },
+  cancelLinkText: { color: colors.danger, fontWeight: '600', fontSize: 14 },
   search: { backgroundColor: colors.surface, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.md, color: colors.textPrimary, fontSize: 16, marginBottom: space.sm },
 
   confirmArea: { paddingVertical: space.lg, gap: space.md },
@@ -2279,7 +2279,7 @@ const styles = StyleSheet.create({
   confirmActions: { flexDirection: 'row', gap: space.md, marginTop: space.md },
   bigBtn: { flex: 1, paddingVertical: space.lg, borderRadius: radius.tile, alignItems: 'center' },
   cancelBtn: { backgroundColor: colors.surface },
-  cancelBtnText: { color: colors.textSecondary, fontWeight: '800', fontSize: 17 },
+  cancelBtnText: { color: colors.danger, fontWeight: '800', fontSize: 17 },
   confirmBtn: { backgroundColor: colors.accent },
   dangerBtn: { backgroundColor: colors.danger },
   confirmBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 17 },

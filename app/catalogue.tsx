@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
     paddingVertical: space.md, fontVariant: ['tabular-nums'],
   },
   sheetBtns: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  cancelText: { color: colors.textSecondary, fontSize: 15, fontWeight: '600' },
+  cancelText: { color: colors.danger, fontSize: 15, fontWeight: '600' },
   saveBtn: {
     backgroundColor: colors.accent, borderRadius: radius.pill,
     paddingHorizontal: space.xl, paddingVertical: space.sm,

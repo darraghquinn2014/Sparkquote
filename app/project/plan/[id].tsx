@@ -556,7 +556,7 @@ export default function FloorPlanScreen() {
               </ScrollView>
             )}
             <Pressable onPress={() => setRoomPicker(null)} style={styles.sheetCancel}>
-              <Text style={styles.sheetCancelText}>Cancel</Text>
+              <Text style={[styles.sheetCancelText, { color: colors.danger }]}>Cancel</Text>
             </Pressable>
           </Pressable>
         </Pressable>
@@ -588,7 +588,7 @@ export default function FloorPlanScreen() {
             </View>
             <View style={styles.calibBtnRow}>
               <Pressable onPress={cancelCalibration} style={styles.sheetCancel}>
-                <Text style={styles.sheetCancelText}>Cancel</Text>
+                <Text style={[styles.sheetCancelText, { color: colors.danger }]}>Cancel</Text>
               </Pressable>
               <Pressable onPress={commitCalibration} style={styles.calibSaveBtn}>
                 <Text style={styles.calibSaveBtnText}>Save scale</Text>

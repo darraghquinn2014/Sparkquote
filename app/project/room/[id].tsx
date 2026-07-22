@@ -1094,7 +1094,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: space.sm,
   },
-  captionCancel: { color: colors.textSecondary, fontSize: 15, fontWeight: '600' },
+  captionCancel: { color: colors.danger, fontSize: 15, fontWeight: '600' },
   captionSaveBtn: {
     backgroundColor: colors.accent,
     borderRadius: radius.pill,

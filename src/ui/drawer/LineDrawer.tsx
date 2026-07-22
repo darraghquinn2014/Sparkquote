@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
   removeText: { color: '#E06A6A', fontWeight: '600', fontSize: 15 },
   actionBtn: { flex: 1, paddingVertical: space.md, borderRadius: radius.bar, alignItems: 'center' },
   cancelBtn: { backgroundColor: colors.ground },
-  cancelText: { ...type.body, color: colors.textSecondary, fontWeight: '700' },
+  cancelText: { ...type.body, color: colors.danger, fontWeight: '700' },
   saveBtn: { backgroundColor: colors.accent },
   saveText: { ...type.body, color: colors.accentInk, fontWeight: '800' },
 });
