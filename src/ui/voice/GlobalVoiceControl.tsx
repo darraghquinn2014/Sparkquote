@@ -88,11 +88,17 @@ const CONFIDENT_SCORE = 0.25;
 const allLaborToggles = seedLaborToggles.map(toLaborToggle);
 const laborToggleIndex = new Map(allLaborToggles.map((t) => [t.id, t]));
 
+/** Android Material bottom tab bar content height (excludes safe-area inset,
+ * which insets.bottom already covers) — clears the mic FAB of the tab bar
+ * on the three tab screens (Home/Projects/Settings). */
+const TAB_BAR_HEIGHT = 56;
+
 export function GlobalVoiceControl() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const isQuickQuote = pathname === '/estimate';
+  const isTabScreen = pathname === '/' || pathname === '/projects' || pathname === '/settings';
   const { projectId: currentProjectId, locationId: currentLocationId } = useCurrentProjectContext();
   const voice = useVoiceCommand();
 
@@ -1658,7 +1664,15 @@ export function GlobalVoiceControl() {
   return (
     <>
       {pathname !== '/voice-setup' && (
-        <Pressable style={[styles.fab, { bottom: insets.bottom + 24 }]} onPress={open} hitSlop={8}>
+        <Pressable
+          style={[
+            styles.fab,
+            { bottom: insets.bottom + 24 + (isTabScreen ? TAB_BAR_HEIGHT : 0) },
+            !visible && styles.fabIdle,
+          ]}
+          onPress={open}
+          hitSlop={8}
+        >
           <Text style={styles.fabGlyph}>🎤</Text>
         </Pressable>
       )}
@@ -2227,6 +2241,9 @@ const styles = StyleSheet.create({
     position: 'absolute', right: space.lg, width: 60, height: 60, borderRadius: 30,
     backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',
     shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6,
+  },
+  fabIdle: {
+    opacity: 0.35, shadowOpacity: 0, elevation: 0,
   },
   fabGlyph: { fontSize: 26 },
 
