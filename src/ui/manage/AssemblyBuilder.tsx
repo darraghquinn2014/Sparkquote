@@ -3,9 +3,9 @@
  * Pick catalogue materials + quantities, set a name/category and labour hours.
  * Saved as a favourite so it appears in Add Job immediately.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Modal, Pressable, ScrollView, Text, TextInput, View, StyleSheet, Alert,
+  findNodeHandle, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, StyleSheet, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Assembly, Material } from '../../domain/types';
@@ -37,6 +37,27 @@ export function AssemblyBuilder({ visible, materials, categories, onClose, onCre
   const [components, setComponents] = useState<DraftComponent[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const hoursInputRef = useRef<TextInput>(null);
+  const [kbHeight, setKbHeight] = useState(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKbHeight(e.endCoordinates.height));
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setKbHeight(0));
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
+
+  const scrollHoursIntoView = () => {
+    setTimeout(() => {
+      const scrollNode = findNodeHandle(scrollRef.current);
+      if (!scrollNode || !hoursInputRef.current) return;
+      hoursInputRef.current.measureLayout(
+        scrollNode,
+        (_x, y) => scrollRef.current?.scrollTo({ y: Math.max(y - 20, 0), animated: true }),
+        () => {},
+      );
+    }, 200);
+  };
 
   const reset = () => {
     setName(''); setCategory(''); setHoursText(''); setComponents([]); setAddingCategory(false);
@@ -103,6 +124,7 @@ export function AssemblyBuilder({ visible, materials, categories, onClose, onCre
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.scrim}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.kavWrapper}>
         <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }]}>
           <View style={styles.grabber} />
           <View style={styles.headerRow}>
@@ -113,7 +135,7 @@ export function AssemblyBuilder({ visible, materials, categories, onClose, onCre
             </Pressable>
           </View>
 
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: space.xl }}>
+          <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: space.xl + kbHeight }}>
             <Text style={styles.label}>Name</Text>
             <TextInput value={name} onChangeText={setName} placeholder="e.g. Install Outdoor Socket" placeholderTextColor={colors.textMuted} style={styles.input} />
 
@@ -148,12 +170,14 @@ export function AssemblyBuilder({ visible, materials, categories, onClose, onCre
 
             <Text style={styles.label}>Labour hours</Text>
             <TextInput
+              ref={hoursInputRef}
               value={hoursText}
               onChangeText={(t) => {
                 const cleaned = t.replace(/[^0-9.]/g, '');
                 const parts = cleaned.split('.');
                 setHoursText(parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : cleaned);
               }}
+              onFocus={scrollHoursIntoView}
               keyboardType="decimal-pad"
               placeholder="e.g. 1.5"
               placeholderTextColor={colors.textMuted}
@@ -188,6 +212,7 @@ export function AssemblyBuilder({ visible, materials, categories, onClose, onCre
             )}
           </ScrollView>
         </View>
+        </KeyboardAvoidingView>
       </View>
 
       <MaterialPicker
@@ -203,6 +228,7 @@ export function AssemblyBuilder({ visible, materials, categories, onClose, onCre
 
 const styles = StyleSheet.create({
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  kavWrapper: { width: '100%' },
   sheet: { backgroundColor: colors.ground, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '92%', paddingHorizontal: space.lg, paddingTop: space.sm },
   grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.hairline, marginBottom: space.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.lg },
