@@ -65,6 +65,8 @@ export class LocationModel extends Model {
   @text('name') name!: string;
   @field('sort_order') sortOrder!: number;
   @field('height_meters') heightMeters!: number | null;
+  @field('length_meters') lengthMeters!: number | null;
+  @field('width_meters') widthMeters!: number | null;
 }
 
 export class EstimateModel extends Model {

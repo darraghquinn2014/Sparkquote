@@ -171,6 +171,9 @@ export interface Location {
   sortOrder: number;
   /** Ceiling height in metres, manually entered (a 2D plan carries no height). */
   heightMeters?: number;
+  /** Room footprint from the photo-based Measure Room flow (reference-object pixel ratio, not the wall-trace floor plan). */
+  lengthMeters?: number;
+  widthMeters?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────

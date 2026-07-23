@@ -13,7 +13,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 13,
+  version: 14,
   tables: [
     // ── Catalogue ────────────────────────────────────────────────────────
     tableSchema({
@@ -84,6 +84,9 @@ export const schema = appSchema({
         { name: 'name', type: 'string' },
         { name: 'sort_order', type: 'number' },
         { name: 'height_meters', type: 'number', isOptional: true }, // ceiling height, manual entry
+        // room footprint from the photo-based Measure Room flow (src/ui/measure/PhotoMeasureSheet.tsx)
+        { name: 'length_meters', type: 'number', isOptional: true },
+        { name: 'width_meters', type: 'number', isOptional: true },
       ],
     }),
 

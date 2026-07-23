@@ -13,7 +13,8 @@
  * All maths is a pixel ratio: wall_m = (wall_px / ref_px) × ref_mm / 1000.
  * No native modules, no ARCore — just expo-camera and geometry.
  */
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import {
   Modal, View, Text, Pressable, StyleSheet, Alert,
   ActivityIndicator, ScrollView, Switch,
@@ -21,8 +22,12 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Image } from 'expo-image';
+import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
 import { calcCableRuns, type CircuitType } from '../../domain/cable-calc';
 import { lineFromMaterial } from '../../data/estimate-service';
+import { setLocationMeasurements } from '../../data/project-repo';
+import { useCameraOrientation } from '../../media/useCameraOrientation';
 import type { LineItem, Material } from '../../domain/types';
 import { colors, space, radius } from '../theme/tokens';
 
@@ -48,7 +53,7 @@ const REF_OPTIONS = [
 ] as const;
 
 const INSTRUCT: Partial<Record<Step, string>> = {
-  'ref-a':  'Tap the LEFT edge of a socket, switch plate, or door frame.',
+  'ref-a':  'Tap the LEFT edge of a socket, switch plate, or door frame. Pinch to zoom in for accuracy.',
   'ref-b':  'Tap the RIGHT edge of the same object.',
   'wall-a': 'Good. Now tap the LEFT end of the wall you want to measure.',
   'wall-b': 'Tap the RIGHT end of that wall.',
@@ -115,6 +120,11 @@ export function PhotoMeasureSheet({ visible, roomName, locationId, materials, on
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
 
+  // Unlocks rotation while this sheet is open so a wall photo taken with the
+  // phone turned sideways actually comes out landscape, instead of always
+  // being forced into the app's fixed portrait orientation.
+  useCameraOrientation(visible);
+
   // Core state
   const [step, setStep]       = useState<Step>('camera');
   const [photoUri, setPhoto]  = useState<string | null>(null);
@@ -129,13 +139,41 @@ export function PhotoMeasureSheet({ visible, roomName, locationId, materials, on
   const [lighting, setLighting] = useState(true);
   const [buf, setBuf]         = useState(true);
 
+  // Belt-and-suspenders: on some devices the orientation lock reasserts
+  // itself back to portrait the moment the CameraView unmounts (leaving the
+  // 'camera' step), even though useCameraOrientation's own unlock is still
+  // active — re-unlock on every step change while the sheet is open so the
+  // photo-marking/zoom view can stay landscape too.
+  useEffect(() => {
+    if (visible) ScreenOrientation.unlockAsync();
+  }, [visible, step]);
+
+  // ── Pinch-zoom / pan on the captured photo, so ref/wall points can be
+  // tapped precisely instead of at whatever accuracy the full-screen photo
+  // allows. Same scale-about-centre + translate approach as the floor-plan
+  // tracer (app/project/plan/[id].tsx) — see unscaleContainerPoint below.
+  const [containerSize, setContainerSize] = useState({ width: 1, height: 1 });
+  const scale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const savedTranslateX = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
+
+  const resetZoom = () => {
+    scale.value = 1; savedScale.value = 1;
+    translateX.value = 0; translateY.value = 0;
+    savedTranslateX.value = 0; savedTranslateY.value = 0;
+  };
+
   // ── Resets ──────────────────────────────────────────────────────────────────
   const resetAll = () => {
     setStep('camera'); setPhoto(null); setPts([]); setRefMm(86);
     setLengthM(null); setWidthM(null); setCapturing(false);
+    resetZoom();
   };
 
-  const resetMeasurement = () => { setPhoto(null); setPts([]); setRefMm(86); setStep('camera'); };
+  const resetMeasurement = () => { setPhoto(null); setPts([]); setRefMm(86); setStep('camera'); resetZoom(); };
 
   const handleClose = () => { resetAll(); onClose(); };
 
@@ -155,9 +193,36 @@ export function PhotoMeasureSheet({ visible, roomName, locationId, materials, on
   };
 
   // ── Tap handler on photo overlay ─────────────────────────────────────────
-  const handleTap = (e: any) => {
-    const { locationX: x, locationY: y } = e.nativeEvent;
-    const newPts = [...pts, { x, y }];
+  // Gesture-handler reports tap x/y relative to the canvas's own unscaled
+  // layout — the pinch/pan transform below only visually magnifies/shifts
+  // the image, it doesn't change that layout. So a raw tap while zoomed
+  // and/or panned lands on the wrong spot unless it's first projected back
+  // through the same scale-about-centre-then-translate the image was given.
+  const unscaleContainerPoint = (x: number, y: number): Pt => {
+    const s = scale.value;
+    const cx = containerSize.width / 2;
+    const cy = containerSize.height / 2;
+    return {
+      x: (x - translateX.value - cx) / s + cx,
+      y: (y - translateY.value - cy) / s + cy,
+    };
+  };
+
+  // pts are stored NORMALIZED (0-1 of containerSize at tap time), not raw
+  // pixels — the instruction banner's text is a different length on each
+  // step (ref-a's is longer than ref-b's, etc.), so the photo area's actual
+  // pixel size can change between the two taps of a pair. A stored raw pixel
+  // point doesn't move when that happens, but the photo underneath does, so
+  // the marker visibly drifts off the spot that was tapped. Denormalize
+  // against the CURRENT containerSize (denormPt, below) whenever a point is
+  // used, so all points are interpreted in one consistent frame regardless
+  // of what containerSize was when each was individually captured.
+  const denormPt = (p: Pt): Pt => ({ x: p.x * containerSize.width, y: p.y * containerSize.height });
+
+  const handleTap = (containerX: number, containerY: number) => {
+    const px = unscaleContainerPoint(containerX, containerY);
+    const norm: Pt = { x: px.x / containerSize.width, y: px.y / containerSize.height };
+    const newPts = [...pts, norm];
     setPts(newPts);
     if (step === 'ref-a')  { setStep('ref-b'); return; }
     if (step === 'ref-b')  { setStep('ref-pick'); return; }
@@ -165,9 +230,52 @@ export function PhotoMeasureSheet({ visible, roomName, locationId, materials, on
     if (step === 'wall-b') { setStep('assign'); return; }
   };
 
+  // Max pan offset (raw screen pixels, matching translateX/Y — translate is
+  // applied on top of scale, unscaled) that keeps the image from drifting
+  // fully off-canvas.
+  const clampTranslate = (value: number, containerDim: number, s: number) => {
+    'worklet';
+    const maxOffset = (containerDim * (s - 1)) / 2;
+    return Math.max(-maxOffset, Math.min(maxOffset, value));
+  };
+
+  const pinchGesture = Gesture.Pinch()
+    .onStart(() => { savedScale.value = scale.value; })
+    .onUpdate((e) => {
+      scale.value = Math.max(1, Math.min(5, savedScale.value * e.scale));
+      translateX.value = clampTranslate(translateX.value, containerSize.width, scale.value);
+      translateY.value = clampTranslate(translateY.value, containerSize.height, scale.value);
+    })
+    .onEnd(() => {
+      if (scale.value <= 1) {
+        scale.value = withSpring(1);
+        translateX.value = withSpring(0);
+        translateY.value = withSpring(0);
+      }
+    });
+
+  const panGesture = Gesture.Pan()
+    .onStart(() => {
+      savedTranslateX.value = translateX.value;
+      savedTranslateY.value = translateY.value;
+    })
+    .onUpdate((e) => {
+      if (scale.value <= 1) return; // nothing to pan when not zoomed
+      translateX.value = clampTranslate(savedTranslateX.value + e.translationX, containerSize.width, scale.value);
+      translateY.value = clampTranslate(savedTranslateY.value + e.translationY, containerSize.height, scale.value);
+    });
+
+  const doubleTapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => {
+      scale.value = withSpring(1);
+      translateX.value = withSpring(0);
+      translateY.value = withSpring(0);
+    });
+
   // ── Measured value ────────────────────────────────────────────────────────
   const measuredM = (step === 'assign' && pts.length === 4)
-    ? calcMetres(pts[0], pts[1], refMm, pts[2], pts[3])
+    ? calcMetres(denormPt(pts[0]), denormPt(pts[1]), refMm, denormPt(pts[2]), denormPt(pts[3]))
     : null;
 
   // ── Assign a role to the measurement ─────────────────────────────────────
@@ -176,8 +284,17 @@ export function PhotoMeasureSheet({ visible, roomName, locationId, materials, on
     const newL = role === 'length' ? measuredM : lengthM;
     const newW = role === 'width'  ? measuredM : widthM;
     if (role === 'length') setLengthM(measuredM); else setWidthM(measuredM);
-    if (newL && newW) { setStep('estimate'); }
-    else              { resetMeasurement(); }  // measure the other wall
+    if (newL && newW) {
+      setStep('estimate');
+      if (locationId) {
+        setLocationMeasurements(locationId, newL, newW).catch((e) => {
+          console.error('Could not save room measurements', e);
+          Alert.alert('Could not save room size', String(e));
+        });
+      }
+    } else {
+      resetMeasurement();  // measure the other wall
+    }
   };
 
   // ── Cable lines ──────────────────────────────────────────────────────────
@@ -209,9 +326,27 @@ export function PhotoMeasureSheet({ visible, roomName, locationId, materials, on
   // ── Tappable steps ───────────────────────────────────────────────────────
   const isTapping = ['ref-a', 'ref-b', 'wall-a', 'wall-b'].includes(step);
 
+  const singleTapGesture = Gesture.Tap()
+    .enabled(isTapping)
+    .onEnd((e) => { runOnJS(handleTap)(e.x, e.y); });
+
+  const photoGesture = Gesture.Exclusive(
+    Gesture.Simultaneous(pinchGesture, panGesture, doubleTapGesture),
+    singleTapGesture,
+  );
+
+  const imageAnimStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
+  }));
+
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <Modal visible={visible} animationType="slide" statusBarTranslucent onRequestClose={handleClose}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={styles.screen} edges={['top']}>
 
         {/* Header */}
@@ -265,28 +400,38 @@ export function PhotoMeasureSheet({ visible, roomName, locationId, materials, on
               </View>
             )}
 
-            {/* Photo + tap overlay */}
+            {/* Photo + pinch-zoom/pan + tap overlay */}
             <View style={styles.photoWrap}>
-              <Image
-                source={{ uri: photoUri! }}
-                style={StyleSheet.absoluteFill}
-                contentFit="contain"
-              />
+              <GestureDetector gesture={photoGesture}>
+                {/* This inner View, NOT the transformed Animated.View below, is what
+                    GestureDetector is attached to — Android auto-corrects touch
+                    coordinates for a view's OWN transform before reporting them, so
+                    attaching the gesture to the already-scaled Animated.View would
+                    have handed handleTap pre-unscaled points, and unscaleContainerPoint
+                    would then double-correct them. Keeping this wrapper untransformed
+                    is what makes containerSize/unscaleContainerPoint's math valid. */}
+                <View
+                  style={StyleSheet.absoluteFill}
+                  onLayout={(e) => setContainerSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
+                >
+                  <Animated.View style={[StyleSheet.absoluteFill, imageAnimStyle]}>
+                    <Image
+                      source={{ uri: photoUri! }}
+                      style={StyleSheet.absoluteFill}
+                      contentFit="contain"
+                    />
 
-              {/* Transparent tap surface */}
-              <Pressable
-                style={StyleSheet.absoluteFill}
-                onPress={isTapping ? handleTap : undefined}
-              >
-                {/* Reference markers — amber */}
-                {pts[0] && <Dot pt={pts[0]} color={colors.accent} num={1} />}
-                {pts[1] && <Dot pt={pts[1]} color={colors.accent} num={2} />}
-                {pts[0] && pts[1] && <SegLine a={pts[0]} b={pts[1]} color={colors.accent} />}
-                {/* Wall markers — blue */}
-                {pts[2] && <Dot pt={pts[2]} color="#64B5F6" num={1} />}
-                {pts[3] && <Dot pt={pts[3]} color="#64B5F6" num={2} />}
-                {pts[2] && pts[3] && <SegLine a={pts[2]} b={pts[3]} color="#64B5F6" />}
-              </Pressable>
+                    {/* Reference markers — amber */}
+                    {pts[0] && <Dot pt={denormPt(pts[0])} color={colors.accent} num={1} />}
+                    {pts[1] && <Dot pt={denormPt(pts[1])} color={colors.accent} num={2} />}
+                    {pts[0] && pts[1] && <SegLine a={denormPt(pts[0])} b={denormPt(pts[1])} color={colors.accent} />}
+                    {/* Wall markers — blue */}
+                    {pts[2] && <Dot pt={denormPt(pts[2])} color="#64B5F6" num={1} />}
+                    {pts[3] && <Dot pt={denormPt(pts[3])} color="#64B5F6" num={2} />}
+                    {pts[2] && pts[3] && <SegLine a={denormPt(pts[2])} b={denormPt(pts[3])} color="#64B5F6" />}
+                  </Animated.View>
+                </View>
+              </GestureDetector>
 
               {/* Reference size picker (overlaid panel) */}
               {step === 'ref-pick' && (
@@ -417,6 +562,7 @@ export function PhotoMeasureSheet({ visible, roomName, locationId, materials, on
         )}
 
       </SafeAreaView>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -442,7 +588,7 @@ const styles = StyleSheet.create({
   shootText:    { color: colors.accentInk, fontWeight: '800', fontSize: 16 },
 
   // Photo marking
-  instructBar:  { backgroundColor: '#1E242E', paddingHorizontal: space.lg, paddingVertical: space.md },
+  instructBar:  { backgroundColor: '#1E242E', paddingHorizontal: space.lg, paddingVertical: space.md, minHeight: 88, justifyContent: 'center' },
   instructText: { color: colors.textPrimary, fontSize: 14, lineHeight: 20 },
   photoWrap:    { flex: 1, position: 'relative', backgroundColor: '#000' },
   dot: {

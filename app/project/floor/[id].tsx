@@ -148,7 +148,7 @@ export default function FloorDetailScreen() {
 
   if (!floor) {
     return (
-      <SafeAreaView style={styles.screen} edges={['top']}>
+      <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} hitSlop={12}><Text style={styles.back}>‹ Back</Text></Pressable>
         </View>
@@ -158,7 +158,7 @@ export default function FloorDetailScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
+    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12}><Text style={styles.back}>‹ Back</Text></Pressable>
         <Pressable style={styles.planBtn} onPress={() => router.push(`/project/plan/${floor.id}` as any)} hitSlop={8}>
@@ -210,7 +210,12 @@ export default function FloorDetailScreen() {
                     </View>
                   )}
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.roomName}>{room.name}</Text>
+                    <Text style={styles.roomName}>
+                      {room.name}
+                      {room.lengthMeters != null && room.widthMeters != null && (
+                        <Text style={styles.roomDims}>  ·  {room.lengthMeters.toFixed(1)}m × {room.widthMeters.toFixed(1)}m</Text>
+                      )}
+                    </Text>
                     <Text style={styles.roomMeta}>
                       {roomWallCounts.get(room.id) ?? 0} wall{(roomWallCounts.get(room.id) ?? 0) === 1 ? '' : 's'}
                       {'  ·  '}
@@ -304,6 +309,7 @@ const styles = StyleSheet.create({
   roomsSelectToggle: { color: colors.accent, fontSize: 13, fontWeight: '700' },
   roomRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, borderRadius: radius.tile, borderWidth: 1, borderColor: colors.hairline, paddingHorizontal: space.md, paddingVertical: space.md, marginBottom: space.sm },
   roomName: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  roomDims: { color: colors.textMuted, fontSize: 12, fontWeight: '500', fontVariant: ['tabular-nums'] },
   roomMeta: { color: colors.textMuted, fontSize: 12, fontWeight: '500', marginTop: 2 },
   roomTotalText: { color: colors.accent, fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'], marginTop: 1 },
   checkbox: {

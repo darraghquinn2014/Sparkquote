@@ -261,7 +261,7 @@ export default function ProjectDetailScreen() {
 
   if (!project) {
     return (
-      <SafeAreaView style={styles.screen} edges={['top']}>
+      <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
         <View style={styles.header}><Pressable onPress={() => router.back()}><Text style={styles.back}>‹ Back</Text></Pressable></View>
         <Text style={styles.empty}>Project not found.</Text>
       </SafeAreaView>
@@ -269,7 +269,7 @@ export default function ProjectDetailScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
+    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12}><Text style={styles.back}>‹ Back</Text></Pressable>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
@@ -400,7 +400,12 @@ export default function ProjectDetailScreen() {
                 ) : (
                   <>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.roomName}>{room.name}</Text>
+                      <Text style={styles.roomName}>
+                        {room.name}
+                        {room.lengthMeters != null && room.widthMeters != null && (
+                          <Text style={styles.roomDims}>  ·  {room.lengthMeters.toFixed(1)}m × {room.widthMeters.toFixed(1)}m</Text>
+                        )}
+                      </Text>
                       {(roomTotals.get(room.id) ?? 0) > 0 && (
                         <Text style={styles.roomTotalText}>{formatMoney(roomTotals.get(room.id)!, 'GBP')}</Text>
                       )}
@@ -494,6 +499,7 @@ const styles = StyleSheet.create({
   floorTotalText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'], marginTop: 1 },
   roomRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.ground, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.md, marginBottom: space.xs },
   roomName: { color: colors.textPrimary, fontSize: 15 },
+  roomDims: { color: colors.textMuted, fontSize: 12, fontVariant: ['tabular-nums'] },
   roomTotalText: { color: colors.accent, fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'], marginTop: 1 },
   roomChevron: { color: colors.textMuted, fontSize: 20 },
   addRoomBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: space.sm, marginTop: space.xs },

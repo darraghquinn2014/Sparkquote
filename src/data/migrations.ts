@@ -150,5 +150,17 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 14,
+      steps: [
+        addColumns({
+          table: 'locations',
+          columns: [
+            { name: 'length_meters', type: 'number', isOptional: true },
+            { name: 'width_meters', type: 'number', isOptional: true },
+          ],
+        }),
+      ],
+    },
   ],
 });

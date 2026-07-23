@@ -25,6 +25,8 @@ function toLocation(r: LocationModel): Location {
   };
   if (r.parentId != null) loc.parentId = r.parentId;
   if (r.heightMeters != null) loc.heightMeters = r.heightMeters;
+  if (r.lengthMeters != null) loc.lengthMeters = r.lengthMeters;
+  if (r.widthMeters != null) loc.widthMeters = r.widthMeters;
   return loc;
 }
 
@@ -122,6 +124,14 @@ export async function setLocationHeight(id: string, heightMeters: number | null)
   await database.write(async () => {
     const row = await database.get<LocationModel>('locations').find(id);
     await row.update((r) => { r.heightMeters = heightMeters; });
+  });
+}
+
+/** Set a room's length/width footprint (metres) captured via the photo-based Measure Room flow. */
+export async function setLocationMeasurements(id: string, lengthMeters: number, widthMeters: number): Promise<void> {
+  await database.write(async () => {
+    const row = await database.get<LocationModel>('locations').find(id);
+    await row.update((r) => { r.lengthMeters = lengthMeters; r.widthMeters = widthMeters; });
   });
 }
 
