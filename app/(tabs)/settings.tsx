@@ -38,7 +38,7 @@ export default function SettingsScreen() {
   const symbol = currency === 'GBP' ? '£' : '€';
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
+    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <ScrollView showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Settings</Text>
 

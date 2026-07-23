@@ -440,7 +440,7 @@ export default function RoomScreen() {
 
   if (!location) {
     return (
-      <SafeAreaView style={styles.screen} edges={['top']}>
+      <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <Pressable onPress={() => router.back()}>
             <Text style={styles.back}>‹ Back</Text>
@@ -452,7 +452,7 @@ export default function RoomScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
+    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12}>
           <Text style={styles.back}>‹ Back</Text>

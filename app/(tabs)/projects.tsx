@@ -50,7 +50,7 @@ export default function ProjectsScreen() {
   useFocusEffect(useCallback(() => { reload(); }, [reload]));
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
+    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Text style={styles.title}>Projects</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
