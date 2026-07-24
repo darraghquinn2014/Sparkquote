@@ -106,16 +106,16 @@ export default function EstimateScreen() {
 
       <View style={styles.headerBtns}>
         <Pressable style={styles.addItemBtn} onPress={() => setAssemblyPickerOpen(true)}>
-          <Text style={styles.addItemText} numberOfLines={1} adjustsFontSizeToFit>+ Job</Text>
+          <Text style={styles.addItemText}>+ Job</Text>
         </Pressable>
         <Pressable style={styles.addItemBtn} onPress={() => setLabourOpen(true)}>
-          <Text style={styles.addItemText} numberOfLines={1} adjustsFontSizeToFit>+ Labour</Text>
+          <Text style={styles.addItemText}>+ Labour</Text>
         </Pressable>
         <Pressable style={styles.addItemBtn} onPress={() => setPickerOpen(true)}>
-          <Text style={styles.addItemText} numberOfLines={1} adjustsFontSizeToFit>+ Material</Text>
+          <Text style={styles.addItemText}>+ Material</Text>
         </Pressable>
         <Pressable style={styles.addItemBtn} onPress={() => setShoppingOpen(true)}>
-          <Text style={styles.addItemText} numberOfLines={1} adjustsFontSizeToFit>Shopping list</Text>
+          <Text style={styles.addItemText}>Shopping list</Text>
         </Pressable>
       </View>
 
@@ -266,9 +266,9 @@ const styles = StyleSheet.create({
   },
   back: { color: colors.textSecondary, fontSize: 16, fontWeight: '600', width: 60 },
   title: { fontSize: 20, fontWeight: '800', color: colors.textPrimary },
-  addItemBtn: { flex: 1, alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.pill, paddingHorizontal: 4, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.hairline },
-  addItemText: { color: colors.accent, fontWeight: '700', fontSize: 13 },
-  headerBtns: { flexDirection: 'row', gap: space.xs, marginBottom: space.lg },
+  addItemBtn: { flex: 1, alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.pill, paddingHorizontal: 2, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.hairline },
+  addItemText: { color: colors.accent, fontWeight: '700', fontSize: 12 },
+  headerBtns: { flexDirection: 'row', gap: 4, marginBottom: space.lg },
   empty: { color: colors.textMuted, textAlign: 'center', marginTop: 40, fontSize: 15 },
   row: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface,
