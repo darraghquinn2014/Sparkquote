@@ -39,6 +39,8 @@ import { lineFromAssembly } from '../../data/estimate-service';
 import { toLaborToggle } from '../../data/mappers';
 import { seedLaborToggles } from '../../data/seed/assemblies';
 import { isLabourOnlyLine, materialLinesForLocation, formatMaterialLineSummary } from '../../domain/materials-query';
+import { drumLengthMeters, drumsNeededFor } from '../../domain/drum-size';
+import { packSize, packsNeededFor } from '../../domain/pack-size';
 import { parseGlobalVoiceCommand, type GlobalVoiceIntent } from '../../voice/global-parser';
 import { matchProjectNavTarget } from '../../voice/nav-targets';
 import { buildVoiceVocabulary } from '../../voice/vocabulary';
@@ -1452,7 +1454,10 @@ export function GlobalVoiceControl() {
   const confirmAddMaterial = async () => {
     if (!selectedMaterial) return;
     const n = parseFloat(amountText);
-    const amount = Number.isFinite(n) && n > 0 ? n : 1;
+    const rawAmount = Number.isFinite(n) && n > 0 ? n : 1;
+    const amount = isDrum && drumLen ? drumsNeededFor(rawAmount, drumLen)
+      : isPack && packSz ? packsNeededFor(rawAmount, packSz)
+      : rawAmount;
     setStep('saving');
     try {
       if (targetIsQuickQuote) {
@@ -1715,9 +1720,21 @@ export function GlobalVoiceControl() {
   };
 
   const isMetres = selectedMaterial?.unit === 'm';
+  const drumLen = selectedMaterial && !isMetres
+    ? drumLengthMeters(selectedMaterial.description) ?? drumLengthMeters(selectedMaterial.unit)
+    : null;
+  const isDrum = drumLen != null;
+  const packSz = selectedMaterial && !isMetres && !isDrum ? packSize(selectedMaterial.description) : null;
+  const isPack = packSz != null;
   const amountNum = parseFloat(amountText);
+  const drumsBilled = isDrum && drumLen && Number.isFinite(amountNum) && amountNum > 0
+    ? drumsNeededFor(amountNum, drumLen)
+    : null;
+  const packsBilled = isPack && packSz && Number.isFinite(amountNum) && amountNum > 0
+    ? packsNeededFor(amountNum, packSz)
+    : null;
   const previewTotal = selectedMaterial && Number.isFinite(amountNum)
-    ? Math.round(amountNum * selectedMaterial.unitCostMinor)
+    ? Math.round((isDrum ? (drumsBilled ?? 1) : isPack ? (packsBilled ?? 1) : amountNum) * selectedMaterial.unitCostMinor)
     : 0;
 
   const settingsHourlyRateMinor = useSettingsStore((s) => s.hourlyRateMinor);
@@ -2068,9 +2085,15 @@ export function GlobalVoiceControl() {
                   <Text style={styles.confirmValue}>{formatMoney(selectedMaterial.unitCostMinor, 'GBP')} / {selectedMaterial.unit}</Text>
                 </View>
                 <View style={styles.confirmRow}>
-                  <Text style={styles.confirmLabel}>{isMetres ? 'Metres' : 'Quantity'}</Text>
+                  <Text style={styles.confirmLabel}>{isDrum ? 'Metres needed' : isPack ? 'Quantity needed' : isMetres ? 'Metres' : 'Quantity'}</Text>
                   <TextInput value={amountText} onChangeText={(t) => setAmountText(t.replace(/[^0-9.]/g, ''))} keyboardType="decimal-pad" style={styles.confirmInput} selectTextOnFocus />
                 </View>
+                {isDrum && drumsBilled != null && (
+                  <Text style={styles.confirmHint}>= {drumsBilled} drum{drumsBilled === 1 ? '' : 's'} billed ({drumLen}m each)</Text>
+                )}
+                {isPack && packsBilled != null && packSz != null && (
+                  <Text style={styles.confirmHint}>= {packsBilled} pack{packsBilled === 1 ? '' : 's'} billed ({packSz} each)</Text>
+                )}
                 <View style={styles.confirmRow}>
                   <Text style={styles.confirmLabel}>Total</Text>
                   <Text style={styles.confirmValue}>{formatMoney(previewTotal, 'GBP')}</Text>
@@ -2369,6 +2392,7 @@ const styles = StyleSheet.create({
   confirmRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.md, gap: space.sm },
   confirmLabel: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
   confirmValue: { color: colors.textPrimary, fontSize: 16, fontWeight: '700', flexShrink: 1, textAlign: 'right' },
+  confirmHint: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginTop: -space.xs, marginBottom: space.xs, paddingHorizontal: space.xs },
   confirmInput: { color: colors.textPrimary, fontSize: 18, fontWeight: '700', minWidth: 70, textAlign: 'right' },
   confirmInputWide: { flex: 1, color: colors.textPrimary, fontSize: 16, fontWeight: '600', textAlign: 'right' },
   fieldMicBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.ground, alignItems: 'center', justifyContent: 'center' },

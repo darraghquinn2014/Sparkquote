@@ -15,6 +15,7 @@ import type { Material, Currency } from '../../domain/types';
 import { colors, space, radius, type } from '../theme/tokens';
 import { formatMoney } from '../../domain/money';
 import { drumLengthMeters, drumsNeededFor } from '../../domain/drum-size';
+import { packSize, packsNeededFor } from '../../domain/pack-size';
 
 interface Props {
   visible: boolean;
@@ -53,19 +54,26 @@ export function MaterialPicker({ visible, materials, currency, onAdd, onClose }:
     ? drumLengthMeters(selected.description) ?? drumLengthMeters(selected.unit)
     : null;
   const isDrum = drumLen != null;
+  const packSz = selected && !isMetres && !isDrum ? packSize(selected.description) : null;
+  const isPack = packSz != null;
   const amountNum = parseFloat(amountText);
   const drumsBilled = isDrum && drumLen && Number.isFinite(amountNum) && amountNum > 0
     ? drumsNeededFor(amountNum, drumLen)
     : null;
+  const packsBilled = isPack && packSz && Number.isFinite(amountNum) && amountNum > 0
+    ? packsNeededFor(amountNum, packSz)
+    : null;
   const previewTotal = selected && Number.isFinite(amountNum)
-    ? Math.round((isDrum ? (drumsBilled ?? 1) : amountNum) * selected.unitCostMinor)
+    ? Math.round((isDrum ? (drumsBilled ?? 1) : isPack ? (packsBilled ?? 1) : amountNum) * selected.unitCostMinor)
     : 0;
 
   const confirmAdd = () => {
     if (!selected) return;
     const n = parseFloat(amountText);
     const metresOrQty = Number.isFinite(n) && n > 0 ? n : 1;
-    const amount = isDrum && drumLen ? drumsNeededFor(metresOrQty, drumLen) : metresOrQty;
+    const amount = isDrum && drumLen ? drumsNeededFor(metresOrQty, drumLen)
+      : isPack && packSz ? packsNeededFor(metresOrQty, packSz)
+      : metresOrQty;
     onAdd(selected, amount);
     setJustAdded(selected.description);
     setSelected(null);
@@ -162,11 +170,16 @@ export function MaterialPicker({ visible, materials, currency, onAdd, onClose }:
           <View style={[styles.floatingAddRow, { top: insets.top + space.sm }]}>
             <Text style={styles.addItemName} numberOfLines={1}>{selected.description}</Text>
             <Text style={styles.addLabel}>
-              {isDrum ? 'Metres needed' : isMetres ? 'Metres' : 'Quantity'} · {formatMoney(selected.unitCostMinor, currency)} / {selected.unit}
+              {isDrum ? 'Metres needed' : isPack ? 'Quantity needed' : isMetres ? 'Metres' : 'Quantity'} · {formatMoney(selected.unitCostMinor, currency)} / {selected.unit}
             </Text>
             {isDrum && drumsBilled != null && (
               <Text style={styles.addDrumHint}>
                 = {drumsBilled} drum{drumsBilled === 1 ? '' : 's'} billed ({drumLen}m each)
+              </Text>
+            )}
+            {isPack && packsBilled != null && packSz != null && (
+              <Text style={styles.addDrumHint}>
+                = {packsBilled} pack{packsBilled === 1 ? '' : 's'} billed ({packSz} each)
               </Text>
             )}
             <Text style={styles.addTotal}>Total: {formatMoney(previewTotal, currency)}</Text>
@@ -182,7 +195,7 @@ export function MaterialPicker({ visible, materials, currency, onAdd, onClose }:
                 style={styles.amountInput}
                 selectTextOnFocus
                 autoFocus
-                accessibilityLabel={isDrum ? 'Metres needed' : isMetres ? 'Metres' : 'Quantity'}
+                accessibilityLabel={isDrum ? 'Metres needed' : isPack ? 'Quantity needed' : isMetres ? 'Metres' : 'Quantity'}
               />
               <Pressable style={styles.addBtn} onPress={confirmAdd}>
                 <Text style={styles.addBtnText}>Add</Text>
