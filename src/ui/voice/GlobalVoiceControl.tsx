@@ -104,10 +104,11 @@ export function GlobalVoiceControl() {
   const isTabScreen = pathname === '/' || pathname === '/projects' || pathname === '/settings';
   const isPlainProjectDetail = PLAIN_PROJECT_RE.test(pathname)
     && !['new', 'room', 'plan', 'wall', 'quote', 'snag', 'drawings', 'floor'].includes(pathname.split('/')[2] ?? '');
-  /** These four screens have their own header mic button (see
+  /** These screens have their own header mic button (see
    * TabBarHeightReporter's sibling pattern) instead of the floating one, so
    * users always have exactly one visible mic trigger, never two. */
-  const hasOwnHeaderMic = pathname === '/' || pathname === '/estimate' || pathname === '/projects' || isPlainProjectDetail;
+  const hasOwnHeaderMic = pathname === '/' || pathname === '/estimate' || pathname === '/projects'
+    || pathname === '/catalogue' || isPlainProjectDetail;
   /** Tools and Help are reference/utility screens with no voice actions of
    * their own — no mic trigger needed here at all, header or floating. */
   const isVoiceFreeScreen = pathname === '/help' || pathname === '/tools' || pathname.startsWith('/tools/');

@@ -10,6 +10,7 @@ import { useSettingsStore } from '@/src/state/settingsStore';
 import { formatMoney } from '@/src/domain/money';
 import { colors, space, radius, type as typo } from '@/src/ui/theme/tokens';
 import type { Material } from '@/src/domain/types';
+import { HeaderMicButton } from '@/src/ui/voice/HeaderMicButton';
 
 type Tab = 'materials' | 'assemblies';
 
@@ -89,7 +90,7 @@ export default function CatalogueScreen() {
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
         <Text style={styles.title}>Catalogue</Text>
-        <View style={{ width: 60 }} />
+        <HeaderMicButton />
       </View>
 
       {/* Tabs */}
