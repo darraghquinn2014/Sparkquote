@@ -65,6 +65,7 @@ export type GlobalVoiceIntent =
   | { kind: 'add-labour'; hours?: number; flatMinor?: number; projectQuery?: string }
   | { kind: 'search-material'; query: string }
   | { kind: 'estimate-query'; projectQuery?: string }
+  | { kind: 'materials-query'; roomQuery: string; projectQuery?: string }
   | { kind: 'unknown'; raw: string };
 
 const CREATE_VERB = '(?:add|create|start|make)';
@@ -135,6 +136,20 @@ const REVIEW_SIGN_RE = /\breview\b|\bsign(?:ing)?\s+the\s+quote\b|\bsign\s+it\b/
 
 const ESTIMATE_QUERY_RE = /\b(estimate|total|quote|cost)\b/i;
 const ESTIMATE_VERB_RE = /^(?:what'?s|whats|give me|show me|get me|tell me)\b/i;
+
+// "what materials are needed for the kitchen on the ground floor" / "materials
+// for the kitchen" / "list materials for the kitchen to the Smith job". Entry
+// requires either a question/list trigger word or a bare leading "materials"
+// (the word alone is otherwise too generic to trust). The extraction regex
+// anchors on \bmaterials?\b rather than ^ so it still finds the word after a
+// "list"/"show me" prefix, then eats optional "are/is/do I/does it" +
+// "needed/required/need" filler before the room clause's connector
+// (for/in/on/at) and a leading "the". A trailing "to/for the X job" clause is
+// then split off the room text by the shared splitTrailingProjectClause.
+const MATERIALS_QUERY_WORD_RE = /\bmaterials?\b/i;
+const MATERIALS_QUERY_TRIGGER_RE = /^(?:what'?s|whats|what|which|list|show me|give me|tell me)\b/i;
+const MATERIALS_QUERY_BARE_RE = /^materials?\b/i;
+const MATERIALS_QUERY_EXTRACT_RE = /\bmaterials?\b\s*(?:(?:are|is|do\s+i|does\s+it)\s+)?(?:needed|required|need|to\s+(?:buy|get|order))?\s*(?:for|in|on|at)?\s*(?:the\s+)?(.+)$/i;
 const NAV_RE = /^(?:open|go to|goto|navigate to|show me|take me to)\s+(?:the\s+)?(.+)$/i;
 const ADD_VERB_RE = /^(?:please\s+)?(?:add|put|include|insert)\s+/i;
 // "basement back room add two sockets" / "in the basement, back room, add
@@ -435,6 +450,14 @@ export function parseGlobalVoiceCommand(raw: string): GlobalVoiceIntent {
   if (ESTIMATE_VERB_RE.test(text) && ESTIMATE_QUERY_RE.test(text)) {
     const forMatch = text.match(/\bfor\s+(?:the\s+|a\s+|my\s+)?(.+?)(?:\s+job|\s+project)?$/i);
     return { kind: 'estimate-query', projectQuery: forMatch ? forMatch[1].trim() : undefined };
+  }
+
+  if (MATERIALS_QUERY_WORD_RE.test(text) && (MATERIALS_QUERY_TRIGGER_RE.test(text) || MATERIALS_QUERY_BARE_RE.test(text))) {
+    const extractMatch = text.match(MATERIALS_QUERY_EXTRACT_RE);
+    if (extractMatch) {
+      const { rest, projectQuery } = splitTrailingProjectClause(extractMatch[1].trim());
+      return { kind: 'materials-query', roomQuery: rest, projectQuery };
+    }
   }
 
   if (ADD_VERB_RE.test(text)) {

@@ -38,6 +38,7 @@ import { priceLine } from '../../domain/pricing';
 import { lineFromAssembly } from '../../data/estimate-service';
 import { toLaborToggle } from '../../data/mappers';
 import { seedLaborToggles } from '../../data/seed/assemblies';
+import { isLabourOnlyLine, materialLinesForLocation, formatMaterialLineSummary } from '../../domain/materials-query';
 import { parseGlobalVoiceCommand, type GlobalVoiceIntent } from '../../voice/global-parser';
 import { matchProjectNavTarget } from '../../voice/nav-targets';
 import { buildVoiceVocabulary } from '../../voice/vocabulary';
@@ -61,7 +62,7 @@ type Step =
   | 'saving' | 'saved' | 'unknown' | 'info';
 
 type PickPurpose =
-  | 'open' | 'snag' | 'estimate' | 'material' | 'floor' | 'room' | 'labour' | 'room-count'
+  | 'open' | 'snag' | 'estimate' | 'material' | 'floor' | 'room' | 'labour' | 'room-count' | 'materials-query'
   | 'rename-project' | 'delete-project' | 'floor-room-op' | 'labour-rate-setting' | 'found-material';
 
 type EntityKind = 'project' | 'floor' | 'room' | 'snag';
@@ -186,6 +187,7 @@ export function GlobalVoiceControl() {
   const pendingFloorCount = useRef<number>(1);
   const pendingLabour = useRef<{ hours?: number; flatMinor?: number }>({});
   const pendingFloorQuery = useRef<string | undefined>(undefined);
+  const pendingRoomQuery = useRef<string>('');
   const pendingRenameNewName = useRef<string>('');
   const pendingFloorRoomOp = useRef<FloorRoomOp | null>(null);
   const pendingPriceMinor = useRef<number>(0);
@@ -264,6 +266,7 @@ export function GlobalVoiceControl() {
     pendingRoomCount.current = 1;
     pendingLabour.current = {};
     pendingFloorQuery.current = undefined;
+    pendingRoomQuery.current = '';
     pendingRenameNewName.current = '';
     pendingFloorRoomOp.current = null;
     pendingPriceMinor.current = 0;
@@ -588,6 +591,37 @@ export function GlobalVoiceControl() {
     setStep('info');
   };
 
+  const showMaterialsForRoom = async (projectId: string, projectName: string, roomQuery: string) => {
+    const locations = await loadLocations(projectId).catch(() => [] as Location[]);
+    const rooms = locations.filter((l) => l.parentId != null);
+    const floors = locations.filter((l) => l.parentId == null);
+    const matches = matchRoomWithFloor(roomQuery, rooms, floors);
+
+    const answer = async (room: Location) => {
+      const estimate = await loadProjectEstimate(projectId).catch(() => null);
+      const materialLines = materialLinesForLocation(estimate?.lineItems ?? [], room.id);
+      const message = materialLines.length === 0
+        ? `No materials recorded yet for ${room.name}.`
+        : `${room.name}:\n${materialLines.map(formatMaterialLineSummary).join('\n')}`;
+      setInfoMessage(message);
+      setStep('info');
+    };
+
+    if (matches.length === 1 && matches[0].score < CONFIDENT_SCORE) {
+      await answer(matches[0].location);
+      return;
+    }
+    if (matches.length > 0) {
+      showEntityPick('Which room?', matches.map((m) => ({ id: m.location.id, label: m.location.name })), (item) => {
+        const room = rooms.find((r) => r.id === item.id);
+        if (room) answer(room);
+      });
+      return;
+    }
+    setInfoMessage(`No room matches "${roomQuery}" in ${projectName}.`);
+    setStep('info');
+  };
+
   /** Shared resolver for rename-floor / delete-floor / rename-room / delete-room / delete-snag. */
   const runFloorRoomOp = async (projectId: string, op: FloorRoomOp) => {
     const proj = projects.find((p) => p.id === projectId);
@@ -683,10 +717,8 @@ export function GlobalVoiceControl() {
       lines = est?.lineItems ?? [];
     }
 
-    const isLabourLine = (l: LineItem) => l.overrides?.customLaborHours != null || l.overrides?.customLaborFlatMinor != null;
-
     const finish = (line: LineItem) => {
-      if (kind === 'setQuantity' && isLabourLine(line)) {
+      if (kind === 'setQuantity' && isLabourOnlyLine(line)) {
         setInfoMessage(`"${line.description}" is a labour line — say "change the labour to X hours" instead.`);
         setStep('info');
         return;
@@ -979,6 +1011,23 @@ export function GlobalVoiceControl() {
         setStep('project-pick');
         return;
       }
+      case 'materials-query': {
+        if (currentProjectId) {
+          const proj = projects.find((p) => p.id === currentProjectId);
+          showMaterialsForRoom(currentProjectId, proj?.name ?? '', intent.roomQuery);
+          return;
+        }
+        if (intent.projectQuery) {
+          const project = resolveProjectPick(intent.projectQuery, 'materials-query');
+          if (project) showMaterialsForRoom(project.id, project.name, intent.roomQuery);
+          return;
+        }
+        pendingRoomQuery.current = intent.roomQuery;
+        setProjectCandidates(projects.map((p) => ({ project: p, score: 1 })));
+        setPickPurpose('materials-query');
+        setStep('project-pick');
+        return;
+      }
       case 'delete-assembly': {
         resolveAssemblyAction(intent.query, 'delete');
         return;
@@ -1218,6 +1267,9 @@ export function GlobalVoiceControl() {
         return;
       case 'room-count':
         showRoomCount(project.id, project.name, pendingFloorQuery.current);
+        return;
+      case 'materials-query':
+        showMaterialsForRoom(project.id, project.name, pendingRoomQuery.current);
         return;
       case 'rename-project':
         setRenameTarget({ kind: 'project', id: project.id, oldName: project.name });
@@ -1719,7 +1771,9 @@ export function GlobalVoiceControl() {
 
             {step === 'info' && (
               <View style={styles.micArea}>
-                <Text style={[styles.micHint, styles.infoText]}>{infoMessage}</Text>
+                <ScrollView style={styles.infoScroll}>
+                  <Text style={[styles.micHint, styles.infoText]}>{infoMessage}</Text>
+                </ScrollView>
                 <Pressable style={styles.retryBtn} onPress={backToIdle}><Text style={styles.retryBtnText}>OK</Text></Pressable>
               </View>
             )}
@@ -2275,6 +2329,7 @@ const styles = StyleSheet.create({
   pickArea: { paddingVertical: space.md, gap: space.sm },
   pickLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' },
   pickList: { maxHeight: 320 },
+  infoScroll: { maxHeight: 320 },
   pickRow: { paddingVertical: space.md, borderBottomWidth: 1, borderBottomColor: colors.hairline },
   pickRowTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '600' },
   pickRowMeta: { color: colors.textMuted, fontSize: 12, marginTop: 2 },

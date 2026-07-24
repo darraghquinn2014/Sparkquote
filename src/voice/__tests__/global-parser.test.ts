@@ -47,6 +47,26 @@ describe('parseGlobalVoiceCommand', () => {
     expect(intent).toEqual({ kind: 'estimate-query', projectQuery: 'Smith' });
   });
 
+  it('classifies a materials query for a room on a floor', () => {
+    const intent = parseGlobalVoiceCommand('what materials are needed for the kitchen on the ground floor');
+    expect(intent).toEqual({ kind: 'materials-query', roomQuery: 'kitchen on the ground floor', projectQuery: undefined });
+  });
+
+  it('classifies a materials query with "do I need" phrasing', () => {
+    const intent = parseGlobalVoiceCommand('what materials do I need for the kitchen');
+    expect(intent).toEqual({ kind: 'materials-query', roomQuery: 'kitchen', projectQuery: undefined });
+  });
+
+  it('classifies a bare "materials for X" with no leading question word', () => {
+    const intent = parseGlobalVoiceCommand('materials for the kitchen on the ground floor');
+    expect(intent).toEqual({ kind: 'materials-query', roomQuery: 'kitchen on the ground floor', projectQuery: undefined });
+  });
+
+  it('classifies a materials query with a trailing project clause', () => {
+    const intent = parseGlobalVoiceCommand('list materials for the kitchen to the Smith job');
+    expect(intent).toEqual({ kind: 'materials-query', roomQuery: 'kitchen', projectQuery: 'Smith' });
+  });
+
   it('classifies an add-material command (delegates to the existing parser)', () => {
     const intent = parseGlobalVoiceCommand('add 50 metres of 2.5mm twin and earth to the Smith job');
     expect(intent.kind).toBe('add-material');
