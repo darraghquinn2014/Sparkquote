@@ -54,7 +54,9 @@ export function MaterialPicker({ visible, materials, currency, onAdd, onClose }:
     ? drumLengthMeters(selected.description) ?? drumLengthMeters(selected.unit)
     : null;
   const isDrum = drumLen != null;
-  const packSz = selected && !isMetres && !isDrum ? packSize(selected.description) : null;
+  const packSz = selected && !isMetres && !isDrum
+    ? packSize(selected.description) ?? packSize(selected.unit)
+    : null;
   const isPack = packSz != null;
   const amountNum = parseFloat(amountText);
   const drumsBilled = isDrum && drumLen && Number.isFinite(amountNum) && amountNum > 0

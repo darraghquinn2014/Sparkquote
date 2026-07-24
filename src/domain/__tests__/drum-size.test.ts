@@ -21,6 +21,34 @@ describe('drumLengthMeters', () => {
   it('returns null when a drum is mentioned with no parseable length', () => {
     expect(drumLengthMeters('SWA Armoured Cable Drum')).toBeNull();
   });
+
+  it('reads a leading length off a short "Nm reel" unit string', () => {
+    expect(drumLengthMeters('100m reel')).toBe(100);
+  });
+
+  it('reads a leading length off a short "Nm coil" unit string', () => {
+    expect(drumLengthMeters('50m coil')).toBe(50);
+  });
+
+  it('reads a leading length off a short "Nm box" unit string', () => {
+    expect(drumLengthMeters('305m box')).toBe(305);
+  });
+
+  it('reads a leading length off a short "Nm length" unit string', () => {
+    expect(drumLengthMeters('2m length')).toBe(2);
+  });
+
+  it('reads a decimal leading length', () => {
+    expect(drumLengthMeters('3.75m length')).toBe(3.75);
+  });
+
+  it('returns null for a plain "per metre" unit (cut to length, not a pack)', () => {
+    expect(drumLengthMeters('per metre')).toBeNull();
+  });
+
+  it('returns null for a bare "m" unit', () => {
+    expect(drumLengthMeters('m')).toBeNull();
+  });
 });
 
 describe('drumsNeededFor', () => {
