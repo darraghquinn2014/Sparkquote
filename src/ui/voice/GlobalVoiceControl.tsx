@@ -17,7 +17,7 @@
  * and confirmation UI are new.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Assembly, LineItem, Location, Material, Project, SnagItem } from '../../domain/types';
@@ -106,6 +106,13 @@ export function GlobalVoiceControl() {
   const [visible, setVisible] = useState(false);
   const [step, setStep] = useState<Step>('idle');
   const [rawTranscript, setRawTranscript] = useState('');
+  const [kbHeight, setKbHeight] = useState(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKbHeight(e.endCoordinates.height));
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setKbHeight(0));
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
   const [projects, setProjects] = useState<Project[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [assemblies, setAssemblies] = useState<Assembly[]>([]);
@@ -1719,7 +1726,7 @@ export function GlobalVoiceControl() {
         <Pressable
           style={[
             styles.fab,
-            { bottom: insets.bottom + 24 + (isTabScreen ? TAB_BAR_HEIGHT : 0) },
+            { bottom: insets.bottom + (isTabScreen ? 8 : 24) },
             !visible && styles.fabIdle,
           ]}
           onPress={open}
@@ -1732,6 +1739,7 @@ export function GlobalVoiceControl() {
       <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
         <View style={styles.scrim}>
           <Pressable style={styles.scrimTap} onPress={close} accessibilityLabel="Close" />
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.kavWrapper}>
           <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
             <View style={styles.grabber} />
             <View style={styles.headerRow}>
@@ -1739,6 +1747,7 @@ export function GlobalVoiceControl() {
               <Pressable onPress={close}><Text style={styles.done}>Done</Text></Pressable>
             </View>
 
+            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: kbHeight }}>
             {(step === 'idle' || step === 'listening' || step === 'processing') && (
               <View style={styles.micArea}>
                 {voice.error && (
@@ -2263,7 +2272,9 @@ export function GlobalVoiceControl() {
 
             {step === 'saving' && <View style={styles.micArea}><Text style={styles.micHint}>Working…</Text></View>}
             {step === 'saved' && <View style={styles.micArea}><Text style={styles.savedText}>Done ✓</Text></View>}
+            </ScrollView>
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </>
@@ -2303,6 +2314,7 @@ const styles = StyleSheet.create({
 
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   scrimTap: { flex: 1 },
+  kavWrapper: { width: '100%' },
   sheet: { minHeight: 260, backgroundColor: colors.ground, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: space.lg, paddingTop: space.sm },
   grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.hairline, marginBottom: space.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
