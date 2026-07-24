@@ -6,26 +6,17 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, Pressable, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
-import type { EstimateStatus, Material, Project } from '@/src/domain/types';
+import type { Material, Project } from '@/src/domain/types';
 import { loadProjects, loadLocations } from '@/src/data/project-repo';
-import { loadProjectEstimate } from '@/src/data/project-estimate-repo';
 import { loadCatalogue } from '@/src/data/catalogue-repo';
 import { VoiceAddModal } from '@/src/ui/voice/VoiceAddModal';
 import { colors, space, radius, type as typo } from '@/src/ui/theme/tokens';
 import { TabBarHeightReporter } from '@/src/ui/TabBarHeightReporter';
 
-const STATUS_LABELS: Record<string, string> = {
-  draft: 'Draft', sent: 'Sent', approved: 'Approved', declined: 'Declined', signed: 'Signed',
-};
-const STATUS_COLORS: Record<string, string> = {
-  draft: '#6B8DAE', sent: '#1B8FFF', approved: '#06D6A0', declined: '#E5564B', signed: '#9B5DE5',
-};
-
 export default function ProjectsScreen() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [roomCounts, setRoomCounts] = useState<Record<string, number>>({});
-  const [statuses, setStatuses] = useState<Record<string, EstimateStatus>>({});
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [voiceOpen, setVoiceOpen] = useState(false);
@@ -35,16 +26,13 @@ export default function ProjectsScreen() {
     setProjects(ps);
     setMaterials(cat.materials);
     const counts: Record<string, number> = {};
-    const sts: Record<string, EstimateStatus> = {};
     for (const p of ps) {
-      const [locs, est] = await Promise.all([loadLocations(p.id), loadProjectEstimate(p.id)]);
+      const locs = await loadLocations(p.id);
       // Only count actual rooms (nested locations) — loadLocations also
       // returns top-level floors, which aren't rooms.
       counts[p.id] = locs.filter((l) => l.parentId != null).length;
-      if (est) sts[p.id] = est.status;
     }
     setRoomCounts(counts);
-    setStatuses(sts);
     setLoading(false);
   }, []);
 
@@ -83,13 +71,6 @@ export default function ProjectsScreen() {
               <View style={{ flex: 1 }}>
                 <View style={styles.nameRow}>
                   <Text style={styles.name}>{item.name}</Text>
-                  {statuses[item.id] && (
-                    <View style={[styles.badge, { backgroundColor: STATUS_COLORS[statuses[item.id]] + '22', borderColor: STATUS_COLORS[statuses[item.id]] + '55' }]}>
-                      <Text style={[styles.badgeText, { color: STATUS_COLORS[statuses[item.id]] }]}>
-                        {STATUS_LABELS[statuses[item.id]]}
-                      </Text>
-                    </View>
-                  )}
                 </View>
                 <Text style={styles.meta}>
                   {item.clientName ? `${item.clientName} · ` : ''}
@@ -127,8 +108,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.surface, borderRadius: radius.tile, padding: space.lg, marginBottom: space.sm },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginBottom: 2 },
   name: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
-  badge: { borderRadius: radius.pill, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 2 },
-  badgeText: { fontSize: 11, fontWeight: '700' },
   meta: { color: colors.textMuted, fontSize: 13, marginTop: 2 },
   date: { color: colors.textMuted, fontSize: 12, marginTop: 3, opacity: 0.7 },
   empty: { alignItems: 'center', marginTop: space.xxl * 2, paddingHorizontal: space.xl, gap: space.sm },
