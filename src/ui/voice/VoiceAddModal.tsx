@@ -10,7 +10,7 @@
  * if any, is then ignored.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Currency, Material, Project } from '../../domain/types';
 import { colors, space, radius } from '../theme/tokens';
@@ -61,6 +61,13 @@ export function VoiceAddModal({
   const [resolvedProjectName, setResolvedProjectName] = useState<string>('');
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
   const [amountText, setAmountText] = useState('1');
+  const [kbHeight, setKbHeight] = useState(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKbHeight(e.endCoordinates.height));
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setKbHeight(0));
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
 
   // Reset everything each time the modal opens.
   useEffect(() => {
@@ -199,6 +206,7 @@ export function VoiceAddModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.scrim}>
         <Pressable style={styles.scrimTap} onPress={onClose} accessibilityLabel="Close" />
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.kavWrapper}>
         <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
           <View style={styles.grabber} />
           <View style={styles.headerRow}>
@@ -207,6 +215,7 @@ export function VoiceAddModal({
           </View>
           {lockedProjectName ? <Text style={styles.subtitle}>Adding to {lockedProjectName}</Text> : null}
 
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: kbHeight }}>
           {(step === 'idle' || step === 'listening' || step === 'processing') && (
             <View style={styles.micArea}>
               {voice.error && (
@@ -333,7 +342,9 @@ export function VoiceAddModal({
           {step === 'saved' && (
             <View style={styles.micArea}><Text style={styles.savedText}>Added ✓</Text></View>
           )}
+          </ScrollView>
         </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -353,6 +364,7 @@ function errorMessage(error: 'permission-denied' | 'no-speech' | 'other'): strin
 const styles = StyleSheet.create({
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   scrimTap: { flex: 1 },
+  kavWrapper: { width: '100%' },
   sheet: { minHeight: 260, backgroundColor: colors.ground, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: space.lg, paddingTop: space.sm },
   grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.hairline, marginBottom: space.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

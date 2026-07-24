@@ -8,7 +8,7 @@
  *   - anything else                                   → edit quantity
  */
 import React, { useState, useEffect } from 'react';
-import { Modal, Pressable, Text, TextInput, View, StyleSheet } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Currency, LineItem } from '../../domain/types';
 import { colors, space, radius } from '../theme/tokens';
@@ -52,6 +52,13 @@ interface Props {
 export function EditLineSheet({ line, hourlyRateMinor, currency, onSave, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const [text, setText] = useState('');
+  const [kbHeight, setKbHeight] = useState(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKbHeight(e.endCoordinates.height));
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setKbHeight(0));
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
 
   const mode: EditMode = line ? getMode(line) : 'quantity';
 
@@ -87,7 +94,9 @@ export function EditLineSheet({ line, hourlyRateMinor, currency, onSave, onClose
     <Modal visible={line != null} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.scrim}>
         <Pressable style={styles.scrimTap} onPress={onClose} accessibilityLabel="Close" />
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.kavWrapper}>
         <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: kbHeight }}>
           <View style={styles.grabber} />
           <Text style={styles.title}>Edit line</Text>
           {line && (
@@ -125,7 +134,9 @@ export function EditLineSheet({ line, hourlyRateMinor, currency, onSave, onClose
               <Text style={styles.saveText}>Save</Text>
             </Pressable>
           </View>
+          </ScrollView>
         </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -134,6 +145,7 @@ export function EditLineSheet({ line, hourlyRateMinor, currency, onSave, onClose
 const styles = StyleSheet.create({
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   scrimTap: { flex: 1 },
+  kavWrapper: { width: '100%' },
   sheet: {
     backgroundColor: colors.ground,
     borderTopLeftRadius: 20,

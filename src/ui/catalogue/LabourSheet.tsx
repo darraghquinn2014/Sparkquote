@@ -3,8 +3,8 @@
  * Two modes: Hours (priced at the estimate's hourly rate, recalculates if the
  * rate changes) or Flat amount (a fixed labour charge).
  */
-import React, { useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Currency } from '../../domain/types';
 import { colors, space, radius } from '../theme/tokens';
@@ -22,6 +22,13 @@ export function LabourSheet({ visible, hourlyRateMinor, currency, onAdd, onClose
   const insets = useSafeAreaInsets();
   const [mode, setMode] = useState<'hours' | 'flat'>('hours');
   const [text, setText] = useState('');
+  const [kbHeight, setKbHeight] = useState(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKbHeight(e.endCoordinates.height));
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setKbHeight(0));
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
 
   const num = parseFloat(text);
   const valid = Number.isFinite(num) && num > 0;
@@ -46,6 +53,7 @@ export function LabourSheet({ visible, hourlyRateMinor, currency, onAdd, onClose
         <Pressable style={styles.scrimTap} onPress={onClose} accessibilityLabel="Close" />
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.kavWrapper}>
         <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: kbHeight }}>
           <View style={styles.grabber} />
           <Text style={styles.title}>Add labour</Text>
 
@@ -98,6 +106,7 @@ export function LabourSheet({ visible, hourlyRateMinor, currency, onAdd, onClose
               <Text style={styles.addText}>Add labour</Text>
             </Pressable>
           </View>
+          </ScrollView>
         </View>
         </KeyboardAvoidingView>
       </View>

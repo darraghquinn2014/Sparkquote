@@ -14,7 +14,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Modal, Pressable, ScrollView, Text, TextInput, View, StyleSheet } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { LaborToggle, LineItem, MinorUnits } from '../../domain/types';
 import { colors, space, radius, type } from '../theme/tokens';
@@ -58,6 +58,12 @@ export function LineDrawer({
   const [costText, setCostText] = useState(
     o?.unitCostMinor != null ? (o.unitCostMinor / 100).toFixed(2) : '',
   );
+  const [kbHeight, setKbHeight] = useState(0);
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKbHeight(e.endCoordinates.height));
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setKbHeight(0));
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
   useEffect(() => {
     setCostText(o?.unitCostMinor != null ? (o.unitCostMinor / 100).toFixed(2) : '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -67,6 +73,7 @@ export function LineDrawer({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
       <View style={styles.scrim}>
         <Pressable style={styles.scrimTap} onPress={onCancel} accessibilityLabel="Close" />
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.kavWrapper}>
         <View style={styles.sheet}>
           <View style={styles.grabber} />
 
@@ -79,7 +86,7 @@ export function LineDrawer({
             <Text style={styles.liveTotal}>{formatMoney(d.preview.lineTotalMinor, currency)}</Text>
           </View>
 
-          <ScrollView contentContainerStyle={styles.body}>
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.body, { paddingBottom: kbHeight }]}>
             {/* Quantity */}
             <Text style={styles.sectionLabel}>QUANTITY</Text>
             <View style={styles.stepperRow}>
@@ -196,6 +203,7 @@ export function LineDrawer({
             )}
           </View>
         </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -204,6 +212,7 @@ export function LineDrawer({
 const styles = StyleSheet.create({
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
   scrimTap: { flex: 1 },
+  kavWrapper: { width: '100%' },
   sheet: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: radius.bar + 6,
