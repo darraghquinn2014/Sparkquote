@@ -112,9 +112,10 @@ export function GlobalVoiceControl() {
    * users always have exactly one visible mic trigger, never two. */
   const hasOwnHeaderMic = pathname === '/' || pathname === '/estimate' || pathname === '/projects'
     || pathname === '/catalogue' || isPlainProjectDetail;
-  /** Tools and Help are reference/utility screens with no voice actions of
-   * their own — no mic trigger needed here at all, header or floating. */
-  const isVoiceFreeScreen = pathname === '/help' || pathname === '/tools' || pathname.startsWith('/tools/');
+  /** Tools, Help, and Review/Sign are reference/utility screens with no voice
+   * actions of their own — no mic trigger needed here at all, header or floating. */
+  const isVoiceFreeScreen = pathname === '/help' || pathname === '/tools' || pathname.startsWith('/tools/')
+    || pathname === '/review';
   const { projectId: currentProjectId, locationId: currentLocationId } = useCurrentProjectContext();
   const voice = useVoiceCommand();
 
