@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -30,6 +30,7 @@ const C = {
   estimate:   '#06D6A0',
   catalogue:  '#9B5DE5',
   tools:      '#FF6A3D',
+  help:       '#00BCD4',
 } as const;
 type Accent = keyof typeof C;
 
@@ -143,11 +144,6 @@ export default function HomeScreen() {
 
   const hasActive = estimate.lineItems.length > 0;
   const hasSaved = savedEstimate != null;
-  const bannerEst = hasActive ? estimate : savedEstimate;
-  const bannerTotal = bannerEst
-    ? formatMoney(priceEstimate(bannerEst, allToggles).grandTotalMinor, bannerEst.currency)
-    : '';
-  const bannerCount = bannerEst?.lineItems.length ?? 0;
 
   // Live stats for each block
   const projectStat = projectCount == null
@@ -155,9 +151,9 @@ export default function HomeScreen() {
     : projectCount === 0 ? 'No projects yet' : `${projectCount} project${projectCount !== 1 ? 's' : ''}`;
 
   const estimateStat = hasActive
-    ? `${estimate.lineItems.length} items · ${formatMoney(priceEstimate(estimate, allToggles).grandTotalMinor, estimate.currency)}`
-    : hasSaved
-      ? 'Last estimate saved'
+    ? `${estimate.lineItems.length} item${estimate.lineItems.length !== 1 ? 's' : ''} · ${formatMoney(priceEstimate(estimate, allToggles).grandTotalMinor, estimate.currency)}`
+    : hasSaved && savedEstimate
+      ? `${savedEstimate.lineItems.length} item${savedEstimate.lineItems.length !== 1 ? 's' : ''} · ${formatMoney(priceEstimate(savedEstimate, allToggles).grandTotalMinor, savedEstimate.currency)}`
       : 'No estimate yet';
 
   const catStat = materialCount == null
@@ -168,74 +164,68 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <CircuitBackground />
 
-      {/* Brand */}
-      <View style={styles.brandRow}>
-        <Text style={styles.brandName}>
-          <Text style={{ color: C.brand }}>Spark</Text>Quote
-        </Text>
-        <View style={styles.brandMeta}>
-          <View style={styles.brandLine} />
-          <Text style={styles.brandTag}>Electrical estimating</Text>
-        </View>
-      </View>
-
-      {/* Resume banner */}
-      {(hasActive || hasSaved) && (
-        <Pressable style={styles.banner} onPress={() => router.push('/estimate' as never)}>
-          <View style={[styles.bannerDot, { backgroundColor: C.estimate }]} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.bannerTitle}>
-              {hasActive ? 'Estimate in progress' : 'Resume last estimate'}
-            </Text>
-            <Text style={[styles.bannerSub, { color: C.estimate }]}>
-              {bannerCount} item{bannerCount !== 1 ? 's' : ''} · {bannerTotal}
-            </Text>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Brand */}
+        <View style={styles.brandRow}>
+          <Text style={styles.brandName}>
+            <Text style={{ color: C.brand }}>Spark</Text>Quote
+          </Text>
+          <View style={styles.brandMeta}>
+            <View style={styles.brandLine} />
+            <Text style={styles.brandTag}>Electrical estimating</Text>
           </View>
-          <Text style={[styles.bannerArrow, { color: C.estimate }]}>›</Text>
-        </Pressable>
-      )}
+        </View>
 
-      {/* Bento grid */}
-      <View style={styles.grid}>
-        <Block
-          accent="estimate"
-          icon="⚡"
-          label="Quick estimate"
-          sub="Rough price on the spot — tap or talk"
-          stat={estimateStat}
-          illustration={<LightningIllustration color={C.estimate} size={100} />}
-          wide tall
-          onPress={() => router.push('/estimate' as never)}
-        />
-        <View style={styles.row}>
+        {/* Bento grid */}
+        <View style={styles.grid}>
           <Block
-            accent="projects"
-            icon="⊞"
-            label="Projects"
-            sub="Jobs, rooms & photos"
-            stat={projectStat}
-            illustration={<HouseIllustration color={C.projects} size={72} />}
-            onPress={() => router.navigate('/(tabs)/projects' as never)}
+            accent="estimate"
+            icon="⚡"
+            label="Quick estimate"
+            sub="Rough price on the spot — tap or talk"
+            stat={estimateStat}
+            illustration={<LightningIllustration color={C.estimate} size={100} />}
+            wide tall
+            onPress={() => router.push('/estimate' as never)}
+          />
+          <View style={styles.row}>
+            <Block
+              accent="projects"
+              icon="⊞"
+              label="Projects"
+              sub="Jobs, rooms & photos"
+              stat={projectStat}
+              illustration={<HouseIllustration color={C.projects} size={72} />}
+              onPress={() => router.navigate('/(tabs)/projects' as never)}
+            />
+            <Block
+              accent="catalogue"
+              icon="≡"
+              label="Catalogue"
+              sub="Materials & prices"
+              stat={catStat}
+              illustration={<ShelvesIllustration color={C.catalogue} size={72} />}
+              onPress={() => router.push('/catalogue' as never)}
+            />
+          </View>
+          <Block
+            accent="tools"
+            icon="Ω"
+            label="Tools"
+            sub="Site calculators"
+            wide thin
+            onPress={() => router.push('/tools' as never)}
           />
           <Block
-            accent="catalogue"
-            icon="≡"
-            label="Catalogue"
-            sub="Materials & prices"
-            stat={catStat}
-            illustration={<ShelvesIllustration color={C.catalogue} size={72} />}
-            onPress={() => router.push('/catalogue' as never)}
+            accent="help"
+            icon="?"
+            label="Help"
+            sub="See what SparkQuote can do"
+            wide thin
+            onPress={() => router.push('/help')}
           />
         </View>
-        <Block
-          accent="tools"
-          icon="Ω"
-          label="Tools"
-          sub="Site calculators"
-          wide thin
-          onPress={() => router.push('/tools' as never)}
-        />
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -276,38 +266,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  banner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: radius.tile,
-    borderWidth: 1,
-    borderColor: colors.hairline,
-    borderTopWidth: 3,
-    borderTopColor: C.estimate,
-    padding: space.lg,
-    marginBottom: space.md,
-    gap: space.md,
-    shadowColor: C.estimate,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  bannerDot: {
-    width: 8, height: 8, borderRadius: 4,
-  },
-  bannerTitle: {
-    fontSize: 14, fontWeight: '700', color: colors.textPrimary, marginBottom: 2,
-  },
-  bannerSub: {
-    fontSize: 13, fontVariant: ['tabular-nums'],
-  },
-  bannerArrow: {
-    fontSize: 22,
-  },
-
-  grid: { flex: 1, gap: GAP },
+  scrollContent: { flexGrow: 1, paddingBottom: 160 },
+  grid: { gap: GAP },
   row: { flexDirection: 'row', gap: GAP },
 
   blockWide: { width: '100%' },

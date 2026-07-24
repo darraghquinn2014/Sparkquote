@@ -117,6 +117,10 @@ export default function SettingsScreen() {
         {/* App settings */}
         <Text style={styles.sectionHeader}>APP</Text>
 
+        <Pressable style={styles.row} onPress={() => router.push('/help')}>
+          <Text style={styles.rowText}>Help</Text>
+          <Text style={styles.chevron}>›</Text>
+        </Pressable>
         <Pressable style={styles.row} onPress={() => router.push('/business-profile' as any)}>
           <Text style={styles.rowText}>Business profile</Text>
           <Text style={styles.chevron}>›</Text>

@@ -2292,7 +2292,7 @@ function errorMessage(error: 'permission-denied' | 'no-speech' | 'other'): strin
 
 const styles = StyleSheet.create({
   fab: {
-    position: 'absolute', right: space.lg, width: 60, height: 60, borderRadius: 30,
+    position: 'absolute', left: '50%', marginLeft: -30, width: 60, height: 60, borderRadius: 30,
     backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',
     shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6,
   },
