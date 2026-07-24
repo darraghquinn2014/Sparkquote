@@ -22,6 +22,7 @@ import { renderEstimateHtml } from '@/src/pdf/render-html';
 import { PdfPreviewModal } from '@/src/ui/pdf/PdfPreviewModal';
 import { ShoppingListSheet } from '@/src/ui/estimate/ShoppingListSheet';
 import { useVoiceAction } from '@/src/voice/voice-bus';
+import { HeaderMicButton } from '@/src/ui/voice/HeaderMicButton';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 
 const allToggles = seedLaborToggles.map(toLaborToggle);
@@ -100,9 +101,7 @@ export default function EstimateScreen() {
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
         <Text style={styles.title}>Current estimate</Text>
-        <Pressable onPress={() => setShoppingOpen(true)} hitSlop={8}>
-          <Text style={styles.shoppingLink}>Shopping list</Text>
-        </Pressable>
+        <HeaderMicButton />
       </View>
 
       <View style={styles.headerBtns}>
@@ -114,6 +113,9 @@ export default function EstimateScreen() {
         </Pressable>
         <Pressable style={styles.addItemBtn} onPress={() => setPickerOpen(true)}>
           <Text style={styles.addItemText}>+ Material</Text>
+        </Pressable>
+        <Pressable style={styles.addItemBtn} onPress={() => setShoppingOpen(true)}>
+          <Text style={styles.addItemText}>Shopping list</Text>
         </Pressable>
       </View>
 
@@ -266,7 +268,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: '800', color: colors.textPrimary },
   addItemBtn: { backgroundColor: colors.surface, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.hairline },
   addItemText: { color: colors.accent, fontWeight: '700', fontSize: 14 },
-  headerBtns: { flexDirection: 'row', gap: space.sm, marginBottom: space.lg },
+  headerBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginBottom: space.lg },
   empty: { color: colors.textMuted, textAlign: 'center', marginTop: 40, fontSize: 15 },
   row: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface,
@@ -280,7 +282,6 @@ const styles = StyleSheet.create({
   reviewBtn: { backgroundColor: colors.accent, borderRadius: radius.pill, paddingVertical: 14, alignItems: 'center', marginTop: space.md },
   reviewBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 16 },
   reviewBtnBusy: { opacity: 0.6 },
-  shoppingLink: { color: colors.accent, fontWeight: '700', fontSize: 13 },
   rateRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.tile, padding: space.lg, marginBottom: space.lg, borderWidth: 1, borderColor: colors.hairline },
   rateLabel: { fontSize: 15, color: colors.textSecondary, fontWeight: '600' },
   rateValue: { fontSize: 17, color: colors.accent, fontWeight: '700' },

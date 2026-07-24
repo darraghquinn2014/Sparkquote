@@ -23,6 +23,9 @@ export interface VoiceActionPayloads {
    * state holds its own copy — if that screen is mounted, it should reload
    * from disk so the change actually shows up without a refocus. */
   projectEstimateChanged: { projectId: string };
+  /** A screen's own header mic button was tapped — opens the global voice
+   * control sheet, same as the (now screen-local, not floating) mic trigger. */
+  openVoiceControl: void;
 }
 
 export type VoiceActionName = keyof VoiceActionPayloads;

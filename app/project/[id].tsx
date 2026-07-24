@@ -27,6 +27,7 @@ import { toLaborToggle } from '@/src/data/mappers';
 import { seedLaborToggles } from '@/src/data/seed/assemblies';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import { useVoiceAction } from '@/src/voice/voice-bus';
+import { HeaderMicButton } from '@/src/ui/voice/HeaderMicButton';
 
 const allToggles = seedLaborToggles.map(toLaborToggle);
 
@@ -285,6 +286,7 @@ export default function ProjectDetailScreen() {
           <Pressable onPress={openOverflow} hitSlop={12}>
             <Text style={styles.moreBtn}>•••</Text>
           </Pressable>
+          <HeaderMicButton />
         </View>
       </View>
 

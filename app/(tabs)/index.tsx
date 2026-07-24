@@ -14,6 +14,7 @@ import { seedLaborToggles } from '@/src/data/seed/assemblies';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import { CircuitBackground } from '@/src/ui/home/CircuitBackground';
 import { TabBarHeightReporter } from '@/src/ui/TabBarHeightReporter';
+import { HeaderMicButton } from '@/src/ui/voice/HeaderMicButton';
 import {
   HouseIllustration,
   LightningIllustration,
@@ -169,13 +170,16 @@ export default function HomeScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Brand */}
         <View style={styles.brandRow}>
-          <Text style={styles.brandName}>
-            <Text style={{ color: C.brand }}>Spark</Text>Quote
-          </Text>
-          <View style={styles.brandMeta}>
-            <View style={styles.brandLine} />
-            <Text style={styles.brandTag}>Electrical estimating</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.brandName}>
+              <Text style={{ color: C.brand }}>Spark</Text>Quote
+            </Text>
+            <View style={styles.brandMeta}>
+              <View style={styles.brandLine} />
+              <Text style={styles.brandTag}>Electrical estimating</Text>
+            </View>
           </View>
+          <HeaderMicButton />
         </View>
 
         {/* Bento grid */}
@@ -240,6 +244,9 @@ const styles = StyleSheet.create({
   },
 
   brandRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
     paddingTop: space.xl,
     paddingBottom: space.lg,
   },

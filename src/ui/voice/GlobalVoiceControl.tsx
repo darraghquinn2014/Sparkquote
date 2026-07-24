@@ -42,7 +42,7 @@ import { isLabourOnlyLine, materialLinesForLocation, formatMaterialLineSummary }
 import { parseGlobalVoiceCommand, type GlobalVoiceIntent } from '../../voice/global-parser';
 import { matchProjectNavTarget } from '../../voice/nav-targets';
 import { buildVoiceVocabulary } from '../../voice/vocabulary';
-import { emitVoiceAction } from '../../voice/voice-bus';
+import { emitVoiceAction, useVoiceAction } from '../../voice/voice-bus';
 import {
   matchAssemblies, matchLines, matchLocations, matchMaterials, matchProjects, matchRoomWithFloor, matchSnags,
   stripKnownFloorName,
@@ -87,6 +87,11 @@ type DictateTarget =
   | { kind: 'floorNameAt' | 'roomNameAt'; index: number };
 
 const CONFIDENT_SCORE = 0.25;
+/** Matches a plain project-detail route ("/project/abc123"), same pattern as
+ * useCurrentProjectContext's PLAIN_PROJECT_RE — not exported from there since
+ * that hook only needs it internally, so duplicated here rather than adding a
+ * cross-file dependency for one regex. */
+const PLAIN_PROJECT_RE = /^\/project\/([^/]+)$/;
 const allLaborToggles = seedLaborToggles.map(toLaborToggle);
 const laborToggleIndex = new Map(allLaborToggles.map((t) => [t.id, t]));
 
@@ -97,6 +102,12 @@ export function GlobalVoiceControl() {
   const pathname = usePathname();
   const isQuickQuote = pathname === '/estimate';
   const isTabScreen = pathname === '/' || pathname === '/projects' || pathname === '/settings';
+  const isPlainProjectDetail = PLAIN_PROJECT_RE.test(pathname)
+    && !['new', 'room', 'plan', 'wall', 'quote', 'snag', 'drawings', 'floor'].includes(pathname.split('/')[2] ?? '');
+  /** These four screens have their own header mic button (see
+   * TabBarHeightReporter's sibling pattern) instead of the floating one, so
+   * users always have exactly one visible mic trigger, never two. */
+  const hasOwnHeaderMic = pathname === '/' || pathname === '/estimate' || pathname === '/projects' || isPlainProjectDetail;
   const { projectId: currentProjectId, locationId: currentLocationId } = useCurrentProjectContext();
   const voice = useVoiceCommand();
 
@@ -220,6 +231,8 @@ export function GlobalVoiceControl() {
     }
     startListening();
   };
+
+  useVoiceAction('openVoiceControl', open);
 
   const close = () => {
     setVisible(false);
@@ -1719,7 +1732,7 @@ export function GlobalVoiceControl() {
 
   return (
     <>
-      {pathname !== '/voice-setup' && (
+      {pathname !== '/voice-setup' && !hasOwnHeaderMic && (
         <Pressable
           style={[
             styles.fab,
