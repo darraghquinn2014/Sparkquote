@@ -51,6 +51,7 @@ import {
 import type { ParsedVoiceCommand } from '../../voice/command-parser';
 import { useVoiceCommand } from '../../voice/useVoiceCommand';
 import { useCurrentProjectContext } from '../../voice/useCurrentProjectContext';
+import { useTabBarHeightStore } from '../../state/tabBarHeightStore';
 
 type Step =
   | 'idle' | 'listening' | 'processing'
@@ -89,14 +90,10 @@ const CONFIDENT_SCORE = 0.25;
 const allLaborToggles = seedLaborToggles.map(toLaborToggle);
 const laborToggleIndex = new Map(allLaborToggles.map((t) => [t.id, t]));
 
-/** Android Material bottom tab bar content height (excludes safe-area inset,
- * which insets.bottom already covers) — clears the mic FAB of the tab bar
- * on the three tab screens (Home/Projects/Settings). */
-const TAB_BAR_HEIGHT = 56;
-
 export function GlobalVoiceControl() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useTabBarHeightStore((s) => s.height);
   const pathname = usePathname();
   const isQuickQuote = pathname === '/estimate';
   const isTabScreen = pathname === '/' || pathname === '/projects' || pathname === '/settings';
@@ -1726,7 +1723,7 @@ export function GlobalVoiceControl() {
         <Pressable
           style={[
             styles.fab,
-            { bottom: insets.bottom + (isTabScreen ? 8 : 24) },
+            { bottom: isTabScreen ? tabBarHeight + 8 : insets.bottom + 24 },
             !visible && styles.fabIdle,
           ]}
           onPress={open}

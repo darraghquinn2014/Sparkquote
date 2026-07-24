@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { useSettingsStore } from '@/src/state/settingsStore';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
+import { TabBarHeightReporter } from '@/src/ui/TabBarHeightReporter';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -39,6 +40,7 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+      <TabBarHeightReporter />
       <ScrollView showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Settings</Text>
 

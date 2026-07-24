@@ -13,6 +13,7 @@ import { toLaborToggle } from '@/src/data/mappers';
 import { seedLaborToggles } from '@/src/data/seed/assemblies';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import { CircuitBackground } from '@/src/ui/home/CircuitBackground';
+import { TabBarHeightReporter } from '@/src/ui/TabBarHeightReporter';
 import {
   HouseIllustration,
   LightningIllustration,
@@ -162,6 +163,7 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+      <TabBarHeightReporter />
       <CircuitBackground />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>

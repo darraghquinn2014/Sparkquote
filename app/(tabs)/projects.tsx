@@ -12,6 +12,7 @@ import { loadProjectEstimate } from '@/src/data/project-estimate-repo';
 import { loadCatalogue } from '@/src/data/catalogue-repo';
 import { VoiceAddModal } from '@/src/ui/voice/VoiceAddModal';
 import { colors, space, radius, type as typo } from '@/src/ui/theme/tokens';
+import { TabBarHeightReporter } from '@/src/ui/TabBarHeightReporter';
 
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Draft', sent: 'Sent', approved: 'Approved', declined: 'Declined', signed: 'Signed',
@@ -51,6 +52,7 @@ export default function ProjectsScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+      <TabBarHeightReporter />
       <View style={styles.header}>
         <Text style={styles.title}>Projects</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
