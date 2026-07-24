@@ -103,6 +103,7 @@ export function GlobalVoiceControl() {
   const tabBarHeight = useTabBarHeightStore((s) => s.height);
   const pathname = usePathname();
   const isQuickQuote = pathname === '/estimate';
+  const isCatalogueScreen = pathname === '/catalogue';
   const isTabScreen = pathname === '/' || pathname === '/projects' || pathname === '/settings';
   const isPlainProjectDetail = PLAIN_PROJECT_RE.test(pathname)
     && !['new', 'room', 'plan', 'wall', 'quote', 'snag', 'drawings', 'floor'].includes(pathname.split('/')[2] ?? '');
@@ -1202,6 +1203,21 @@ export function GlobalVoiceControl() {
         return;
       }
       case 'add-material': {
+        // Catalogue has no "add to a project" action at all — treat an
+        // "add X" command there the same as searching: look the item up for
+        // a price lookup/edit, ignoring the spoken quantity entirely.
+        if (isCatalogueScreen) {
+          const matches = matchMaterials(intent.parsed.itemQuery, materials, 20);
+          if (matches.length === 0) {
+            setInfoMessage(`No materials match "${intent.parsed.itemQuery}".`);
+            setStep('info');
+            return;
+          }
+          setMaterialPickPurpose('price');
+          setItemCandidates(matches);
+          setStep('item-pick');
+          return;
+        }
         pendingParsed.current = intent.parsed;
         if (isQuickQuote) {
           resolveAddTarget(intent.parsed, { quickQuote: true });
@@ -1256,7 +1272,10 @@ export function GlobalVoiceControl() {
           setStep('info');
           return;
         }
-        setMaterialPickPurpose('search');
+        // On the Catalogue screen there's no "add to a project" action at
+        // all — searching there means looking up/editing a price, same as
+        // tapping the row manually, never adding a quantity anywhere.
+        setMaterialPickPurpose(isCatalogueScreen ? 'price' : 'search');
         setItemCandidates(matches);
         setStep('item-pick');
         return;
@@ -1349,7 +1368,12 @@ export function GlobalVoiceControl() {
 
   const pickMaterial = (m: Material) => {
     if (materialPickPurpose === 'price') {
-      setPriceTarget({ materialId: m.id, materialName: m.description, priceDraft: (pendingPriceMinor.current / 100).toFixed(2) });
+      // pendingPriceMinor only holds a real value when the user spoke a new
+      // price ("change the price of X to Y") — a plain lookup (e.g. search
+      // on the Catalogue screen) never set it, so fall back to the
+      // material's own current price rather than showing "£0.00".
+      const priceMinor = pendingPriceMinor.current || m.unitCostMinor;
+      setPriceTarget({ materialId: m.id, materialName: m.description, priceDraft: (priceMinor / 100).toFixed(2) });
       setStep('confirm-price');
       return;
     }
@@ -1724,7 +1748,9 @@ export function GlobalVoiceControl() {
     ? drumLengthMeters(selectedMaterial.description) ?? drumLengthMeters(selectedMaterial.unit)
     : null;
   const isDrum = drumLen != null;
-  const packSz = selectedMaterial && !isMetres && !isDrum ? packSize(selectedMaterial.description) : null;
+  const packSz = selectedMaterial && !isMetres && !isDrum
+    ? packSize(selectedMaterial.description) ?? packSize(selectedMaterial.unit)
+    : null;
   const isPack = packSz != null;
   const amountNum = parseFloat(amountText);
   const drumsBilled = isDrum && drumLen && Number.isFinite(amountNum) && amountNum > 0
