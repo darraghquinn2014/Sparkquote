@@ -274,20 +274,26 @@ export default function ProjectDetailScreen() {
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12}><Text style={styles.back}>‹ Back</Text></Pressable>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-          <Pressable style={[styles.reportBtn, { backgroundColor: `${colors.accent}1A`, borderColor: `${colors.accent}55` }]} onPress={() => router.push(`/project/quote/${id}` as any)} hitSlop={8}>
-            <Text style={[styles.reportBtnText, { color: colors.accent }]}>Quote</Text>
-          </Pressable>
-          <Pressable style={[styles.reportBtn, { backgroundColor: `${colors.danger}1A`, borderColor: `${colors.danger}55` }]} onPress={() => router.push(`/project/snag/${id}` as any)} hitSlop={8}>
-            <Text style={[styles.reportBtnText, { color: colors.danger }]}>Snags</Text>
-          </Pressable>
-          <Pressable style={[styles.reportBtn, { backgroundColor: `${colors.accentSecondary}1A`, borderColor: `${colors.accentSecondary}55` }]} onPress={generateReport} disabled={reportBusy} hitSlop={8}>
-            <Text style={[styles.reportBtnText, { color: colors.accentSecondary }]}>{reportBusy ? '…' : 'Report'}</Text>
-          </Pressable>
           <Pressable onPress={openOverflow} hitSlop={12}>
             <Text style={styles.moreBtn}>•••</Text>
           </Pressable>
           <HeaderMicButton />
         </View>
+      </View>
+
+      <View style={styles.actionRow}>
+        <Pressable style={[styles.reportBtn, { backgroundColor: `${colors.accent}1A`, borderColor: `${colors.accent}55` }]} onPress={() => router.push(`/project/quote/${id}` as any)} hitSlop={8}>
+          <Text style={[styles.reportBtnIcon, { color: colors.accent }]}>£</Text>
+          <Text style={[styles.reportBtnText, { color: colors.accent }]}>Quote</Text>
+        </Pressable>
+        <Pressable style={[styles.reportBtn, { backgroundColor: `${colors.danger}1A`, borderColor: `${colors.danger}55` }]} onPress={() => router.push(`/project/snag/${id}` as any)} hitSlop={8}>
+          <Text style={[styles.reportBtnIcon, { color: colors.danger }]}>⚠</Text>
+          <Text style={[styles.reportBtnText, { color: colors.danger }]}>Snags</Text>
+        </Pressable>
+        <Pressable style={[styles.reportBtn, { backgroundColor: `${colors.accentSecondary}1A`, borderColor: `${colors.accentSecondary}55` }]} onPress={generateReport} disabled={reportBusy} hitSlop={8}>
+          <Text style={[styles.reportBtnIcon, { color: colors.accentSecondary }]}>▤</Text>
+          <Text style={[styles.reportBtnText, { color: colors.accentSecondary }]}>{reportBusy ? '…' : 'Report'}</Text>
+        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxl }}>
@@ -475,8 +481,10 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ground },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.lg, paddingVertical: space.md },
   back: { color: colors.textSecondary, fontSize: 16, fontWeight: '600' },
-  reportBtn: { borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.hairline },
-  reportBtnText: { color: colors.textSecondary, fontWeight: '700', fontSize: 13 },
+  actionRow: { flexDirection: 'row', gap: space.sm, paddingHorizontal: space.lg, paddingBottom: space.md },
+  reportBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs, borderRadius: radius.pill, paddingVertical: space.sm, borderWidth: 1.5, borderColor: colors.hairline },
+  reportBtnIcon: { fontSize: 15, fontWeight: '700' },
+  reportBtnText: { color: colors.textSecondary, fontWeight: '700', fontSize: 14 },
   moreBtn: { color: colors.textSecondary, fontSize: 20, fontWeight: '700', letterSpacing: 2 },
   busyOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(7,16,30,0.88)', alignItems: 'center', justifyContent: 'center', gap: space.md },
   busyText: { color: colors.accent, fontWeight: '700', fontSize: 15 },
