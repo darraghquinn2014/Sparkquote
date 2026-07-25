@@ -162,5 +162,45 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 15,
+      steps: [
+        addColumns({
+          table: 'projects',
+          columns: [
+            { name: 'address', type: 'string', isOptional: true },
+            { name: 'photo_path', type: 'string', isOptional: true },
+          ],
+        }),
+      ],
+    },
+    {
+      toVersion: 16,
+      steps: [
+        addColumns({
+          table: 'projects',
+          columns: [{ name: 'finished_at', type: 'number', isOptional: true }],
+        }),
+        addColumns({
+          table: 'snag_items',
+          columns: [
+            { name: 'started_at', type: 'number', isOptional: true },
+            { name: 'resolved_at', type: 'number', isOptional: true },
+          ],
+        }),
+      ],
+    },
+    {
+      toVersion: 17,
+      steps: [
+        addColumns({
+          table: 'projects',
+          columns: [
+            { name: 'latitude', type: 'number', isOptional: true },
+            { name: 'longitude', type: 'number', isOptional: true },
+          ],
+        }),
+      ],
+    },
   ],
 });

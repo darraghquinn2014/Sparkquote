@@ -54,6 +54,11 @@ export class ProjectModel extends Model {
   static table = 'projects';
   @text('name') name!: string;
   @text('client_name') clientName!: string | null;
+  @text('address') address!: string | null;
+  @text('photo_path') photoPath!: string | null;
+  @field('finished_at') finishedAt!: number | null;
+  @field('latitude') latitude!: number | null;
+  @field('longitude') longitude!: number | null;
   @readonly @date('created_at') createdAt!: Date;
   @readonly @date('updated_at') updatedAt!: Date;
 }
@@ -160,6 +165,8 @@ export class SnagItemModel extends Model {
   @text('resolved_photo_path') resolvedPhotoPath!: string | null;
   @field('sort_order') sortOrder!: number;
   @field('created_at') createdAt!: number;
+  @field('started_at') startedAt!: number | null;
+  @field('resolved_at') resolvedAt!: number | null;
 }
 
 export class SyncQueueModel extends Model {

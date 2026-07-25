@@ -13,7 +13,7 @@ import { Image } from 'expo-image';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
   snagItemsForProject, createSnagItem, setSnagResolved, updateSnagResolutionNote,
-  updateSnagResolvedPhoto, deleteSnagItem, updateSnagItemPhoto,
+  updateSnagResolvedPhoto, deleteSnagItem, updateSnagItemPhoto, startSnagWork,
 } from '@/src/data/snag-repo';
 import { loadProjects, loadLocations } from '@/src/data/project-repo';
 import { importSnagPhoto, deleteSnagPhoto } from '@/src/media/snag-photo-service';
@@ -23,6 +23,9 @@ import { colors, space, radius } from '@/src/ui/theme/tokens';
 import type { SnagItem, Location } from '@/src/domain/types';
 
 const ACCENT = '#F0B730'; // amber — snag/punch list colour
+
+const formatDate = (ts: number) =>
+  new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
 const mediaPaths = {
   documentDir: FileSystem.documentDirectory ?? '',
@@ -55,6 +58,7 @@ export default function SnagListScreen() {
   useCameraOrientation(cameraOpen);
 
   const [lightboxUri, setLightboxUri] = useState<string | null>(null);
+  const [detailItem, setDetailItem] = useState<SnagItem | null>(null);
 
   const [noteModalItem, setNoteModalItem] = useState<SnagItem | null>(null);
   const [noteModalIsNewResolve, setNoteModalIsNewResolve] = useState(false);
@@ -143,6 +147,11 @@ export default function SnagListScreen() {
       return;
     }
     await setSnagResolved(item.id, false);
+    reload();
+  };
+
+  const startWork = async (item: SnagItem) => {
+    await startSnagWork(item.id);
     reload();
   };
 
@@ -479,14 +488,29 @@ export default function SnagListScreen() {
                 </View>
               )}
               <View style={{ flex: 1 }}>
-                <Text style={[styles.desc, item.resolved && styles.descDone]} numberOfLines={2}>
-                  {item.description}
-                </Text>
-                {locationLabel(item.locationId) && (
-                  <Text style={styles.rowLocation}>{locationLabel(item.locationId)}</Text>
+                <Pressable onPress={() => setDetailItem(item)}>
+                  <Text style={[styles.desc, item.resolved && styles.descDone]} numberOfLines={2}>
+                    {item.description}
+                  </Text>
+                  {locationLabel(item.locationId) && (
+                    <Text style={styles.rowLocation}>{locationLabel(item.locationId)}</Text>
+                  )}
+                  <Text style={styles.timestamps}>
+                    Logged {formatDate(item.createdAt)}
+                    {item.startedAt ? ` · Started ${formatDate(item.startedAt)}` : ''}
+                    {item.resolvedAt ? ` · Resolved ${formatDate(item.resolvedAt)}` : ''}
+                  </Text>
+                  {item.resolved && item.resolutionNote && (
+                    <Text style={styles.resolutionNote} numberOfLines={3}>{item.resolutionNote}</Text>
+                  )}
+                </Pressable>
+                {!item.resolved && !item.startedAt && (
+                  <Pressable onPress={() => startWork(item)} hitSlop={8} style={styles.startWorkBtn}>
+                    <Text style={styles.startWorkText}>Start work ›</Text>
+                  </Pressable>
                 )}
-                {item.resolved && item.resolutionNote && (
-                  <Text style={styles.resolutionNote} numberOfLines={3}>{item.resolutionNote}</Text>
+                {!item.resolved && item.startedAt && (
+                  <View style={styles.inProgressBadge}><Text style={styles.inProgressBadgeText}>IN PROGRESS</Text></View>
                 )}
               </View>
               {item.resolved && (
@@ -543,6 +567,71 @@ export default function SnagListScreen() {
             <Pressable onPress={() => setLocationPickerOpen(false)} style={styles.sheetCancel}>
               <Text style={styles.sheetCancelText}>Close</Text>
             </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Snag detail — read-only view of description/photo/notes, opened by
+          tapping a row, so the electrician can review everything before
+          deciding to start work or mark it resolved. */}
+      <Modal visible={detailItem != null} transparent animationType="fade" onRequestClose={() => setDetailItem(null)}>
+        <Pressable style={styles.noteOverlay} onPress={() => setDetailItem(null)}>
+          <Pressable style={styles.noteCard} onPress={() => {}}>
+            {detailItem && (
+              <ScrollView style={{ maxHeight: 480 }}>
+                <Text style={styles.sheetTitle}>Snag detail</Text>
+                <Text style={styles.detailDesc}>{detailItem.description}</Text>
+                {locationLabel(detailItem.locationId) && (
+                  <Text style={styles.rowLocation}>{locationLabel(detailItem.locationId)}</Text>
+                )}
+                <Text style={styles.timestamps}>
+                  Logged {formatDate(detailItem.createdAt)}
+                  {detailItem.startedAt ? ` · Started ${formatDate(detailItem.startedAt)}` : ''}
+                  {detailItem.resolvedAt ? ` · Resolved ${formatDate(detailItem.resolvedAt)}` : ''}
+                </Text>
+
+                {(detailItem.photoPath || detailItem.resolvedPhotoPath) && (
+                  <View style={[styles.thumbPair, { marginTop: space.md }]}>
+                    {detailItem.photoPath && (
+                      <Pressable onPress={() => setLightboxUri(detailItem.photoPath!)}>
+                        <Image source={{ uri: detailItem.photoPath }} style={styles.detailThumb} contentFit="cover" />
+                      </Pressable>
+                    )}
+                    {detailItem.resolvedPhotoPath && (
+                      <Pressable onPress={() => setLightboxUri(detailItem.resolvedPhotoPath!)}>
+                        <Image source={{ uri: detailItem.resolvedPhotoPath }} style={styles.detailThumb} contentFit="cover" />
+                      </Pressable>
+                    )}
+                  </View>
+                )}
+
+                {detailItem.resolved && detailItem.resolutionNote && (
+                  <Text style={[styles.resolutionNote, { marginTop: space.md }]}>{detailItem.resolutionNote}</Text>
+                )}
+
+                <View style={[styles.addRow, { marginTop: space.lg }]}>
+                  <Pressable onPress={() => setDetailItem(null)} hitSlop={8}>
+                    <Text style={styles.addCancel}>Close</Text>
+                  </Pressable>
+                  {!detailItem.resolved && !detailItem.startedAt && (
+                    <Pressable
+                      style={styles.addConfirm}
+                      onPress={() => { const it = detailItem; setDetailItem(null); startWork(it); }}
+                    >
+                      <Text style={styles.addConfirmText}>Start work</Text>
+                    </Pressable>
+                  )}
+                  {!detailItem.resolved && (
+                    <Pressable
+                      style={styles.addConfirm}
+                      onPress={() => { const it = detailItem; setDetailItem(null); toggle(it); }}
+                    >
+                      <Text style={styles.addConfirmText}>Mark resolved</Text>
+                    </Pressable>
+                  )}
+                </View>
+              </ScrollView>
+            )}
           </Pressable>
         </Pressable>
       </Modal>
@@ -720,8 +809,15 @@ const styles = StyleSheet.create({
   rowDone: { opacity: 0.5 },
   thumbPair: { flexDirection: 'row', gap: 4 },
   rowThumb: { width: 40, height: 40, borderRadius: radius.tile / 2 },
+  detailDesc: { color: colors.textPrimary, fontSize: 16, fontWeight: '600', marginTop: space.xs, marginBottom: space.xs },
+  detailThumb: { width: 96, height: 96, borderRadius: radius.tile },
   rowLocation: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
   resolutionNote: { color: colors.textSecondary, fontSize: 12, fontStyle: 'italic', marginTop: 4 },
+  timestamps: { color: colors.textMuted, fontSize: 11, marginTop: 2, opacity: 0.8 },
+  startWorkBtn: { alignSelf: 'flex-start', marginTop: 4 },
+  startWorkText: { color: ACCENT, fontSize: 12, fontWeight: '700' },
+  inProgressBadge: { alignSelf: 'flex-start', backgroundColor: `${ACCENT}2A`, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 2, marginTop: 4 },
+  inProgressBadgeText: { color: ACCENT, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
 
   checkbox: {
     width: 24, height: 24, borderRadius: 6,

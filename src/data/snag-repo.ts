@@ -16,6 +16,8 @@ function toSnagItem(r: SnagItemModel): SnagItem {
   if (r.photoPath != null) item.photoPath = r.photoPath;
   if (r.resolutionNote != null) item.resolutionNote = r.resolutionNote;
   if (r.resolvedPhotoPath != null) item.resolvedPhotoPath = r.resolvedPhotoPath;
+  if (r.startedAt != null) item.startedAt = r.startedAt;
+  if (r.resolvedAt != null) item.resolvedAt = r.resolvedAt;
   return item;
 }
 
@@ -65,8 +67,17 @@ export async function setSnagResolved(id: string, resolved: boolean, resolutionN
     const row = await database.get<SnagItemModel>('snag_items').find(id);
     await row.update((r) => {
       r.resolved = resolved;
+      r.resolvedAt = resolved ? Date.now() : null;
       if (resolutionNote !== undefined) r.resolutionNote = resolutionNote.trim() || null;
     });
+  });
+}
+
+/** Mark a snag as being worked on — the "in progress" state between open and resolved. */
+export async function startSnagWork(id: string): Promise<void> {
+  await database.write(async () => {
+    const row = await database.get<SnagItemModel>('snag_items').find(id);
+    await row.update((r) => { r.startedAt = Date.now(); });
   });
 }
 

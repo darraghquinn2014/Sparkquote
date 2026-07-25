@@ -111,11 +111,12 @@ export function GlobalVoiceControl() {
    * TabBarHeightReporter's sibling pattern) instead of the floating one, so
    * users always have exactly one visible mic trigger, never two. */
   const hasOwnHeaderMic = pathname === '/' || pathname === '/estimate' || pathname === '/projects'
-    || pathname === '/catalogue' || isPlainProjectDetail;
-  /** Tools, Help, and Review/Sign are reference/utility screens with no voice
-   * actions of their own — no mic trigger needed here at all, header or floating. */
+    || pathname === '/catalogue' || isPlainProjectDetail || pathname.startsWith('/project/quote/');
+  /** Tools, Help, Review/Sign, and the floor-plan import/trace screen are
+   * reference/utility screens with no voice actions of their own — no mic
+   * trigger needed here at all, header or floating. */
   const isVoiceFreeScreen = pathname === '/help' || pathname === '/tools' || pathname.startsWith('/tools/')
-    || pathname === '/review';
+    || pathname === '/review' || pathname.startsWith('/project/plan/');
   const { projectId: currentProjectId, locationId: currentLocationId } = useCurrentProjectContext();
   const voice = useVoiceCommand();
 

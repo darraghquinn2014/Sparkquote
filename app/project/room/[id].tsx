@@ -45,6 +45,9 @@ import type { PhotoStage } from '@/src/media/media-types';
 const STAGE_LABELS: Record<PhotoStage, string> = { before: 'Before', during: 'During', after: 'After' };
 const STAGE_COLORS: Record<PhotoStage, string> = { before: '#3B82F6', during: '#FFB020', after: '#06D6A0' };
 
+const formatDate = (ts: number) =>
+  new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
 const COLS = 3;
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const THUMB = (SCREEN_W - space.lg * 2 - space.xs * (COLS - 1)) / COLS;
@@ -692,6 +695,7 @@ export default function RoomScreen() {
                     {lightboxPhoto.note ? (
                       <Text style={styles.lightboxNote}>{lightboxPhoto.note}</Text>
                     ) : null}
+                    <Text style={styles.lightboxDate}>{formatDate(lightboxPhoto.capturedAt)}</Text>
                   </View>
                   <View style={styles.lightboxActions}>
                     <Pressable onPress={() => sharePhoto(lightboxPhoto)} hitSlop={8}>
@@ -1050,6 +1054,7 @@ const styles = StyleSheet.create({
   lightboxCaption: { color: '#fff', fontSize: 15, fontWeight: '700' },
   lightboxCaptionEmpty: { color: 'rgba(255,255,255,0.4)', fontSize: 13, fontStyle: 'italic' },
   lightboxNote: { color: 'rgba(255,255,255,0.65)', fontSize: 13, marginTop: 2 },
+  lightboxDate: { color: 'rgba(255,255,255,0.45)', fontSize: 11, marginTop: 4 },
   lightboxActions: { flexDirection: 'row', gap: space.md, alignItems: 'center' },
   lightboxShareBtn: { color: colors.textSecondary, fontSize: 14, fontWeight: '600' },
   lightboxAnnotateBtn: { color: '#06D6A0', fontSize: 14, fontWeight: '700' },

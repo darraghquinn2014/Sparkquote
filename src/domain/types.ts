@@ -152,13 +152,27 @@ export interface SnagItem {
   resolvedPhotoPath?: string;
   sortOrder: number;
   createdAt: number;
+  /** Set when work on this snag begins (the "in progress" state), before it's resolved. */
+  startedAt?: number;
+  /** Set when the snag is marked resolved; cleared if it's reopened. */
+  resolvedAt?: number;
 }
 
 export interface Project {
   id: string;
   name: string;
   clientName?: string;
+  /** Physical site address, free text. */
+  address?: string;
+  /** GPS-captured site location — set independently of `address`, since some
+   * sites (new builds) have no formal address yet. */
+  latitude?: number;
+  longitude?: number;
+  /** Cover photo for the project, shown on the project list. */
+  photoPath?: string;
   createdAt: number; // Unix ms
+  /** Set when the project is marked finished; cleared if reopened. */
+  finishedAt?: number;
 }
 
 export interface Location {

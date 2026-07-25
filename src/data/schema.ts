@@ -13,7 +13,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 14,
+  version: 17,
   tables: [
     // ── Catalogue ────────────────────────────────────────────────────────
     tableSchema({
@@ -72,6 +72,12 @@ export const schema = appSchema({
       columns: [
         { name: 'name', type: 'string' },
         { name: 'client_name', type: 'string', isOptional: true },
+        { name: 'address', type: 'string', isOptional: true },
+        { name: 'photo_path', type: 'string', isOptional: true },
+        { name: 'finished_at', type: 'number', isOptional: true },
+        // GPS-captured site location (spec: sites without a formal address yet)
+        { name: 'latitude', type: 'number', isOptional: true },
+        { name: 'longitude', type: 'number', isOptional: true },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number' },
       ],
@@ -202,6 +208,8 @@ export const schema = appSchema({
         { name: 'resolved_photo_path', type: 'string', isOptional: true },
         { name: 'sort_order', type: 'number' },
         { name: 'created_at', type: 'number' },
+        { name: 'started_at', type: 'number', isOptional: true },
+        { name: 'resolved_at', type: 'number', isOptional: true },
       ],
     }),
 

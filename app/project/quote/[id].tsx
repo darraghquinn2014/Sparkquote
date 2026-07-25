@@ -21,6 +21,7 @@ import { LabourSheet } from '@/src/ui/catalogue/LabourSheet';
 import { EditLineSheet } from '@/src/ui/catalogue/EditLineSheet';
 import { PhotoMeasureSheet } from '@/src/ui/measure/PhotoMeasureSheet';
 import { useVoiceAction } from '@/src/voice/voice-bus';
+import { HeaderMicButton } from '@/src/ui/voice/HeaderMicButton';
 import { toLaborToggle } from '@/src/data/mappers';
 import { seedLaborToggles } from '@/src/data/seed/assemblies';
 import type { Project, Location, Estimate, LineItem, Material } from '@/src/domain/types';
@@ -179,16 +180,7 @@ export default function ProjectQuoteScreen() {
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Quote'}</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-          <Pressable
-            style={[styles.reviewBtn, (estimate.lineItems.length === 0 || previewing) && styles.reviewBtnDisabled]}
-            onPress={() => estimate.lineItems.length > 0 && previewPdf()}
-            disabled={previewing}
-            hitSlop={8}
-          >
-            <Text style={styles.reviewBtnText}>{previewing ? 'Building…' : 'Preview PDF quote'}</Text>
-          </Pressable>
-        </View>
+        <HeaderMicButton />
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -320,6 +312,13 @@ export default function ProjectQuoteScreen() {
               <Text style={styles.totalLabel}>Total</Text>
               <Text style={styles.totalValue}>{formatMoney(priced.grandTotalMinor, estimate.currency)}</Text>
             </View>
+            <Pressable
+              style={[styles.previewBtn, previewing && styles.reviewBtnDisabled]}
+              onPress={previewPdf}
+              disabled={previewing}
+            >
+              <Text style={styles.previewBtnText}>{previewing ? 'Building…' : 'Preview PDF quote'}</Text>
+            </Pressable>
           </View>
         )}
       </ScrollView>
@@ -374,9 +373,9 @@ const styles = StyleSheet.create({
   },
   back: { color: colors.textSecondary, fontSize: 16, fontWeight: '600' },
   headerTitle: { flex: 1, color: colors.textPrimary, fontSize: 17, fontWeight: '700', textAlign: 'center' },
-  reviewBtn: { backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.sm },
   reviewBtnDisabled: { opacity: 0.35 },
-  reviewBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 13 },
+  previewBtn: { backgroundColor: colors.accent, borderRadius: radius.pill, paddingVertical: space.md, alignItems: 'center', marginTop: space.lg },
+  previewBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 15 },
   scroll: { padding: space.lg, paddingBottom: space.xxl },
 
   rateRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.tile, padding: space.lg, marginBottom: space.lg },

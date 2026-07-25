@@ -60,6 +60,12 @@
         }
       ],
       [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow SparkQuote to use your location to capture an accurate site location for a project."
+        }
+      ],
+      [
         "@morrowdigital/watermelondb-expo-plugin",
         {
           "disableJsi": false

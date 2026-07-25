@@ -4,15 +4,17 @@
  * (Reference photos per room come in Phase 2.)
  */
 import React, { useCallback, useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, Alert, ActivityIndicator, TextInput } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Alert, ActivityIndicator, TextInput, Linking, Platform, KeyboardAvoidingView } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import type { Project, Location } from '@/src/domain/types';
-import { loadProjects, loadLocations, addLocation, deleteLocation, deleteProject, renameProject, renameLocation } from '@/src/data/project-repo';
+import { loadProjects, loadLocations, addLocation, deleteLocation, deleteProject, renameProject, renameLocation, setProjectPhoto, setProjectFinished, setProjectLocation } from '@/src/data/project-repo';
+import { captureCurrentLocation, mapsUrlForLocation } from '@/src/media/location-service';
 import { loadFloorPlanForLocation, loadWallsForFloorPlan } from '@/src/data/floor-plan-repo';
 import { loadProjectEstimate } from '@/src/data/project-estimate-repo';
 import { photosForLocation } from '@/src/data/photo-repo';
@@ -25,11 +27,35 @@ import { COMMON_FLOOR_NAMES } from '@/src/domain/floor-names';
 import { COMMON_ROOM_NAMES } from '@/src/domain/room-names';
 import { toLaborToggle } from '@/src/data/mappers';
 import { seedLaborToggles } from '@/src/data/seed/assemblies';
+import { saveCapture } from '@/src/media/camera-service';
+import { SimpleCameraCapture } from '@/src/ui/photos/SimpleCameraCapture';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import { useVoiceAction } from '@/src/voice/voice-bus';
 import { HeaderMicButton } from '@/src/ui/voice/HeaderMicButton';
 
 const allToggles = seedLaborToggles.map(toLaborToggle);
+
+const mediaPaths = {
+  documentDir: FileSystem.documentDirectory ?? '',
+  cacheDir: FileSystem.cacheDirectory ?? '',
+};
+
+const formatDate = (ts: number) =>
+  new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+function openInMaps(address: string, location?: { latitude: number; longitude: number }) {
+  if (location) {
+    Linking.openURL(mapsUrlForLocation(location.latitude, location.longitude)).catch(() => {
+      Linking.openURL(`https://maps.google.com/?q=${location.latitude},${location.longitude}`).catch(() => {});
+    });
+    return;
+  }
+  const encoded = encodeURIComponent(address);
+  const url = Platform.OS === 'ios' ? `maps:0,0?q=${encoded}` : `geo:0,0?q=${encoded}`;
+  Linking.openURL(url).catch(() => {
+    Linking.openURL(`https://maps.google.com/?q=${encoded}`).catch(() => {});
+  });
+}
 
 export default function ProjectDetailScreen() {
   const router = useRouter();
@@ -48,6 +74,12 @@ export default function ProjectDetailScreen() {
   const [customRoom, setCustomRoom] = useState(false);
   const [editingId, setEditingId] = useState<string | 'project' | null>(null);
   const [editName, setEditName] = useState('');
+  const [editingAddress, setEditingAddress] = useState(false);
+  const [addressDraft, setAddressDraft] = useState('');
+  const [locationDraft, setLocationDraft] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [photoSaving, setPhotoSaving] = useState(false);
 
   const reload = useCallback(async () => {
     if (!id) return;
@@ -202,13 +234,57 @@ export default function ProjectDetailScreen() {
   const startEdit = (id: string | 'project', current: string) => { setEditingId(id); setEditName(current); };
   const commitEditProject = async () => {
     const n = editName.trim();
-    if (n && project) await renameProject(project.id, n, project.clientName);
+    if (n && project) await renameProject(project.id, n, project.clientName, project.address);
     setEditingId(null); reload();
   };
   const commitEditLocation = async (locId: string) => {
     const n = editName.trim();
     if (n) await renameLocation(locId, n);
     setEditingId(null); reload();
+  };
+
+  const startEditAddress = () => {
+    setAddressDraft(project?.address ?? '');
+    setLocationDraft(
+      project?.latitude != null && project?.longitude != null
+        ? { latitude: project.latitude, longitude: project.longitude }
+        : null
+    );
+    setEditingAddress(true);
+  };
+  const commitEditAddress = async () => {
+    if (!project) return;
+    await renameProject(project.id, project.name, project.clientName, addressDraft.trim());
+    await setProjectLocation(project.id, locationDraft);
+    setEditingAddress(false);
+    reload();
+  };
+  const useCurrentLocationForAddress = async () => {
+    try {
+      setLocating(true);
+      const captured = await captureCurrentLocation();
+      setLocationDraft({ latitude: captured.latitude, longitude: captured.longitude });
+      if (captured.address && !addressDraft.trim()) setAddressDraft(captured.address);
+    } catch (e) {
+      Alert.alert('Could not get location', String(e instanceof Error ? e.message : e));
+    } finally {
+      setLocating(false);
+    }
+  };
+
+  const handleCoverPhoto = async (uri: string) => {
+    if (!id) return;
+    setCameraOpen(false);
+    setPhotoSaving(true);
+    try {
+      const photo = await saveCapture({ sourceUri: uri, paths: mediaPaths, projectId: id, quality: 'medium' });
+      await setProjectPhoto(id, photo.filePath);
+      await reload();
+    } catch (e) {
+      Alert.alert('Save failed', String(e));
+    } finally {
+      setPhotoSaving(false);
+    }
   };
 
   const confirmDeleteLocation = (loc: Location) => {
@@ -231,10 +307,17 @@ export default function ProjectDetailScreen() {
     ]);
   };
 
+  const toggleFinished = async () => {
+    if (!project) return;
+    await setProjectFinished(project.id, !project.finishedAt);
+    reload();
+  };
+
   const openOverflow = () => {
     if (!project) return;
     Alert.alert(project.name, undefined, [
       { text: 'Documents', onPress: () => router.push(`/project/drawings/${id}` as any) },
+      { text: project.finishedAt ? 'Reopen project' : 'Mark project finished', onPress: toggleFinished },
       { text: 'Delete project', style: 'destructive', onPress: confirmDeleteProject },
       { text: 'Cancel', style: 'cancel' },
     ]);
@@ -296,7 +379,23 @@ export default function ProjectDetailScreen() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxl }}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxl }} keyboardShouldPersistTaps="handled">
+        {photoSaving ? (
+          <View style={[styles.coverPhotoWrap, styles.coverPhotoLoading]}>
+            <ActivityIndicator color={colors.accent} />
+          </View>
+        ) : project.photoPath ? (
+          <Pressable style={styles.coverPhotoWrap} onPress={() => setCameraOpen(true)}>
+            <Image source={{ uri: project.photoPath }} style={styles.coverPhoto} contentFit="cover" />
+            <View style={styles.coverPhotoBadge}><Text style={styles.coverPhotoBadgeText}>Change photo</Text></View>
+          </Pressable>
+        ) : (
+          <Pressable style={styles.addCoverBtn} onPress={() => setCameraOpen(true)}>
+            <Text style={styles.addCoverBtnText}>+ Add cover photo</Text>
+          </Pressable>
+        )}
+
         {editingId === "project" ? (
           <View style={styles.editRow}>
             <TextInput value={editName} onChangeText={setEditName} style={styles.editInput} autoFocus onSubmitEditing={commitEditProject} />
@@ -309,6 +408,57 @@ export default function ProjectDetailScreen() {
           </View>
         )}
         {project.clientName ? <Text style={styles.client}>{project.clientName}</Text> : null}
+
+        {editingAddress ? (
+          <View>
+            <View style={styles.editRow}>
+              <TextInput
+                value={addressDraft}
+                onChangeText={setAddressDraft}
+                placeholder="Site address"
+                placeholderTextColor={colors.textMuted}
+                style={styles.editInput}
+                autoFocus
+                onSubmitEditing={commitEditAddress}
+              />
+              <Pressable style={styles.addConfirm} onPress={commitEditAddress}><Text style={styles.addConfirmText}>Save</Text></Pressable>
+            </View>
+            <Pressable style={styles.locationBtn} onPress={useCurrentLocationForAddress} disabled={locating}>
+              <Text style={styles.locationBtnText}>
+                {locating ? 'Getting location…' : locationDraft ? '📍 GPS captured — tap to refresh' : '📍 Use current location'}
+              </Text>
+            </Pressable>
+          </View>
+        ) : project.address ? (
+          <View style={styles.addressRow}>
+            <Pressable
+              onPress={() => openInMaps(project.address!, project.latitude != null && project.longitude != null ? { latitude: project.latitude, longitude: project.longitude } : undefined)}
+              hitSlop={4}
+              style={{ flex: 1 }}
+            >
+              <Text style={styles.address}>📍 {project.address}</Text>
+            </Pressable>
+            <Pressable onPress={startEditAddress} hitSlop={8}><Text style={styles.editBtn}>Edit</Text></Pressable>
+          </View>
+        ) : project.latitude != null && project.longitude != null ? (
+          <View style={styles.addressRow}>
+            <Pressable onPress={() => openInMaps('', { latitude: project.latitude!, longitude: project.longitude! })} hitSlop={4} style={{ flex: 1 }}>
+              <Text style={styles.address}>📍 GPS location saved</Text>
+            </Pressable>
+            <Pressable onPress={startEditAddress} hitSlop={8}><Text style={styles.editBtn}>Edit</Text></Pressable>
+          </View>
+        ) : (
+          <Pressable onPress={startEditAddress} hitSlop={8}>
+            <Text style={styles.addAddressLink}>+ Add site address</Text>
+          </Pressable>
+        )}
+
+        <View style={styles.datesRow}>
+          <Text style={styles.datesText}>Created {formatDate(project.createdAt)}</Text>
+          {project.finishedAt ? (
+            <Text style={styles.finishedBadge}>✓ Finished {formatDate(project.finishedAt)}</Text>
+          ) : null}
+        </View>
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Floors & rooms</Text>
@@ -467,12 +617,19 @@ export default function ProjectDetailScreen() {
           </View>
         ))}
       </ScrollView>
+      </KeyboardAvoidingView>
       {reportBusy && (
         <View style={styles.busyOverlay}>
           <ActivityIndicator color={colors.accent} size="large" />
           <Text style={styles.busyText}>Building report…</Text>
         </View>
       )}
+
+      <SimpleCameraCapture
+        visible={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onCaptured={handleCoverPhoto}
+      />
     </SafeAreaView>
   );
 }
@@ -495,6 +652,21 @@ const styles = StyleSheet.create({
   editInput: { flex: 1, backgroundColor: colors.surface, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.sm, color: colors.textPrimary, fontSize: 18, fontWeight: '700' },
   projectName: { color: colors.textPrimary, fontSize: 26, fontWeight: '800' },
   client: { color: colors.textSecondary, fontSize: 15, marginTop: 2 },
+  addressRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.xs, gap: space.sm },
+  address: { color: colors.textMuted, fontSize: 14 },
+  addAddressLink: { color: colors.accent, fontWeight: '600', fontSize: 13, marginTop: space.xs },
+  locationBtn: { marginTop: space.xs, alignSelf: 'flex-start' },
+  locationBtnText: { color: colors.accent, fontWeight: '700', fontSize: 12 },
+  datesRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginTop: space.sm },
+  datesText: { color: colors.textMuted, fontSize: 12 },
+  finishedBadge: { color: '#06D6A0', fontSize: 12, fontWeight: '700' },
+  coverPhotoWrap: { borderRadius: radius.tile, overflow: 'hidden', height: 140, marginBottom: space.md },
+  coverPhoto: { width: '100%', height: '100%' },
+  coverPhotoLoading: { backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  coverPhotoBadge: { position: 'absolute', bottom: space.sm, right: space.sm, backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: 4 },
+  coverPhotoBadgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  addCoverBtn: { backgroundColor: colors.surface, borderRadius: radius.tile, paddingVertical: space.lg, alignItems: 'center', borderWidth: 1, borderColor: colors.hairline, borderStyle: 'dashed', marginBottom: space.md },
+  addCoverBtnText: { color: colors.accent, fontWeight: '700', fontSize: 14 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.xl, marginBottom: space.md },
   sectionTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
   addFloorBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: space.md, paddingVertical: space.sm, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.hairline },

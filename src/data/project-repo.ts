@@ -13,6 +13,11 @@ import type { Project, Location } from '../domain/types';
 function toProject(r: ProjectModel): Project {
   const p: Project = { id: r.id, name: r.name, createdAt: r.createdAt.getTime() };
   if (r.clientName != null) p.clientName = r.clientName;
+  if (r.address != null) p.address = r.address;
+  if (r.photoPath != null) p.photoPath = r.photoPath;
+  if (r.finishedAt != null) p.finishedAt = r.finishedAt;
+  if (r.latitude != null) p.latitude = r.latitude;
+  if (r.longitude != null) p.longitude = r.longitude;
   return p;
 }
 
@@ -32,12 +37,20 @@ function toLocation(r: LocationModel): Location {
 
 // ── Projects ───────────────────────────────────────────────────────────────
 
-export async function createProject(name: string, clientName?: string): Promise<string> {
+export async function createProject(
+  name: string,
+  clientName?: string,
+  address?: string,
+  location?: { latitude: number; longitude: number },
+): Promise<string> {
   let newId = '';
   await database.write(async () => {
     const row = await database.get<ProjectModel>('projects').create((r) => {
       r.name = name;
       r.clientName = clientName ?? null;
+      r.address = address ?? null;
+      r.latitude = location?.latitude ?? null;
+      r.longitude = location?.longitude ?? null;
     });
     newId = row.id;
   });
@@ -49,28 +62,58 @@ export async function loadProjects(): Promise<Project[]> {
   return rows.map(toProject).sort((a, b) => b.createdAt - a.createdAt);
 }
 
-export async function renameProject(id: string, name: string, clientName?: string): Promise<void> {
+export async function renameProject(id: string, name: string, clientName?: string, address?: string): Promise<void> {
   await database.write(async () => {
     const row = await database.get<ProjectModel>('projects').find(id);
     await row.update((r) => {
       r.name = name;
       if (clientName !== undefined) r.clientName = clientName || null;
+      if (address !== undefined) r.address = address || null;
     });
+  });
+}
+
+/** Set (or clear, passing null) a project's GPS-captured site location. */
+export async function setProjectLocation(id: string, location: { latitude: number; longitude: number } | null): Promise<void> {
+  await database.write(async () => {
+    const row = await database.get<ProjectModel>('projects').find(id);
+    await row.update((r) => {
+      r.latitude = location?.latitude ?? null;
+      r.longitude = location?.longitude ?? null;
+    });
+  });
+}
+
+/** Set (or clear, passing null) a project's cover photo file path. */
+export async function setProjectPhoto(id: string, photoPath: string | null): Promise<void> {
+  await database.write(async () => {
+    const row = await database.get<ProjectModel>('projects').find(id);
+    await row.update((r) => { r.photoPath = photoPath; });
+  });
+}
+
+/** Mark a project finished (pass true) or reopen it (pass false). */
+export async function setProjectFinished(id: string, finished: boolean): Promise<void> {
+  await database.write(async () => {
+    const row = await database.get<ProjectModel>('projects').find(id);
+    await row.update((r) => { r.finishedAt = finished ? Date.now() : null; });
   });
 }
 
 /** Delete a project and all its locations. */
 export async function deleteProject(id: string): Promise<void> {
+  const proj = await database.get<ProjectModel>('projects').find(id);
+  const photoPath = proj.photoPath;
   await database.write(async () => {
     const locs = await database
       .get<LocationModel>('locations')
       .query(Q.where('project_id', id))
       .fetch();
     const batch: Model[] = locs.map((l) => l.prepareDestroyPermanently());
-    const proj = await database.get<ProjectModel>('projects').find(id);
     batch.push(proj.prepareDestroyPermanently());
     await database.batch(...batch);
   });
+  if (photoPath) await FileSystem.deleteAsync(photoPath, { idempotent: true });
 }
 
 // ── Locations (floors / rooms) ───────────────────────────────────────────────
