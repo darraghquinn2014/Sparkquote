@@ -4,7 +4,7 @@ import {
   StyleSheet, Alert, ActivityIndicator, Modal, ScrollView, Share,
 } from 'react-native';
 import RNShare from 'react-native-share';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -14,13 +14,15 @@ import * as FileSystem from 'expo-file-system/legacy';
 import {
   snagItemsForProject, createSnagItem, setSnagResolved, updateSnagResolutionNote,
   updateSnagResolvedPhoto, deleteSnagItem, updateSnagItemPhoto, startSnagWork,
+  loadSnagNotes, addSnagNote,
 } from '@/src/data/snag-repo';
 import { loadProjects, loadLocations } from '@/src/data/project-repo';
 import { importSnagPhoto, deleteSnagPhoto } from '@/src/media/snag-photo-service';
 import { useCameraOrientation } from '@/src/media/useCameraOrientation';
 import { useVoiceAction } from '@/src/voice/voice-bus';
+import { HeaderMicButton } from '@/src/ui/voice/HeaderMicButton';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
-import type { SnagItem, Location } from '@/src/domain/types';
+import type { SnagItem, SnagNote, Location } from '@/src/domain/types';
 
 const ACCENT = '#F0B730'; // amber — snag/punch list colour
 
@@ -36,6 +38,7 @@ type CameraState = 'live' | 'preview';
 
 export default function SnagListScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { id: projectId, promptPhotoFor } = useLocalSearchParams<{ id: string; promptPhotoFor?: string }>();
   const [projectName, setProjectName] = useState('');
   const [items, setItems] = useState<SnagItem[]>([]);
@@ -59,6 +62,9 @@ export default function SnagListScreen() {
 
   const [lightboxUri, setLightboxUri] = useState<string | null>(null);
   const [detailItem, setDetailItem] = useState<SnagItem | null>(null);
+  const [detailNotes, setDetailNotes] = useState<SnagNote[]>([]);
+  const [progressNoteDraft, setProgressNoteDraft] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
 
   const [noteModalItem, setNoteModalItem] = useState<SnagItem | null>(null);
   const [noteModalIsNewResolve, setNoteModalIsNewResolve] = useState(false);
@@ -153,6 +159,41 @@ export default function SnagListScreen() {
   const startWork = async (item: SnagItem) => {
     await startSnagWork(item.id);
     reload();
+  };
+
+  const openDetail = (item: SnagItem) => {
+    setDetailItem(item);
+    setProgressNoteDraft('');
+    loadSnagNotes(item.id).then(setDetailNotes);
+  };
+
+  const saveProgressNote = async () => {
+    if (!detailItem) return;
+    const text = progressNoteDraft.trim();
+    if (!text) return;
+    setSavingNote(true);
+    try {
+      const note = await addSnagNote(detailItem.id, text);
+      setDetailNotes((notes) => [...notes, note]);
+      setProgressNoteDraft('');
+    } catch (e) {
+      Alert.alert('Could not save note', String(e));
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  const shareProgress = async (item: SnagItem, notes: SnagNote[]) => {
+    const loc = locationLabel(item.locationId);
+    const lines = notes.map((n) => `- ${formatDate(n.createdAt)}: ${n.text}`);
+    const message = `${item.description}${loc ? ` (${loc})` : ''} — IN PROGRESS`
+      + (item.startedAt ? `\nStarted ${formatDate(item.startedAt)}` : '')
+      + (lines.length > 0 ? `\n\nProgress:\n${lines.join('\n')}` : '');
+    try {
+      await Share.share({ message });
+    } catch (e) {
+      Alert.alert('Could not share', String(e));
+    }
   };
 
   const openEditNote = (item: SnagItem) => {
@@ -369,12 +410,7 @@ export default function SnagListScreen() {
         <Pressable onPress={() => router.back()} hitSlop={12}>
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
-        <Pressable
-          style={styles.addBtn}
-          onPress={() => { setAdding(true); setDraft(''); setDraftLocationId(undefined); setDraftPhotoUri(undefined); }}
-        >
-          <Text style={styles.addBtnText}>+ Add</Text>
-        </Pressable>
+        <HeaderMicButton />
         <View style={styles.headerTitleOverlay} pointerEvents="none">
           <Text style={styles.title}>Snag List</Text>
           {projectName ? <Text style={styles.sub}>{projectName}</Text> : null}
@@ -488,7 +524,7 @@ export default function SnagListScreen() {
                 </View>
               )}
               <View style={{ flex: 1 }}>
-                <Pressable onPress={() => setDetailItem(item)}>
+                <Pressable onPress={() => openDetail(item)}>
                   <Text style={[styles.desc, item.resolved && styles.descDone]} numberOfLines={2}>
                     {item.description}
                   </Text>
@@ -510,7 +546,12 @@ export default function SnagListScreen() {
                   </Pressable>
                 )}
                 {!item.resolved && item.startedAt && (
-                  <View style={styles.inProgressBadge}><Text style={styles.inProgressBadgeText}>IN PROGRESS</Text></View>
+                  <View style={styles.inProgressRow}>
+                    <View style={styles.inProgressBadge}><Text style={styles.inProgressBadgeText}>IN PROGRESS</Text></View>
+                    <Pressable onPress={() => loadSnagNotes(item.id).then((notes) => shareProgress(item, notes))} hitSlop={8}>
+                      <Text style={styles.shareLink}>Share</Text>
+                    </Pressable>
+                  </View>
                 )}
               </View>
               {item.resolved && (
@@ -528,6 +569,19 @@ export default function SnagListScreen() {
           </Swipeable>
         )}
       />
+
+      {/* Floating "+ Add" — same size/position as the app-wide mic FAB it
+          replaces on this screen (mic moved to the header, see HeaderMicButton
+          above), so the visual language stays consistent. */}
+      {!adding && (
+        <Pressable
+          style={[styles.floatingAddBtn, { bottom: insets.bottom + 24 }]}
+          onPress={() => { setAdding(true); setDraft(''); setDraftLocationId(undefined); setDraftPhotoUri(undefined); }}
+          hitSlop={8}
+        >
+          <Text style={styles.floatingAddGlyph}>+</Text>
+        </Pressable>
+      )}
 
       {/* Location picker */}
       <Modal visible={locationPickerOpen} transparent animationType="fade" onRequestClose={() => setLocationPickerOpen(false)}>
@@ -607,6 +661,50 @@ export default function SnagListScreen() {
 
                 {detailItem.resolved && detailItem.resolutionNote && (
                   <Text style={[styles.resolutionNote, { marginTop: space.md }]}>{detailItem.resolutionNote}</Text>
+                )}
+
+                {(detailItem.startedAt || detailNotes.length > 0) && !detailItem.resolved && (
+                  <View style={styles.progressSection}>
+                    <View style={styles.progressHeaderRow}>
+                      <Text style={styles.fieldLabel}>Progress notes</Text>
+                      {detailNotes.length > 0 && (
+                        <Pressable onPress={() => shareProgress(detailItem, detailNotes)} hitSlop={8}>
+                          <Text style={styles.shareLink}>Share</Text>
+                        </Pressable>
+                      )}
+                    </View>
+
+                    {detailNotes.length === 0 ? (
+                      <Text style={styles.progressEmpty}>
+                        No updates yet — log why this is taking longer, e.g. waiting on a material delivery.
+                      </Text>
+                    ) : (
+                      detailNotes.map((note) => (
+                        <View key={note.id} style={styles.progressNoteRow}>
+                          <Text style={styles.progressNoteDate}>{formatDate(note.createdAt)}</Text>
+                          <Text style={styles.progressNoteText}>{note.text}</Text>
+                        </View>
+                      ))
+                    )}
+
+                    <View style={styles.progressAddRow}>
+                      <TextInput
+                        style={styles.progressInput}
+                        value={progressNoteDraft}
+                        onChangeText={setProgressNoteDraft}
+                        placeholder="e.g. Waiting on socket delivery"
+                        placeholderTextColor={colors.textMuted}
+                        multiline
+                      />
+                      <Pressable
+                        style={[styles.progressAddBtn, !progressNoteDraft.trim() && styles.progressAddBtnDisabled]}
+                        onPress={saveProgressNote}
+                        disabled={savingNote || !progressNoteDraft.trim()}
+                      >
+                        <Text style={styles.progressAddBtnText}>{savingNote ? 'Saving…' : 'Add'}</Text>
+                      </Pressable>
+                    </View>
+                  </View>
                 )}
 
                 <View style={[styles.addRow, { marginTop: space.lg }]}>
@@ -748,11 +846,12 @@ const styles = StyleSheet.create({
   back: { color: colors.textSecondary, fontSize: 16, fontWeight: '600' },
   title: { color: colors.textPrimary, fontSize: 18, fontWeight: '800', textAlign: 'center' },
   sub: { color: colors.textMuted, fontSize: 12, marginTop: 1, textAlign: 'center' },
-  addBtn: {
-    backgroundColor: ACCENT, borderRadius: radius.pill,
-    paddingHorizontal: space.md, paddingVertical: space.sm,
+  floatingAddBtn: {
+    position: 'absolute', left: '50%', marginLeft: -30, width: 60, height: 60, borderRadius: 30,
+    backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6,
   },
-  addBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 14 },
+  floatingAddGlyph: { color: colors.accentInk, fontSize: 32, fontWeight: '700', lineHeight: 34 },
 
   list: { padding: space.lg, paddingBottom: space.xxl },
 
@@ -775,6 +874,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.lg, paddingVertical: space.md,
   },
   addConfirmText: { color: colors.accentInk, fontWeight: '800', fontSize: 14 },
+
+  progressSection: {
+    marginTop: space.lg, paddingTop: space.md,
+    borderTopWidth: 1, borderTopColor: colors.hairline,
+  },
+  progressHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.xs },
+  progressEmpty: { color: colors.textMuted, fontSize: 12, fontStyle: 'italic', lineHeight: 17, marginBottom: space.sm },
+  progressNoteRow: { marginBottom: space.sm },
+  progressNoteDate: { color: colors.textMuted, fontSize: 11, fontWeight: '700' },
+  progressNoteText: { color: colors.textPrimary, fontSize: 13, marginTop: 1, lineHeight: 18 },
+  progressAddRow: { flexDirection: 'row', alignItems: 'flex-end', gap: space.sm, marginTop: space.xs },
+  progressInput: {
+    flex: 1, backgroundColor: colors.ground, borderRadius: radius.tile,
+    paddingHorizontal: space.md, paddingVertical: space.sm,
+    color: colors.textPrimary, fontSize: 13, minHeight: 40, textAlignVertical: 'top',
+  },
+  progressAddBtn: { backgroundColor: ACCENT, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.sm },
+  progressAddBtnDisabled: { opacity: 0.4 },
+  progressAddBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 13 },
 
   noteInput: {
     backgroundColor: colors.ground, borderRadius: radius.tile,
@@ -816,7 +934,8 @@ const styles = StyleSheet.create({
   timestamps: { color: colors.textMuted, fontSize: 11, marginTop: 2, opacity: 0.8 },
   startWorkBtn: { alignSelf: 'flex-start', marginTop: 4 },
   startWorkText: { color: ACCENT, fontSize: 12, fontWeight: '700' },
-  inProgressBadge: { alignSelf: 'flex-start', backgroundColor: `${ACCENT}2A`, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 2, marginTop: 4 },
+  inProgressRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginTop: 4 },
+  inProgressBadge: { alignSelf: 'flex-start', backgroundColor: `${ACCENT}2A`, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 2 },
   inProgressBadgeText: { color: ACCENT, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
 
   checkbox: {

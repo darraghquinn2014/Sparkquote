@@ -202,5 +202,18 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 18,
+      steps: [
+        createTable({
+          name: 'snag_notes',
+          columns: [
+            { name: 'snag_item_id', type: 'string', isIndexed: true },
+            { name: 'text', type: 'string' },
+            { name: 'created_at', type: 'number' },
+          ],
+        }),
+      ],
+    },
   ],
 });

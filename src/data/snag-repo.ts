@@ -1,7 +1,7 @@
 import { Q } from '@nozbe/watermelondb';
 import { database } from './database';
-import { SnagItemModel } from './models';
-import type { SnagItem } from '../domain/types';
+import { SnagItemModel, SnagNoteModel } from './models';
+import type { SnagItem, SnagNote } from '../domain/types';
 
 function toSnagItem(r: SnagItemModel): SnagItem {
   const item: SnagItem = {
@@ -19,6 +19,10 @@ function toSnagItem(r: SnagItemModel): SnagItem {
   if (r.startedAt != null) item.startedAt = r.startedAt;
   if (r.resolvedAt != null) item.resolvedAt = r.resolvedAt;
   return item;
+}
+
+function toSnagNote(r: SnagNoteModel): SnagNote {
+  return { id: r.id, snagItemId: r.snagItemId, text: r.text, createdAt: r.createdAt };
 }
 
 export async function snagItemsForProject(projectId: string): Promise<SnagItem[]> {
@@ -98,8 +102,11 @@ export async function updateSnagResolvedPhoto(id: string, photoPath: string | un
 
 export async function deleteSnagItem(id: string): Promise<void> {
   await database.write(async () => {
-    const row = await database.get<SnagItemModel>('snag_items').find(id);
-    await row.destroyPermanently();
+    const [row, notes] = await Promise.all([
+      database.get<SnagItemModel>('snag_items').find(id),
+      database.get<SnagNoteModel>('snag_notes').query(Q.where('snag_item_id', id)).fetch(),
+    ]);
+    await database.batch(...notes.map((n) => n.prepareDestroyPermanently()), row.prepareDestroyPermanently());
   });
 }
 
@@ -109,6 +116,42 @@ export async function deleteSnagItemsForProject(projectId: string): Promise<void
       .get<SnagItemModel>('snag_items')
       .query(Q.where('project_id', projectId))
       .fetch();
-    for (const row of rows) await row.destroyPermanently();
+    const notes = await Promise.all(
+      rows.map((r) => database.get<SnagNoteModel>('snag_notes').query(Q.where('snag_item_id', r.id)).fetch())
+    );
+    await database.batch(
+      ...notes.flat().map((n) => n.prepareDestroyPermanently()),
+      ...rows.map((r) => r.prepareDestroyPermanently()),
+    );
+  });
+}
+
+// ── Progress notes: a timestamped log while a snag is in progress ──────────
+
+/** Notes for a snag, oldest first — reads like a diary of progress updates. */
+export async function loadSnagNotes(snagItemId: string): Promise<SnagNote[]> {
+  const rows = await database
+    .get<SnagNoteModel>('snag_notes')
+    .query(Q.where('snag_item_id', snagItemId))
+    .fetch();
+  return rows.map(toSnagNote).sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export async function addSnagNote(snagItemId: string, text: string): Promise<SnagNote> {
+  let row!: SnagNoteModel;
+  await database.write(async () => {
+    row = await database.get<SnagNoteModel>('snag_notes').create((r) => {
+      r.snagItemId = snagItemId;
+      r.text = text.trim();
+      r.createdAt = Date.now();
+    });
+  });
+  return toSnagNote(row);
+}
+
+export async function deleteSnagNote(id: string): Promise<void> {
+  await database.write(async () => {
+    const row = await database.get<SnagNoteModel>('snag_notes').find(id);
+    await row.destroyPermanently();
   });
 }

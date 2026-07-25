@@ -158,6 +158,14 @@ export interface SnagItem {
   resolvedAt?: number;
 }
 
+/** A timestamped progress-log entry on a snag, e.g. "waiting on socket delivery". */
+export interface SnagNote {
+  id: string;
+  snagItemId: string;
+  text: string;
+  createdAt: number;
+}
+
 export interface Project {
   id: string;
   name: string;

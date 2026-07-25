@@ -169,6 +169,13 @@ export class SnagItemModel extends Model {
   @field('resolved_at') resolvedAt!: number | null;
 }
 
+export class SnagNoteModel extends Model {
+  static table = 'snag_notes';
+  @text('snag_item_id') snagItemId!: string;
+  @text('text') text!: string;
+  @field('created_at') createdAt!: number;
+}
+
 export class SyncQueueModel extends Model {
   static table = 'sync_queue';
   @text('entity_type') entityType!: string;

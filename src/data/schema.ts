@@ -13,7 +13,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 17,
+  version: 18,
   tables: [
     // ── Catalogue ────────────────────────────────────────────────────────
     tableSchema({
@@ -210,6 +210,16 @@ export const schema = appSchema({
         { name: 'created_at', type: 'number' },
         { name: 'started_at', type: 'number', isOptional: true },
         { name: 'resolved_at', type: 'number', isOptional: true },
+      ],
+    }),
+
+    // ── Snag progress notes: timestamped log while a snag is in progress ─
+    tableSchema({
+      name: 'snag_notes',
+      columns: [
+        { name: 'snag_item_id', type: 'string', isIndexed: true },
+        { name: 'text', type: 'string' },
+        { name: 'created_at', type: 'number' },
       ],
     }),
 

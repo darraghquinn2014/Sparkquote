@@ -111,7 +111,8 @@ export function GlobalVoiceControl() {
    * TabBarHeightReporter's sibling pattern) instead of the floating one, so
    * users always have exactly one visible mic trigger, never two. */
   const hasOwnHeaderMic = pathname === '/' || pathname === '/estimate' || pathname === '/projects'
-    || pathname === '/catalogue' || isPlainProjectDetail || pathname.startsWith('/project/quote/');
+    || pathname === '/catalogue' || isPlainProjectDetail || pathname.startsWith('/project/quote/')
+    || pathname.startsWith('/project/snag/');
   /** Tools, Help, Review/Sign, and the floor-plan import/trace screen are
    * reference/utility screens with no voice actions of their own — no mic
    * trigger needed here at all, header or floating. */
@@ -149,6 +150,10 @@ export function GlobalVoiceControl() {
 
   const [resolvedProjectId, setResolvedProjectId] = useState<string | null>(null);
   const [resolvedLocationId, setResolvedLocationId] = useState<string | null>(null);
+  /** Display label for resolvedLocationId, shown on the confirm-snag sheet's
+   * room picker — kept alongside the id since that sheet needs the name, not
+   * just the id, and no other flow currently shows the resolved room. */
+  const [snagLocationLabel, setSnagLocationLabel] = useState<string | null>(null);
   const [resolvedProjectName, setResolvedProjectName] = useState('');
   const [targetIsQuickQuote, setTargetIsQuickQuote] = useState(false);
   const [resolvedFloorId, setResolvedFloorId] = useState<string | null>(null);
@@ -272,6 +277,7 @@ export function GlobalVoiceControl() {
     setAddAssemblyQtyText('1');
     setResolvedProjectId(null);
     setResolvedLocationId(null);
+    setSnagLocationLabel(null);
     setResolvedFloorId(null);
     setTargetIsQuickQuote(false);
     setRoomCountDraft(1);
@@ -435,6 +441,35 @@ export function GlobalVoiceControl() {
    * asking the user when ambiguous, and calls onResolved with the room's
    * locationId (or undefined if no room was said / none matched).
    */
+  /** "Room name" for a plain room, "Room name · Floor name" for a nested one. */
+  const locationLabelFor = async (projectId: string, locationId: string): Promise<string | null> => {
+    const locations = await loadLocations(projectId).catch(() => [] as Location[]);
+    const loc = locations.find((l) => l.id === locationId);
+    if (!loc) return null;
+    const floor = loc.parentId ? locations.find((f) => f.id === loc.parentId) : null;
+    return floor ? `${loc.name} · ${floor.name}` : loc.name;
+  };
+
+  /** Lets the user manually pick a floor/room for the snag being created,
+   * regardless of whether voice already resolved one — speech doesn't always
+   * name a location, and this is the display-driven fallback for that. */
+  const openSnagLocationPicker = async () => {
+    if (!resolvedProjectId) return;
+    const locations = await loadLocations(resolvedProjectId).catch(() => [] as Location[]);
+    const items = [
+      { id: '', label: 'No specific location' },
+      ...locations.map((l) => {
+        const floor = l.parentId ? locations.find((f) => f.id === l.parentId) : null;
+        return { id: l.id, label: floor ? `${l.name} · ${floor.name}` : l.name };
+      }),
+    ];
+    showEntityPick('Which floor / room?', items, (item) => {
+      setResolvedLocationId(item.id || null);
+      setSnagLocationLabel(item.id ? item.label : null);
+      setStep('confirm-snag');
+    });
+  };
+
   const resolveRoomThenAdd = async (
     projectId: string,
     roomQuery: string | undefined,
@@ -907,9 +942,14 @@ export function GlobalVoiceControl() {
         setSnagDescription(intent.description);
         if (currentProjectId) {
           const proj = projects.find((p) => p.id === currentProjectId);
-          setResolvedProjectId(currentProjectId);
-          setResolvedProjectName(proj?.name ?? '');
-          setStep('confirm-snag');
+          resolveRoomThenAdd(currentProjectId, intent.projectQuery, async (locationId) => {
+            const resolved = locationId ?? currentLocationId ?? null;
+            setResolvedLocationId(resolved);
+            setSnagLocationLabel(resolved ? await locationLabelFor(currentProjectId, resolved) : null);
+            setResolvedProjectId(currentProjectId);
+            setResolvedProjectName(proj?.name ?? '');
+            setStep('confirm-snag');
+          });
           return;
         }
         if (intent.projectQuery) {
@@ -1417,7 +1457,7 @@ export function GlobalVoiceControl() {
     if (!resolvedProjectId || !snagDescription.trim()) return;
     setStep('saving');
     try {
-      const item = await createSnagItem(resolvedProjectId, snagDescription.trim());
+      const item = await createSnagItem(resolvedProjectId, snagDescription.trim(), resolvedLocationId ?? undefined);
       // If the Snag List screen is already mounted, hand off to its own
       // existing camera/library flow so the photo can be attached — same
       // offer the manual "+ Add" flow gives, without rebuilding a camera UI
@@ -1986,6 +2026,12 @@ export function GlobalVoiceControl() {
                   <Text style={styles.confirmLabel}>Job</Text>
                   <Text style={styles.confirmValue} numberOfLines={1}>{resolvedProjectName}</Text>
                 </View>
+                <Pressable style={styles.confirmRow} onPress={openSnagLocationPicker}>
+                  <Text style={styles.confirmLabel}>Floor / room</Text>
+                  <Text style={[styles.confirmValue, !snagLocationLabel && styles.confirmValueMuted]} numberOfLines={1}>
+                    {snagLocationLabel ?? 'Choose (optional) ›'}
+                  </Text>
+                </Pressable>
                 <View style={styles.confirmActions}>
                   <Pressable style={[styles.bigBtn, styles.cancelBtn]} onPress={backToIdle}><Text style={styles.cancelBtnText}>Cancel</Text></Pressable>
                   <Pressable style={[styles.bigBtn, styles.confirmBtn]} onPress={confirmCreateSnag} disabled={!snagDescription.trim()}>
@@ -2420,6 +2466,7 @@ const styles = StyleSheet.create({
   confirmRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.md, gap: space.sm },
   confirmLabel: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
   confirmValue: { color: colors.textPrimary, fontSize: 16, fontWeight: '700', flexShrink: 1, textAlign: 'right' },
+  confirmValueMuted: { color: colors.accent, fontWeight: '600' },
   confirmHint: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginTop: -space.xs, marginBottom: space.xs, paddingHorizontal: space.xs },
   confirmInput: { color: colors.textPrimary, fontSize: 18, fontWeight: '700', minWidth: 70, textAlign: 'right' },
   confirmInputWide: { flex: 1, color: colors.textPrimary, fontSize: 16, fontWeight: '600', textAlign: 'right' },
