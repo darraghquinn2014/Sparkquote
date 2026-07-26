@@ -12,6 +12,7 @@ import {
   calibrateScale,
   wallLengthMeters,
   roomFootprintMeters,
+  snapDraftPoint,
   type WallSegment,
 } from '../wall-geometry';
 
@@ -205,5 +206,76 @@ describe('roomFootprintMeters', () => {
     // width span: (0.6-0.1)*2000 = 1000px -> 5m; height span: (0.5-0.1)*1000 = 400px -> 2m
     expect(result?.lengthM).toBeCloseTo(5);
     expect(result?.widthM).toBeCloseTo(2);
+  });
+});
+
+describe('snapDraftPoint', () => {
+  const imageSize = { width: 1000, height: 1000 };
+
+  it('magnets onto a nearby existing endpoint', () => {
+    const result = snapDraftPoint(
+      { x: 0.505, y: 0.503 }, null, [{ x: 0.5, y: 0.5 }], imageSize, 10, 5,
+    );
+    expect(result.point).toEqual({ x: 0.5, y: 0.5 });
+    expect(result.snappedToEndpoint).toBe(true);
+    expect(result.snappedAxis).toBeNull();
+  });
+
+  it('prefers the nearest endpoint when several are in range', () => {
+    const result = snapDraftPoint(
+      { x: 0.501, y: 0.5 }, null,
+      [{ x: 0.508, y: 0.5 }, { x: 0.5, y: 0.5 }],
+      imageSize, 10, 5,
+    );
+    expect(result.point).toEqual({ x: 0.5, y: 0.5 });
+  });
+
+  it('ignores endpoints outside the threshold', () => {
+    const result = snapDraftPoint(
+      { x: 0.52, y: 0.52 }, null, [{ x: 0.5, y: 0.5 }], imageSize, 10, 5,
+    );
+    expect(result.snappedToEndpoint).toBe(false);
+    expect(result.point).toEqual({ x: 0.52, y: 0.52 });
+  });
+
+  it('squares a nearly-vertical line against its anchor', () => {
+    const result = snapDraftPoint(
+      { x: 0.503, y: 0.8 }, { x: 0.5, y: 0.2 }, [], imageSize, 10, 5,
+    );
+    expect(result.point).toEqual({ x: 0.5, y: 0.8 });
+    expect(result.snappedAxis).toBe('v');
+  });
+
+  it('squares a nearly-horizontal line against its anchor', () => {
+    const result = snapDraftPoint(
+      { x: 0.8, y: 0.503 }, { x: 0.2, y: 0.5 }, [], imageSize, 10, 5,
+    );
+    expect(result.point).toEqual({ x: 0.8, y: 0.5 });
+    expect(result.snappedAxis).toBe('h');
+  });
+
+  it('does not axis-snap a clearly diagonal line', () => {
+    const result = snapDraftPoint(
+      { x: 0.8, y: 0.8 }, { x: 0.2, y: 0.2 }, [], imageSize, 10, 5,
+    );
+    expect(result.point).toEqual({ x: 0.8, y: 0.8 });
+    expect(result.snappedAxis).toBeNull();
+  });
+
+  it('endpoint snap wins over axis snap', () => {
+    const result = snapDraftPoint(
+      { x: 0.503, y: 0.798 }, { x: 0.5, y: 0.2 }, [{ x: 0.5, y: 0.8 }], imageSize, 10, 5,
+    );
+    expect(result.point).toEqual({ x: 0.5, y: 0.8 });
+    expect(result.snappedToEndpoint).toBe(true);
+  });
+
+  it('only squares one axis when both are within threshold', () => {
+    // Nearly on top of the anchor — snapping both axes would collapse the line.
+    const result = snapDraftPoint(
+      { x: 0.502, y: 0.503 }, { x: 0.5, y: 0.5 }, [], imageSize, 10, 5,
+    );
+    expect(result.snappedAxis).toBe('v');
+    expect(result.point).toEqual({ x: 0.5, y: 0.503 });
   });
 });

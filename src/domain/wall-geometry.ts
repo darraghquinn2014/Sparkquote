@@ -191,6 +191,58 @@ export function roomFootprintMeters(
   return { lengthM, widthM };
 }
 
+/** Result of snapping a dragged/tapped endpoint — see snapDraftPoint. */
+export interface SnappedPoint {
+  point: Point;
+  /** Snapped exactly onto another wall's endpoint (corner join). */
+  snappedToEndpoint: boolean;
+  /** Snapped square with the line's other end: 'v' = vertical, 'h' = horizontal. */
+  snappedAxis: 'h' | 'v' | null;
+}
+
+/**
+ * Snap a normalized point being placed or dragged: magnet onto a nearby
+ * existing endpoint (so corners actually join), else square the line up
+ * against its own other end when it's within a few pixels of horizontal or
+ * vertical (plans are usually axis-aligned). Thresholds are in image pixels
+ * so the feel is consistent regardless of the plan's aspect ratio.
+ */
+export function snapDraftPoint(
+  raw: Point,
+  anchor: Point | null,
+  magnetEndpoints: Point[],
+  imageSize: Size,
+  endpointThresholdPx: number,
+  axisThresholdPx: number,
+): SnappedPoint {
+  let bestEndpoint: Point | null = null;
+  let bestDistance = Infinity;
+  for (const candidate of magnetEndpoints) {
+    const d = normSpanToPixelLength(raw, candidate, imageSize);
+    if (d < bestDistance) {
+      bestDistance = d;
+      bestEndpoint = candidate;
+    }
+  }
+  if (bestEndpoint && bestDistance <= endpointThresholdPx) {
+    return { point: { ...bestEndpoint }, snappedToEndpoint: true, snappedAxis: null };
+  }
+
+  if (anchor) {
+    const dxPx = Math.abs(raw.x - anchor.x) * imageSize.width;
+    const dyPx = Math.abs(raw.y - anchor.y) * imageSize.height;
+    // Only ever square one axis — snapping both would collapse onto the anchor.
+    if (dxPx <= axisThresholdPx && dxPx <= dyPx) {
+      return { point: { x: anchor.x, y: raw.y }, snappedToEndpoint: false, snappedAxis: 'v' };
+    }
+    if (dyPx <= axisThresholdPx) {
+      return { point: { x: raw.x, y: anchor.y }, snappedToEndpoint: false, snappedAxis: 'h' };
+    }
+  }
+
+  return { point: raw, snappedToEndpoint: false, snappedAxis: null };
+}
+
 /** Horizontal pixel position on a wall's photo for a given position along the wall. */
 export function symbolPhotoX(positionAlongWall: number, photoWidthPx: number): number {
   return positionAlongWall * photoWidthPx;

@@ -108,6 +108,11 @@ export async function setFloorPlanScale(id: string, pxPerMeter: number): Promise
   });
 }
 
+export async function loadFloorPlan(id: string): Promise<FloorPlan> {
+  const row = await database.get<FloorPlanModel>('floor_plans').find(id);
+  return toFloorPlan(row);
+}
+
 /** A floor has at most one plan; returns null if none has been imported yet. */
 export async function loadFloorPlanForLocation(locationId: string): Promise<FloorPlan | null> {
   const rows = await database
@@ -212,6 +217,23 @@ export async function loadWall(id: string): Promise<Wall> {
   return toWall(row);
 }
 
+/** Move a wall's endpoints (normalized plan coords) after an edit-drag on the plan. */
+export async function updateWallEndpoints(
+  id: string,
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+): Promise<void> {
+  await database.write(async () => {
+    const row = await database.get<WallModel>('walls').find(id);
+    await row.update((r) => {
+      r.startX = start.x;
+      r.startY = start.y;
+      r.endX = end.x;
+      r.endY = end.y;
+    });
+  });
+}
+
 export async function renameWall(id: string, label: string): Promise<void> {
   await database.write(async () => {
     const row = await database.get<WallModel>('walls').find(id);
@@ -230,6 +252,34 @@ export async function clearWallPhoto(wallId: string): Promise<void> {
   await database.write(async () => {
     const row = await database.get<WallModel>('walls').find(wallId);
     await row.update((r) => { r.photoId = null; });
+  });
+}
+
+/**
+ * Swap which end of a wall is "start" (= photo-left). The photo mapping
+ * mirrors, but nothing moves on the plan: every symbol's positionAlongWall
+ * is inverted in the same batch, so plan-overlay positions are unchanged.
+ * Used when a wall's photo was shot from the side that makes it read
+ * right-to-left relative to the traced direction.
+ */
+export async function flipWallDirection(wallId: string): Promise<void> {
+  const wall = await database.get<WallModel>('walls').find(wallId);
+  const symbols = await database
+    .get<WallSymbolModel>('wall_symbols')
+    .query(Q.where('wall_id', wallId))
+    .fetch();
+  await database.write(async () => {
+    await database.batch(
+      wall.prepareUpdate((r) => {
+        const sx = r.startX;
+        const sy = r.startY;
+        r.startX = r.endX;
+        r.startY = r.endY;
+        r.endX = sx;
+        r.endY = sy;
+      }),
+      ...symbols.map((s) => s.prepareUpdate((r) => { r.positionAlongWall = 1 - r.positionAlongWall; })),
+    );
   });
 }
 

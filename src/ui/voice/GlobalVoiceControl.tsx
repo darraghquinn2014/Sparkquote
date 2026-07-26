@@ -113,11 +113,12 @@ export function GlobalVoiceControl() {
   const hasOwnHeaderMic = pathname === '/' || pathname === '/estimate' || pathname === '/projects'
     || pathname === '/catalogue' || isPlainProjectDetail || pathname.startsWith('/project/quote/')
     || pathname.startsWith('/project/snag/');
-  /** Tools, Help, Review/Sign, and the floor-plan import/trace screen are
-   * reference/utility screens with no voice actions of their own — no mic
-   * trigger needed here at all, header or floating. */
+  /** Tools, Help, Review/Sign, and the floor-plan trace/wall screens are
+   * reference/utility screens where voice isn't needed (and the FAB gets in
+   * the way of their canvas UIs) — no mic trigger here at all, header or
+   * floating. */
   const isVoiceFreeScreen = pathname === '/help' || pathname === '/tools' || pathname.startsWith('/tools/')
-    || pathname === '/review' || pathname.startsWith('/project/plan/');
+    || pathname === '/review' || pathname.startsWith('/project/plan/') || pathname.startsWith('/project/wall/');
   const { projectId: currentProjectId, locationId: currentLocationId } = useCurrentProjectContext();
   const voice = useVoiceCommand();
 
