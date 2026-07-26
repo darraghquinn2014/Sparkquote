@@ -18,7 +18,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import Svg from 'react-native-svg';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
-import type { Location, Wall, WallSymbol } from '@/src/domain/types';
+import type { FloorPlan, Location, Wall, WallSymbol } from '@/src/domain/types';
 import type { Photo } from '@/src/media/media-types';
 import type { SymbolType } from '@/src/media/annotation-service';
 import { loadLocation } from '@/src/data/project-repo';
@@ -28,10 +28,13 @@ import { useCameraOrientation } from '@/src/media/useCameraOrientation';
 import {
   loadWall, loadWallSymbols, renameWall, setWallPhoto,
   addWallSymbol, updateWallSymbolPhotoY, deleteWallSymbol, deleteWall,
+  loadFloorPlan, flipWallDirection,
 } from '@/src/data/floor-plan-repo';
 import { useVoiceAction } from '@/src/voice/voice-bus';
 import { symbolPhotoX } from '@/src/domain/wall-geometry';
 import { PlacedSymbolGroup, SYMBOL_TYPES, SYMBOL_LABELS, SYMBOL_TYPE_COLORS } from '@/src/ui/annotations/symbols';
+import { PlanSymbolTagger } from '@/src/ui/annotations/PlanSymbolTagger';
+import { ActionSheet } from '@/src/ui/ActionSheet';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 
 const mediaPaths = {
@@ -42,21 +45,23 @@ const mediaPaths = {
 type CameraState = 'live' | 'preview';
 
 function DraggableSymbol({
-  symbol, x, baseY, containerHeight, enabled, onDragEnd, onTap,
+  symbol, x, baseY, enabled, onDragEnd, onTap,
 }: {
   symbol: WallSymbol;
   x: number;
   baseY: number;
-  containerHeight: number;
   enabled: boolean;
-  onDragEnd: (photoY: number) => void;
+  /** Raw vertical drag distance in container px — the parent converts it to
+   * a photoY against the letterboxed photo rect (NOT the container height,
+   * which made drags land at a fraction of the dragged distance). */
+  onDragEnd: (translationY: number) => void;
   onTap: () => void;
 }) {
   const dragOffset = useSharedValue(0);
 
   const handleDragEnd = (translationY: number) => {
-    const clamped = Math.max(0, Math.min(containerHeight, baseY + translationY));
-    onDragEnd(clamped / containerHeight);
+    onDragEnd(translationY);
+    dragOffset.value = 0;
   };
 
   const panGesture = Gesture.Pan()
@@ -65,7 +70,6 @@ function DraggableSymbol({
     .onUpdate((e) => { dragOffset.value = e.translationY; })
     .onEnd((e) => {
       runOnJS(handleDragEnd)(e.translationY);
-      dragOffset.value = 0;
     });
 
   const tapGesture = Gesture.Tap().enabled(enabled).onEnd(() => { runOnJS(onTap)(); });
@@ -95,6 +99,8 @@ export default function WallScreen() {
   const [room, setRoom] = useState<Location | null>(null);
   const [symbols, setSymbols] = useState<WallSymbol[]>([]);
   const [photo, setPhoto] = useState<Photo | null>(null);
+  const [floorPlan, setFloorPlan] = useState<FloorPlan | null>(null);
+  const [taggerOpen, setTaggerOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -119,9 +125,14 @@ export default function WallScreen() {
     if (!wallId) return;
     const w = await loadWall(wallId);
     setWall(w);
-    const [r, syms] = await Promise.all([loadLocation(w.locationId), loadWallSymbols(w.id)]);
+    const [r, syms, plan] = await Promise.all([
+      loadLocation(w.locationId),
+      loadWallSymbols(w.id),
+      loadFloorPlan(w.floorPlanId).catch(() => null),
+    ]);
     setRoom(r);
     setSymbols(syms);
+    setFloorPlan(plan);
     setPhoto(w.photoId ? await loadPhoto(w.photoId) : null);
     setLoading(false);
   }, [wallId]);
@@ -249,19 +260,28 @@ export default function WallScreen() {
     ]);
   };
 
-  const openOverflow = () => {
-    Alert.alert(wall?.label || 'Wall', undefined, [
-      { text: 'Rename', onPress: startEditLabel },
-      ...(photo
-        ? [
-            { text: 'Retake photo', onPress: openCamera },
-            { text: 'Choose different photo', onPress: pickFromLibrary },
-          ]
-        : []),
-      { text: 'Delete wall', style: 'destructive', onPress: confirmDeleteWall },
-      { text: 'Cancel', style: 'cancel' as const },
-    ]);
+  const flipSymbols = async () => {
+    if (!wall) return;
+    await flipWallDirection(wall.id);
+    reload();
   };
+
+  // Bottom-sheet menu, NOT Alert.alert — Android alerts cap at 3 buttons and
+  // silently drop the rest (this menu has up to 5 actions), which left the
+  // dialog with no visible Cancel and no way out.
+  const [overflowOpen, setOverflowOpen] = useState(false);
+
+  const overflowItems = [
+    { label: 'Rename', onPress: startEditLabel },
+    { label: 'Flip symbols left ↔ right', onPress: flipSymbols },
+    ...(photo
+      ? [
+          { label: 'Retake photo', onPress: openCamera },
+          { label: 'Choose different photo', onPress: pickFromLibrary },
+        ]
+      : []),
+    { label: 'Delete wall', destructive: true, onPress: confirmDeleteWall },
+  ];
 
   const confirmRemoveSymbol = (symbol: WallSymbol) => {
     Alert.alert('Remove symbol?', undefined, [
@@ -270,7 +290,9 @@ export default function WallScreen() {
     ]);
   };
 
-  const handleSymbolDragEnd = async (symbol: WallSymbol, photoY: number) => {
+  const handleSymbolDragEnd = async (symbol: WallSymbol, translationY: number) => {
+    if (!renderedRect) return;
+    const photoY = Math.max(0, Math.min(1, symbol.photoY + translationY / renderedRect.height));
     setSymbols((prev) => prev.map((s) => (s.id === symbol.id ? { ...s, photoY } : s)));
     await updateWallSymbolPhotoY(symbol.id, photoY);
   };
@@ -325,7 +347,7 @@ export default function WallScreen() {
             <Text style={styles.title} numberOfLines={1}>{wall.label || 'Wall'}</Text>
             {room && <Text style={styles.subtitle}>{room.name}</Text>}
           </View>
-          <Pressable onPress={openOverflow} hitSlop={12}>
+          <Pressable onPress={() => setOverflowOpen(true)} hitSlop={12}>
             <Text style={styles.moreBtn}>•••</Text>
           </Pressable>
         </View>
@@ -357,6 +379,11 @@ export default function WallScreen() {
                   {addingSymbol ? 'Done adding' : '+ Add symbol'}
                 </Text>
               </Pressable>
+              {floorPlan && !addingSymbol && (
+                <Pressable style={styles.symbolModeBtn} onPress={() => setTaggerOpen(true)} hitSlop={6}>
+                  <Text style={styles.symbolModeBtnText}>Tag from plan</Text>
+                </Pressable>
+              )}
             </View>
 
             <GestureDetector gesture={placeTapGesture}>
@@ -379,9 +406,8 @@ export default function WallScreen() {
                       symbol={symbol}
                       x={x}
                       baseY={y}
-                      containerHeight={containerSize.height}
                       enabled={!addingSymbol}
-                      onDragEnd={(photoY) => handleSymbolDragEnd(symbol, photoY)}
+                      onDragEnd={(translationY) => handleSymbolDragEnd(symbol, translationY)}
                       onTap={() => confirmRemoveSymbol(symbol)}
                     />
                   );
@@ -453,6 +479,25 @@ export default function WallScreen() {
         </Pressable>
       </Modal>
 
+      <ActionSheet
+        visible={overflowOpen}
+        title={wall.label || 'Wall'}
+        items={overflowItems}
+        onClose={() => setOverflowOpen(false)}
+      />
+
+      {/* Tag symbols straight off the imported floor plan */}
+      {floorPlan && (
+        <PlanSymbolTagger
+          visible={taggerOpen}
+          wall={wall}
+          floorPlan={floorPlan}
+          symbols={symbols}
+          onChanged={reload}
+          onClose={() => setTaggerOpen(false)}
+        />
+      )}
+
       {/* Camera modal */}
       <Modal visible={cameraOpen} animationType="slide" statusBarTranslucent onRequestClose={() => setCameraOpen(false)}>
         <View style={styles.cameraScreen}>
@@ -519,7 +564,7 @@ const styles = StyleSheet.create({
   photoWrap: { flex: 1, position: 'relative', backgroundColor: '#000' },
   hint: { color: colors.textMuted, fontSize: 12, textAlign: 'center', paddingVertical: space.md },
 
-  symbolModeToggle: { alignItems: 'center', paddingVertical: space.sm },
+  symbolModeToggle: { flexDirection: 'row', justifyContent: 'center', gap: space.md, paddingVertical: space.sm },
   symbolModeBtn: { borderRadius: radius.pill, paddingHorizontal: space.lg, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.hairline },
   symbolModeBtnActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   symbolModeBtnText: { color: colors.accent, fontWeight: '700', fontSize: 13 },

@@ -28,6 +28,7 @@ import { COMMON_ROOM_NAMES } from '@/src/domain/room-names';
 import { toLaborToggle } from '@/src/data/mappers';
 import { seedLaborToggles } from '@/src/data/seed/assemblies';
 import { saveCapture } from '@/src/media/camera-service';
+import { ActionSheet } from '@/src/ui/ActionSheet';
 import { SimpleCameraCapture } from '@/src/ui/photos/SimpleCameraCapture';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import { useVoiceAction } from '@/src/voice/voice-bus';
@@ -313,15 +314,18 @@ export default function ProjectDetailScreen() {
     reload();
   };
 
-  const openOverflow = () => {
-    if (!project) return;
-    Alert.alert(project.name, undefined, [
-      { text: 'Documents', onPress: () => router.push(`/project/drawings/${id}` as any) },
-      { text: project.finishedAt ? 'Reopen project' : 'Mark project finished', onPress: toggleFinished },
-      { text: 'Delete project', style: 'destructive', onPress: confirmDeleteProject },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  };
+  // Bottom-sheet menu, NOT Alert.alert — Android alerts cap at 3 buttons and
+  // silently drop the rest, which left this 4-option menu with no visible
+  // Cancel and no way to dismiss it.
+  const [overflowOpen, setOverflowOpen] = useState(false);
+
+  const overflowItems = project
+    ? [
+        { label: 'Documents', onPress: () => router.push(`/project/drawings/${id}` as any) },
+        { label: project.finishedAt ? 'Reopen project' : 'Mark project finished', onPress: toggleFinished },
+        { label: 'Delete project', destructive: true, onPress: confirmDeleteProject },
+      ]
+    : [];
 
   const longPressFloor = (floor: Location) => {
     Alert.alert(floor.name, undefined, [
@@ -357,7 +361,7 @@ export default function ProjectDetailScreen() {
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12}><Text style={styles.back}>‹ Back</Text></Pressable>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-          <Pressable onPress={openOverflow} hitSlop={12}>
+          <Pressable onPress={() => setOverflowOpen(true)} hitSlop={12}>
             <Text style={styles.moreBtn}>•••</Text>
           </Pressable>
           <HeaderMicButton />
@@ -629,6 +633,13 @@ export default function ProjectDetailScreen() {
         visible={cameraOpen}
         onClose={() => setCameraOpen(false)}
         onCaptured={handleCoverPhoto}
+      />
+
+      <ActionSheet
+        visible={overflowOpen}
+        title={project.name}
+        items={overflowItems}
+        onClose={() => setOverflowOpen(false)}
       />
     </SafeAreaView>
   );

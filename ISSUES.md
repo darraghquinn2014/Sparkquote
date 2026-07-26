@@ -178,6 +178,86 @@ How to use this file:
   _Changed: `src/domain/wall-geometry.ts`, `src/media/annotation-service.ts`,
   `src/ui/annotations/AnnotationEditor.tsx`, `app/project/room/[id].tsx`_
 
+- [x] **Trace walls / Calibrate rework — place → adjust → confirm (2026-07-26).**
+  Device-verified 2026-07-26: loupe confirmed working, calibration against
+  the generated test plan's printed 10.00 m dimension read 14.5 m for the
+  full image vs. 14.4 m ground truth (<1% error), overall "far slicker than
+  before". Also removed the floating mic FAB from the wall screens
+  (`/project/wall/` added to GlobalVoiceControl's voice-free list; the plan
+  screen was already mic-free) — requested during testing, the FAB sat over
+  the canvas UI.
+  Darragh flagged the tracer as hard to use: taps committed instantly (finger
+  covers the point, no fixing mistakes), calibration was confusing. Reworked:
+  - Taps now place draggable endpoint rings; nothing commits until "Save
+    wall" / "Set distance". A magnifier loupe (with crosshair) appears while
+    dragging a ring, in the corner away from your finger; the ring moves by
+    the finger's *delta* so your finger doesn't have to cover it.
+  - Snapping: endpoints magnet onto existing walls' corners (ring turns
+    green), and near-horizontal/vertical lines square up automatically.
+  - Tap the *middle* of a traced wall (in Trace mode) to select it — drag
+    its endpoints to fix it, Delete it, or Open its photo screen. Tapping
+    near a wall's *ends* starts a new wall from that corner instead.
+  - Live length of the marked/selected wall in the bottom bar (once
+    calibrated). Undo/Cancel at every step.
+  - Calibration: same ring UX; prompt wording covers both printed plan
+    dimensions and site-measured distances; live sanity line ("that makes
+    the whole plan ≈ X m across") as you type; scale status line now shows
+    the plan's overall width instead of just "Scale set".
+  - Save-wall flow unchanged by request: room picker → wall photo screen.
+  _Changed: `app/project/plan/[id].tsx` (rework), `src/domain/wall-geometry.ts`
+  (+`snapDraftPoint` + 8 tests), `src/data/floor-plan-repo.ts`
+  (+`updateWallEndpoints`)_
+
+- [x] **"Tag from plan" — tag a wall's electrical symbols straight off the
+  imported floor plan (2026-07-26).** Darragh asked whether symbols printed
+  on an imported plan could be carried onto the wall/photo automatically.
+  Chosen approach (over AI/vision detection): assisted tagging — offline
+  and reliable on any plan. New button on the wall screen (next to
+  "+ Add symbol", shown once a photo is attached): opens a full-screen view
+  of the plan rotated/zoomed so this wall lies flat across the middle.
+  Tap a symbol printed on the plan → pick its type → a WallSymbol is
+  created at that exact position along the wall (mid-height on the photo,
+  draggable afterwards as usual); tap a tagged marker to remove it.
+  −/+ header buttons zoom the wall span. Verify: tag the generated test
+  plans' sockets/lights, check they land at the right spots on the wall
+  photo, the floor-plan overlay, and shared photos.
+  _New file: `src/ui/annotations/PlanSymbolTagger.tsx`. Changed:
+  `app/project/wall/[id].tsx`, `src/data/floor-plan-repo.ts`
+  (+`loadFloorPlan`)_
+  Follow-up (2026-07-26, first device test): tagging worked but two bugs —
+  1. **Symbols landed on the opposite side of the photo** (right distance,
+     wrong end). The plan can't know which side of the wall you stood to
+     photograph it, so left/right in the photo can be mirrored vs. the
+     traced direction. Fix: "Flip symbols left ↔ right" in the wall
+     screen's ••• menu — atomically swaps the wall's start/end and inverts
+     every symbol's positionAlongWall, so the photo mapping mirrors while
+     plan-overlay positions stay identical (no schema change needed).
+  2. **Dragging a symbol up/down jumped most of the way back.** Pre-existing
+     bug: the drag stored photoY against the full container height but
+     rendering maps photoY against the letterboxed photo rect, so only a
+     fraction of the drag distance stuck. Now converts the raw drag delta
+     against the photo rect (`photoY + translationY / rect.height`).
+  _Changed: `app/project/wall/[id].tsx`, `src/data/floor-plan-repo.ts`
+  (+`flipWallDirection`)_
+  Device-verified 2026-07-26 after the fixes ("working a lot better, far
+  slicker"). Second follow-up same day: the tagger's symbol palette was
+  absolutely positioned so the Android nav bar overlaid its Cancel button —
+  now pads `insets.bottom` explicitly (same fix as Round 1's Save-scale
+  sheet).
+
+- [x] **••• menu on the project screen had no Cancel — couldn't be dismissed
+  (2026-07-26).** Device-verified 2026-07-26 ("working better now, and
+  displays a lot clearer"). Android's native alert renders at most 3 buttons and
+  silently drops the rest; the project overflow had 4 (Documents / Mark
+  finished / Delete / Cancel) so Cancel vanished, and the wall screen's
+  (after "Flip symbols" was added) had up to 6. Both are now bottom-sheet
+  menus via a new reusable `ActionSheet` component — every option always
+  visible, Cancel pinned at the bottom, tap-outside/back also dismisses.
+  Remaining Alert menus (floor/room long-press, plan ••• ) have ≤3 buttons
+  and are unaffected.
+  _New file: `src/ui/ActionSheet.tsx`. Changed: `app/project/[id].tsx`,
+  `app/project/wall/[id].tsx`_
+
 - [x] **Symbols placed on a wall's photo via the room lightbox's Annotate
   screen didn't show up on that wall's own screen or the floor plan.**
   These were two entirely separate systems — Annotate saved to a
