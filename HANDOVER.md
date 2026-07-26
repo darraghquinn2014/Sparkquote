@@ -2,7 +2,7 @@
 
 **Purpose of this file:** `CLAUDE.md`/`SPARKQUOTE.md` describes the project setup and rules but stops narrating progress after "Projects Phase 2 next" — that milestone and roughly 30 commits of work since have landed and it was never updated. This file is the up-to-date recap. Read `CLAUDE.md` first for environment/build rules (those are still accurate), then this for "where things actually stand." Update this file instead of letting it go stale again — or fold it back into `CLAUDE.md` if you're doing a proper rewrite.
 
-Last updated: 2026-07-25, after commit `b024a72`.
+Last updated: 2026-07-26, after commit `e97d2f8`.
 
 ## What's real now that CLAUDE.md doesn't mention
 
@@ -12,7 +12,45 @@ Last updated: 2026-07-25, after commit `b024a72`.
 - **Schema is at v17** (`src/data/schema.ts`), not v2. Migrations are wired up (`src/data/migrations.ts`) and have been run/verified on-device multiple times without data loss.
 - **iOS is no longer just documented, it's confirmed working.** `eas build --profile preview --platform ios --non-interactive` runs fine from the Windows PC (not just the Mac) — it reused already-stored Apple credentials with no interactive Apple ID/TTY prompt needed. Installed on the registered iPhone 8 Plus and device-verified 2026-07-25.
 
-## Since the last HANDOVER update (commits `dc34916`, `b024a72`, 2026-07-25)
+## Since the last HANDOVER update (commits `f4f2f8a`, `e97d2f8`, 2026-07-26)
+
+- **Floor-plan wall tracing reworked** — Darragh flagged Trace walls/
+  Calibrate as hard to use (inaccurate taps, no way to fix mistakes,
+  confusing calibration). Now place→adjust→confirm: taps place draggable
+  endpoint rings (magnifier loupe while dragging, snapping onto existing
+  walls' corners or square axes) instead of committing instantly; nothing
+  saves until "Save wall"/"Set distance". Existing walls are now editable
+  in Trace mode — tap a wall's middle to select it, drag endpoints, delete,
+  or open it. Calibration shows a live sanity check ("plan ≈ X m across")
+  while typing the distance. Device-verified against a generated
+  dimensioned test plan (10.00 m dimension → 14.5 m measured across the
+  full image incl. margins vs. 14.4 m ground truth, <1% error).
+  `src/domain/wall-geometry.ts` gained `snapDraftPoint` (+8 tests);
+  `src/data/floor-plan-repo.ts` gained `updateWallEndpoints`.
+- **"Tag from plan"** (`src/ui/annotations/PlanSymbolTagger.tsx`, new) —
+  on the wall screen, rotates/zooms the imported floor plan so the wall
+  lies flat across the screen; tap a symbol printed on the plan, pick its
+  type, and it's placed on the wall at the correct position (same
+  `wall_symbols` table as manual tagging — shows on the photo, plan
+  overlay, and shares). Added `flipWallDirection` to floor-plan-repo for
+  walls whose photo reads mirrored vs. the traced direction (wall ••• menu
+  → "Flip symbols left ↔ right") — swaps start/end and inverts every
+  symbol's position atomically, no schema change. Device-verified.
+- **Fixed symbol drag-to-reposition** on the wall screen — height was
+  computed against the container instead of the letterboxed photo rect, so
+  most of a drag snapped back to the old position. Pre-existing bug, found
+  while testing the plan tagger.
+- **New `src/ui/ActionSheet.tsx`** replaces `Alert.alert`-based overflow
+  menus on the project and wall screens. Android's native alert caps at 3
+  buttons and silently drops the rest — the wall screen's menu had grown to
+  6 options (after adding Flip), leaving no visible Cancel and no way to
+  dismiss it. Any future overflow menu with >2 actions should use this,
+  not `Alert.alert`.
+- **Mic FAB removed from the wall screen** (`/project/wall/` added to
+  `GlobalVoiceControl`'s voice-free list) — it floated over the trace/
+  tagging canvas UI; the floor-plan screen was already voice-free.
+
+## Since the previous HANDOVER update (commits `dc34916`, `b024a72`, 2026-07-25)
 
 - **Projects tab search bar** — filters the project list live by name/client/address (`app/(tabs)/projects.tsx`). Device-verified.
 - **GPS site-location capture** — for sites without a formal address yet (new builds). `src/media/location-service.ts` (`captureCurrentLocation`, new `expo-location` dependency) grabs lat/lng + a best-effort reverse-geocoded address; "📍 Use current location" button on `app/project/new.tsx` and the address editor in `app/project/[id].tsx`; `setProjectLocation` in `project-repo.ts`; schema v16→v17 adds `projects.latitude`/`longitude`. "View on map" now prefers exact coordinates over the text address when both exist. Required a new dev-client rebuild (`expo prebuild` + `gradlew assembleDebug`) since it's a new native module — field-build customizations in `android/build.gradle` survived prebuild without manual reapplication. Device-verified.
@@ -37,7 +75,7 @@ All device-verified on the Oppo X5 unless noted.
 
 ## Open items (see `ISSUES.md` for full detail and file pointers)
 
-`ISSUES.md` is the live issue tracker — checkboxes get ticked only after Oppo confirmation. As of 2026-07-25, every item in both "Round 1" and "New issues" is ticked `[x]` (device-confirmed). Nothing outstanding there — the file is ready for a fresh batch under "New issues" whenever something new comes up.
+`ISSUES.md` is the live issue tracker — checkboxes get ticked only after Oppo confirmation. As of 2026-07-26, every item under "New issues" is ticked `[x]` (device-confirmed), including today's trace/calibrate rework, plan symbol tagger, and overflow-menu fix. Nothing outstanding there — ready for a fresh batch whenever something new comes up.
 
 ## Known gaps / not started
 
