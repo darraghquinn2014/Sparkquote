@@ -25,6 +25,7 @@ import {
   WallSymbolModel,
   SnagItemModel,
   SnagNoteModel,
+  CertificateModel,
   SyncQueueModel,
 } from './models';
 
@@ -54,6 +55,7 @@ export const database = new Database({
     WallSymbolModel,
     SnagItemModel,
     SnagNoteModel,
+    CertificateModel,
     SyncQueueModel,
   ],
 });

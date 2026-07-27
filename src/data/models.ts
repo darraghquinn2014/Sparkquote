@@ -176,6 +176,17 @@ export class SnagNoteModel extends Model {
   @field('created_at') createdAt!: number;
 }
 
+export class CertificateModel extends Model {
+  static table = 'certificates';
+  @text('project_id') projectId!: string;
+  @text('location_id') locationId!: string | null;
+  @text('type') type!: string;
+  @text('status') status!: string;
+  @text('fields_json') fieldsJson!: string;
+  @field('created_at') createdAt!: number;
+  @field('updated_at') updatedAt!: number;
+}
+
 export class SyncQueueModel extends Model {
   static table = 'sync_queue';
   @text('entity_type') entityType!: string;

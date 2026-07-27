@@ -36,6 +36,13 @@ export default function RootLayout() {
         <Stack.Screen name="project/drawings/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="project/quote/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="project/plan/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="project/certificates/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="certificate/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="certificate/eic/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="certificate/eicr/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="profit-report" options={{ headerShown: false }} />
+        <Stack.Screen name="cloud-backup" options={{ headerShown: false }} />
+        <Stack.Screen name="media-settings" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <GlobalVoiceControl />

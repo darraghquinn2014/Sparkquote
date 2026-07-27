@@ -19,7 +19,10 @@ import { loadCatalogue } from '@/src/data/catalogue-repo';
 import { MaterialPicker } from '@/src/ui/catalogue/MaterialPicker';
 import { LabourSheet } from '@/src/ui/catalogue/LabourSheet';
 import { EditLineSheet } from '@/src/ui/catalogue/EditLineSheet';
-import { PhotoMeasureSheet } from '@/src/ui/measure/PhotoMeasureSheet';
+// Measure-room entry point is deliberately disabled for now (not deleted —
+// see the "+ Measure room" button/state/sheet below, commented out) per
+// Darragh's request; re-enable by uncommenting.
+// import { PhotoMeasureSheet } from '@/src/ui/measure/PhotoMeasureSheet';
 import { useVoiceAction } from '@/src/voice/voice-bus';
 import { HeaderMicButton } from '@/src/ui/voice/HeaderMicButton';
 import { toLaborToggle } from '@/src/data/mappers';
@@ -58,7 +61,7 @@ export default function ProjectQuoteScreen() {
 
   const [pickerRoomId, setPickerRoomId] = useState<string | null>(null);
   const [labourRoomId, setLabourRoomId] = useState<string | null>(null);
-  const [measureRoomId, setMeasureRoomId] = useState<string | null>(null);
+  // const [measureRoomId, setMeasureRoomId] = useState<string | null>(null); // measure-room disabled, see import above
   const [editLine, setEditLine] = useState<LineItem | null>(null);
   const [rateEditing, setRateEditing] = useState(false);
   const [rateText, setRateText] = useState('');
@@ -117,11 +120,11 @@ export default function ProjectQuoteScreen() {
     setLabourRoomId(null);
   }, [labourRoomId, estimate, save]);
 
-  const handleAddMeasureLines = useCallback((lines: LineItem[]) => {
-    const updated = lines.reduce((est, line) => addLine(est, line), estimate);
-    save(updated);
-    setMeasureRoomId(null);
-  }, [estimate, save]);
+  // const handleAddMeasureLines = useCallback((lines: LineItem[]) => {
+  //   const updated = lines.reduce((est, line) => addLine(est, line), estimate);
+  //   save(updated);
+  //   setMeasureRoomId(null);
+  // }, [estimate, save]);
 
   const handleSaveEdit = useCallback((updated: LineItem) => {
     save({ ...estimate, lineItems: estimate.lineItems.map((l) => l.id === updated.id ? updated : l) });
@@ -273,9 +276,9 @@ export default function ProjectQuoteScreen() {
                         <Text style={styles.actionBtnText}>+ Labour</Text>
                       </Pressable>
                     </View>
-                    <Pressable style={styles.cableEstBtn} onPress={() => setMeasureRoomId(room.id)}>
-                      <Text style={styles.cableEstBtnText}>~ Measure room</Text>
-                    </Pressable>
+                    {/* "~ Measure room" temporarily disabled — see the commented-out
+                        import/state/handler above and the PhotoMeasureSheet render
+                        below. Not deleted; may be brought back later. */}
                   </View>
                 );
               })}
@@ -344,14 +347,14 @@ export default function ProjectQuoteScreen() {
         onSave={handleSaveEdit}
         onClose={() => setEditLine(null)}
       />
-      <PhotoMeasureSheet
+      {/* <PhotoMeasureSheet
         visible={measureRoomId != null}
         roomName={measureRoomId ? (locations.find((l) => l.id === measureRoomId)?.name ?? '') : ''}
         locationId={measureRoomId ?? ''}
         materials={materials}
         onAdd={handleAddMeasureLines}
         onClose={() => setMeasureRoomId(null)}
-      />
+      /> */}
       <PdfPreviewModal
         visible={previewHtml != null}
         html={previewHtml}

@@ -166,6 +166,226 @@ export interface SnagNote {
   createdAt: number;
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Certificates (EICR/BS7671 feature): compliance paperwork for electrical
+// work, distinct from the client-facing quote/estimate. Minor Works and EIC
+// are modelled so far — the report's recommended build order is Minor Works
+// → EIC → EICR, in rising complexity. `Certificate` is a discriminated union
+// on `type` so each certificate's `fields` shape is properly narrowed.
+//
+// IMPORTANT: field set and wording are a first pass based on the standard
+// BS7671 Model Form layouts, NOT yet reviewed by a qualified electrician.
+// Do not treat generated certificates as compliant until that review happens
+// (see the "before shipping" caveat in the competitive-landscape report).
+// ─────────────────────────────────────────────────────────────────────────
+
+export type CertificateType = 'minorWorks' | 'eic' | 'eicr';
+export type CertificateStatus = 'draft' | 'completed';
+export type SystemEarthing = 'TN-S' | 'TN-C-S' | 'TT' | 'Other';
+
+export interface MinorWorksTestResults {
+  /** Continuity of protective conductors, in Ω. */
+  continuityOhms?: number;
+  /** Insulation resistance Line-Neutral, in MΩ. */
+  insulationResistanceLNMOhms?: number;
+  /** Insulation resistance Line-Earth, in MΩ. */
+  insulationResistanceLEMOhms?: number;
+  /** Insulation resistance Neutral-Earth, in MΩ. */
+  insulationResistanceNEMOhms?: number;
+  polaritySatisfactory?: boolean;
+  /** Earth fault loop impedance Zs, in Ω. */
+  zsOhms?: number;
+  /** RCD rated residual operating current, in mA (if applicable). */
+  rcdRatedMa?: number;
+  /** RCD disconnection time, in ms (if applicable). */
+  rcdDisconnectionTimeMs?: number;
+}
+
+export interface MinorWorksFields {
+  clientName?: string;
+  clientAddress?: string;
+  /** What the minor work involved (e.g. "Replaced socket outlet in kitchen"). */
+  descriptionOfWork: string;
+  /** ISO date the work was completed. */
+  dateCompleted?: string;
+  systemEarthing?: SystemEarthing;
+  /** e.g. "BS EN 60898 Type B, 32A". */
+  protectiveDeviceType?: string;
+  protectiveDeviceRatingA?: number;
+  /** Comments on the adequacy of the existing installation's earthing/bonding etc. */
+  existingInstallationComments?: string;
+  testResults: MinorWorksTestResults;
+  /** Free-text comments, e.g. departures from BS7671 or limitations of the work. */
+  comments?: string;
+  /** Name of the person responsible for the work (the declaration signatory). */
+  signedByName?: string;
+  signedForCompany?: string;
+  /** Recommended interval, in years, before the next inspection/EICR. */
+  nextInspectionRecommendedYears?: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// EIC (Electrical Installation Certificate): for new installations or full
+// circuit alterations. Model Form 1 normally has three separate signatories
+// (Design / Construction / Inspection & Testing) since large jobs can split
+// those roles across parties — SIMPLIFIED here to one signature covering
+// whichever roles are checked, since SparkQuote's target user (a solo/small
+// electrician) is almost always all three. The Schedule of Inspections
+// (the ~50-item visual-check checklist in the real Model Form 1) is NOT
+// modelled yet — only the Schedule of Test Results (per-circuit) is, and
+// only its most decision-relevant columns, since a full multi-column
+// spreadsheet-style schedule doesn't work on a phone screen anyway.
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface EicCircuit {
+  /** Client-generated id (not a DB row) — used as the React key and for edit/remove within the fields_json array. */
+  id: string;
+  circuitNumber?: string;
+  description: string;
+  /** e.g. "PVC/PVC T&E". */
+  wiringType?: string;
+  csaLineMm2?: number;
+  csaCpcMm2?: number;
+  /** e.g. "BS EN 60898 Type B". */
+  protectiveDeviceType?: string;
+  protectiveDeviceRatingA?: number;
+  maxPermittedZsOhms?: number;
+  /** Measured continuity (R1+R2 or R2), in Ω. */
+  continuityOhms?: number;
+  insulationResistanceMOhms?: number;
+  polaritySatisfactory?: boolean;
+  measuredZsOhms?: number;
+  rcdRatedMa?: number;
+  rcdDisconnectionTimeMs?: number;
+}
+
+export interface EicSupplyCharacteristics {
+  systemEarthing?: SystemEarthing;
+  /** e.g. "1-phase, 2-wire". */
+  numberAndTypeOfLiveConductors?: string;
+  nominalVoltageV?: number;
+  nominalFrequencyHz?: number;
+  prospectiveFaultCurrentKa?: number;
+  /** External earth fault loop impedance (Ze), in Ω. */
+  externalLoopImpedanceZeOhms?: number;
+  supplyProtectiveDeviceType?: string;
+  supplyProtectiveDeviceRatingA?: number;
+}
+
+export interface EicOriginParticulars {
+  meansOfEarthing?: string;
+  maximumDemandA?: number;
+  mainSwitchType?: string;
+  mainSwitchRatingA?: number;
+  earthingConductorCsaMm2?: number;
+  mainBondingConductorsCsaMm2?: number;
+}
+
+export type EicInstallationType = 'new' | 'alteration' | 'addition';
+
+export interface EicFields {
+  clientName?: string;
+  clientAddress?: string;
+  /** If different from the client address. */
+  installationAddress?: string;
+  installationType?: EicInstallationType;
+  /** Extent of the installation covered by this certificate. */
+  descriptionOfInstallation: string;
+  /** ISO date the work was completed. */
+  dateCompleted?: string;
+  supply: EicSupplyCharacteristics;
+  origin: EicOriginParticulars;
+  circuits: EicCircuit[];
+  /** Free-text comments, e.g. departures from BS7671 or limitations of the work. */
+  comments?: string;
+  declarationRoles: { design: boolean; construction: boolean; inspectionAndTesting: boolean };
+  signedByName?: string;
+  signedForCompany?: string;
+  /** Recommended interval, in years, before the next inspection/EICR. */
+  nextInspectionRecommendedYears?: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// EICR (Electrical Installation Condition Report): periodic inspection of an
+// EXISTING installation, not new work. Reuses EicSupplyCharacteristics /
+// EicOriginParticulars / EicCircuit wholesale, since an EICR tests the same
+// physical characteristics an EIC would certify — genuinely identical
+// shapes, not a coincidental reuse. The two things an EICR adds that an EIC
+// doesn't: a reason/condition/overall-assessment section, and the
+// observations list (C1/C2/C3/FI) below, which is the single highest-stakes
+// part of this whole feature — a miscoded observation is a real-world safety
+// and legal issue, not just a bug. Declaration is simpler than the EIC's
+// (one inspector, not three roles), matching the real Model Form.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** C1 = Danger present, C2 = Potentially dangerous, C3 = Improvement recommended, FI = Further investigation required. */
+export type ObservationCode = 'C1' | 'C2' | 'C3' | 'FI';
+
+export interface EicrObservation {
+  /** Client-generated id (not a DB row) — React key / edit-remove within the fields_json array. */
+  id: string;
+  itemNumber?: string;
+  description: string;
+  code: ObservationCode;
+}
+
+export type EicrReportReason = 'periodic' | 'changeOfOccupancy' | 'preSaleOrPurchase' | 'other';
+export type EicrOverallAssessment = 'satisfactory' | 'unsatisfactory';
+
+export interface EicrFields {
+  clientName?: string;
+  clientAddress?: string;
+  installationAddress?: string;
+  reasonForReport?: EicrReportReason;
+  /** Estimated age of the installation, in years. */
+  estimatedAgeYears?: number;
+  evidenceOfAlterations?: boolean;
+  /** ISO date of the previous inspection, if known. */
+  dateOfLastInspection?: string;
+  /** What was inspected/tested, and any agreed or operational limitations (e.g. areas not accessible). */
+  extentAndLimitations?: string;
+  supply: EicSupplyCharacteristics;
+  origin: EicOriginParticulars;
+  circuits: EicCircuit[];
+  observations: EicrObservation[];
+  /** Free-text summary of the installation's general condition. */
+  generalCondition?: string;
+  overallAssessment?: EicrOverallAssessment;
+  /** Free-text comments, e.g. departures from BS7671 or limitations of the inspection. */
+  comments?: string;
+  signedByName?: string;
+  signedForCompany?: string;
+  /** Recommended interval, in years, before the next inspection. */
+  nextInspectionRecommendedYears?: number;
+}
+
+interface CertificateBase {
+  id: string;
+  projectId: string;
+  /** The room/circuit this certificate relates to, if any. */
+  locationId?: string;
+  status: CertificateStatus;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface MinorWorksCertificate extends CertificateBase {
+  type: 'minorWorks';
+  fields: MinorWorksFields;
+}
+
+export interface EicCertificate extends CertificateBase {
+  type: 'eic';
+  fields: EicFields;
+}
+
+export interface EicrCertificate extends CertificateBase {
+  type: 'eicr';
+  fields: EicrFields;
+}
+
+export type Certificate = MinorWorksCertificate | EicCertificate | EicrCertificate;
+
 export interface Project {
   id: string;
   name: string;

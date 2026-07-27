@@ -322,6 +322,7 @@ export default function ProjectDetailScreen() {
   const overflowItems = project
     ? [
         { label: 'Documents', onPress: () => router.push(`/project/drawings/${id}` as any) },
+        { label: 'Certificates', onPress: () => router.push(`/project/certificates/${id}` as any) },
         { label: project.finishedAt ? 'Reopen project' : 'Mark project finished', onPress: toggleFinished },
         { label: 'Delete project', destructive: true, onPress: confirmDeleteProject },
       ]

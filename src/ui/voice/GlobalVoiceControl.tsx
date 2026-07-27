@@ -113,12 +113,17 @@ export function GlobalVoiceControl() {
   const hasOwnHeaderMic = pathname === '/' || pathname === '/estimate' || pathname === '/projects'
     || pathname === '/catalogue' || isPlainProjectDetail || pathname.startsWith('/project/quote/')
     || pathname.startsWith('/project/snag/');
-  /** Tools, Help, Review/Sign, and the floor-plan trace/wall screens are
-   * reference/utility screens where voice isn't needed (and the FAB gets in
-   * the way of their canvas UIs) — no mic trigger here at all, header or
-   * floating. */
+  /** Tools, Help, Review/Sign, the floor-plan trace/wall screens,
+   * Certificates, and Settings (the tab itself and all its sub-screens) are
+   * reference/utility screens where voice isn't needed for now (and the FAB
+   * gets in the way of their canvas/form UIs) — no mic trigger here at all,
+   * header or floating. Not a permanent removal — may bring voice back to
+   * these later. */
   const isVoiceFreeScreen = pathname === '/help' || pathname === '/tools' || pathname.startsWith('/tools/')
-    || pathname === '/review' || pathname.startsWith('/project/plan/') || pathname.startsWith('/project/wall/');
+    || pathname === '/review' || pathname.startsWith('/project/plan/') || pathname.startsWith('/project/wall/')
+    || pathname.startsWith('/project/certificates/') || pathname.startsWith('/certificate/')
+    || pathname === '/settings' || pathname === '/business-profile' || pathname === '/media-settings'
+    || pathname === '/cloud-backup' || pathname === '/profit-report' || pathname === '/suppliers' || pathname === '/import';
   const { projectId: currentProjectId, locationId: currentLocationId } = useCurrentProjectContext();
   const voice = useVoiceCommand();
 

@@ -13,7 +13,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 18,
+  version: 19,
   tables: [
     // ── Catalogue ────────────────────────────────────────────────────────
     tableSchema({
@@ -220,6 +220,25 @@ export const schema = appSchema({
         { name: 'snag_item_id', type: 'string', isIndexed: true },
         { name: 'text', type: 'string' },
         { name: 'created_at', type: 'number' },
+      ],
+    }),
+
+    // ── Certificates: BS7671 compliance paperwork (EICR/BS7671 feature) ──
+    // fields_json carries the type-specific form data (client details,
+    // installation particulars, test results, declaration) — the schedule
+    // shape varies enough by certificate type (Minor Works vs EIC vs EICR)
+    // that flat columns would mean a migration per type; this follows the
+    // same JSON-blob precedent as line_items.overrides_json.
+    tableSchema({
+      name: 'certificates',
+      columns: [
+        { name: 'project_id', type: 'string', isIndexed: true },
+        { name: 'location_id', type: 'string', isOptional: true, isIndexed: true },
+        { name: 'type', type: 'string' }, // minorWorks (only value for now)
+        { name: 'status', type: 'string' }, // draft | completed
+        { name: 'fields_json', type: 'string' },
+        { name: 'created_at', type: 'number' },
+        { name: 'updated_at', type: 'number' },
       ],
     }),
 

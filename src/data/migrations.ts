@@ -215,5 +215,22 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 19,
+      steps: [
+        createTable({
+          name: 'certificates',
+          columns: [
+            { name: 'project_id', type: 'string', isIndexed: true },
+            { name: 'location_id', type: 'string', isOptional: true, isIndexed: true },
+            { name: 'type', type: 'string' },
+            { name: 'status', type: 'string' },
+            { name: 'fields_json', type: 'string' },
+            { name: 'created_at', type: 'number' },
+            { name: 'updated_at', type: 'number' },
+          ],
+        }),
+      ],
+    },
   ],
 });
