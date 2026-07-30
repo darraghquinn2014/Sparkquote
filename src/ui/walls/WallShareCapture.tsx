@@ -4,14 +4,20 @@
  * see the symbols too (they're normally just a live SVG overlay in-app, never
  * baked into the photo binary).
  *
- * Sized to the photo's own aspect ratio (fetched via Image.getSize before
- * mounting), so there's no letterboxing to correct for — positionAlongWall/
- * photoY (both already normalized 0-1 fractions of the photo's own content,
- * per wall-geometry.ts) map straight onto pixel coordinates.
+ * Sized to the photo's own aspect ratio (read via expo-image-manipulator's
+ * no-op manipulateAsync before mounting — NOT React Native core's
+ * Image.getSize, which has been unreliable for local sandboxed file:// paths
+ * on iOS, throwing "failed to getSize of file://..." even for photos that
+ * render fine elsewhere via expo-image), so there's no letterboxing to
+ * correct for — positionAlongWall/photoY (both already normalized 0-1
+ * fractions of the photo's own content, per wall-geometry.ts) map straight
+ * onto pixel coordinates.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Image as RNImage, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as FileSystem from 'expo-file-system/legacy';
 import Svg from 'react-native-svg';
 import { captureRef } from 'react-native-view-shot';
 import type { Photo } from '@/src/media/media-types';
@@ -41,13 +47,23 @@ export function WallShareCapture({ photo, symbols, onReady, onError }: Props) {
   const viewRef = useRef<View>(null);
 
   useEffect(() => {
-    RNImage.getSize(
-      photo.filePath,
-      (naturalWidth, naturalHeight) => {
-        setSize({ width: CAPTURE_WIDTH, height: Math.round((naturalHeight / naturalWidth) * CAPTURE_WIDTH) });
-      },
-      onError,
-    );
+    let cancelled = false;
+    (async () => {
+      try {
+        const info = await FileSystem.getInfoAsync(photo.filePath);
+        if (!info.exists) {
+          throw new Error(
+            `Photo file is missing on disk: ${photo.filePath}. If the app was reinstalled since this photo was taken, its saved file path no longer exists.`,
+          );
+        }
+        const result = await ImageManipulator.manipulateAsync(photo.filePath, [], {});
+        if (cancelled) return;
+        setSize({ width: CAPTURE_WIDTH, height: Math.round((result.height / result.width) * CAPTURE_WIDTH) });
+      } catch (e) {
+        if (!cancelled) onError(e);
+      }
+    })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [photo.filePath]);
 
