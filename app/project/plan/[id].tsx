@@ -56,6 +56,7 @@ import {
 import { loadPhoto, deleteLocationPhoto } from '@/src/data/photo-repo';
 import { deletePhoto } from '@/src/media/camera-service';
 import { importFloorPlanImage, deleteFloorPlanImage } from '@/src/media/floor-plan-service';
+import { SimpleCameraCapture } from '@/src/ui/photos/SimpleCameraCapture';
 import {
   containerPointToImageNorm, imageNormToContainerPoint, imageFitRect,
   findNearestWall, wallPointAt, calibrateScale, wallLengthMeters, snapDraftPoint,
@@ -165,6 +166,7 @@ export default function FloorPlanScreen() {
   const [symbols, setSymbols] = useState<WallSymbol[]>([]);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
 
   const [mode, setModeState] = useState<Mode>('view');
   const [containerSize, setContainerSize] = useState({ width: 1, height: 1 });
@@ -249,15 +251,12 @@ export default function FloorPlanScreen() {
 
   const imageSize = floorPlan ? { width: floorPlan.width, height: floorPlan.height } : { width: 1, height: 1 };
 
-  const pickAndImportPlan = async () => {
+  const importPlanFromUri = async (uri: string) => {
     if (!floor) return;
+    setImporting(true);
     try {
-      const result = await DocumentPicker.getDocumentAsync({ type: ['image/*'], copyToCacheDirectory: true });
-      if (result.canceled || !result.assets.length) return;
-      setImporting(true);
-      const asset = result.assets[0]!;
       const newId = await addFloorPlan(floor.projectId, floor.id, '', 0, 0);
-      const { filePath, width, height } = await importFloorPlanImage(asset.uri, mediaPaths, floor.projectId, newId);
+      const { filePath, width, height } = await importFloorPlanImage(uri, mediaPaths, floor.projectId, newId);
       await updateFloorPlanFile(newId, filePath, width, height);
       await reload();
     } catch (e) {
@@ -265,6 +264,25 @@ export default function FloorPlanScreen() {
     } finally {
       setImporting(false);
     }
+  };
+
+  const pickFromFiles = async () => {
+    const result = await DocumentPicker.getDocumentAsync({ type: ['image/*'], copyToCacheDirectory: true });
+    if (result.canceled || !result.assets.length) return;
+    await importPlanFromUri(result.assets[0]!.uri);
+  };
+
+  const handlePlanCaptured = async (uri: string) => {
+    setCameraOpen(false);
+    await importPlanFromUri(uri);
+  };
+
+  const promptImportPlan = () => {
+    Alert.alert('Add floor plan', undefined, [
+      { text: 'Take a photo', onPress: () => setCameraOpen(true) },
+      { text: 'Choose from files', onPress: pickFromFiles },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const confirmReplacePlan = () => {
@@ -281,7 +299,8 @@ export default function FloorPlanScreen() {
             const { deletedPhotoFilePaths, planFilePath } = await deleteFloorPlan(floorPlan.id);
             await deleteFloorPlanImage(planFilePath);
             await Promise.all(deletedPhotoFilePaths.map((p) => FileSystem.deleteAsync(p, { idempotent: true })));
-            await pickAndImportPlan();
+            await reload();
+            promptImportPlan();
           },
         },
       ],
@@ -814,7 +833,7 @@ export default function FloorPlanScreen() {
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No floor plan yet.</Text>
             <Text style={styles.emptyHint}>Import an image of this floor's plan to trace its walls.</Text>
-            <Pressable style={styles.importBtn} onPress={pickAndImportPlan} disabled={importing}>
+            <Pressable style={styles.importBtn} onPress={promptImportPlan} disabled={importing}>
               <Text style={styles.importBtnText}>{importing ? 'Importing…' : 'Import floor plan'}</Text>
             </Pressable>
           </View>
@@ -957,6 +976,12 @@ export default function FloorPlanScreen() {
           </>
         )}
       </SafeAreaView>
+
+      <SimpleCameraCapture
+        visible={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onCaptured={handlePlanCaptured}
+      />
 
       {/* Room picker — after Save wall. Modal, not an inline sibling View: a
           flex:1 sibling of the SafeAreaView above would split the screen's
