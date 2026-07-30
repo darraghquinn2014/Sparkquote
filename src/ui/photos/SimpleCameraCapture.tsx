@@ -5,11 +5,11 @@
  * a single reference photo (e.g. a project's cover photo).
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Modal, Alert } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Modal, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Image } from 'expo-image';
-import { useCameraOrientation } from '@/src/media/useCameraOrientation';
+import { rotatePreview } from '@/src/media/camera-service';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 
 type CameraState = 'live' | 'preview';
@@ -25,9 +25,9 @@ export function SimpleCameraCapture({
 }) {
   const [cameraState, setCameraState] = useState<CameraState>('live');
   const [capturedUri, setCapturedUri] = useState<string | null>(null);
+  const [rotating, setRotating] = useState(false);
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
-  useCameraOrientation(visible);
 
   useEffect(() => {
     if (!visible) return;
@@ -55,20 +55,34 @@ export function SimpleCameraCapture({
     setCameraState('live');
   };
 
+  const rotate = async () => {
+    if (!capturedUri || rotating) return;
+    setRotating(true);
+    try {
+      setCapturedUri(await rotatePreview(capturedUri));
+    } catch {
+      Alert.alert('Rotate failed', 'Could not rotate the photo. Please try again.');
+    } finally {
+      setRotating(false);
+    }
+  };
+
+  const handleClose = () => onClose();
+
   const confirm = () => {
     if (!capturedUri) return;
     onCaptured(capturedUri);
   };
 
   return (
-    <Modal visible={visible} animationType="slide" statusBarTranslucent onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" statusBarTranslucent onRequestClose={handleClose}>
       <View style={styles.screen}>
         {cameraState === 'live' ? (
           permission?.granted ? (
             <>
               <CameraView ref={cameraRef} style={styles.camera} facing="back" />
               <SafeAreaView style={styles.controls} edges={['bottom']}>
-                <Pressable onPress={onClose} hitSlop={12}>
+                <Pressable onPress={handleClose} hitSlop={12}>
                   <Text style={styles.cancel}>Cancel</Text>
                 </Pressable>
                 <Pressable style={styles.shutter} onPress={takePhoto}>
@@ -80,7 +94,7 @@ export function SimpleCameraCapture({
           ) : (
             <SafeAreaView style={styles.permissionScreen} edges={['top', 'bottom']}>
               <Text style={styles.permissionText}>Allow camera access in Settings to take a photo.</Text>
-              <Pressable onPress={onClose} hitSlop={12}>
+              <Pressable onPress={handleClose} hitSlop={12}>
                 <Text style={styles.cancel}>Close</Text>
               </Pressable>
             </SafeAreaView>
@@ -93,10 +107,12 @@ export function SimpleCameraCapture({
                 <Pressable onPress={retake} hitSlop={12}>
                   <Text style={styles.cancel}>Retake</Text>
                 </Pressable>
+                <Pressable onPress={rotate} hitSlop={12} disabled={rotating}>
+                  {rotating ? <ActivityIndicator color="#fff" /> : <Text style={styles.rotate}>Rotate</Text>}
+                </Pressable>
                 <Pressable style={styles.useBtn} onPress={confirm}>
                   <Text style={styles.useBtnText}>Use Photo</Text>
                 </Pressable>
-                <View style={{ width: 60 }} />
               </SafeAreaView>
             </>
           )
@@ -122,6 +138,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.55)',
   },
   cancel: { color: '#fff', fontSize: 16, fontWeight: '600', width: 60 },
+  rotate: { color: '#fff', fontSize: 16, fontWeight: '600' },
   shutter: {
     width: 72,
     height: 72,

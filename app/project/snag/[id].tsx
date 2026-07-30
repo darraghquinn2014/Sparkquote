@@ -18,7 +18,7 @@ import {
 } from '@/src/data/snag-repo';
 import { loadProjects, loadLocations } from '@/src/data/project-repo';
 import { importSnagPhoto, deleteSnagPhoto } from '@/src/media/snag-photo-service';
-import { useCameraOrientation } from '@/src/media/useCameraOrientation';
+import { rotatePreview } from '@/src/media/camera-service';
 import { useVoiceAction } from '@/src/voice/voice-bus';
 import { HeaderMicButton } from '@/src/ui/voice/HeaderMicButton';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
@@ -56,9 +56,9 @@ export default function SnagListScreen() {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraState, setCameraState] = useState<CameraState>('live');
   const [capturedUri, setCapturedUri] = useState<string | null>(null);
+  const [rotating, setRotating] = useState(false);
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
-  useCameraOrientation(cameraOpen);
 
   const [lightboxUri, setLightboxUri] = useState<string | null>(null);
   const [detailItem, setDetailItem] = useState<SnagItem | null>(null);
@@ -371,6 +371,20 @@ export default function SnagListScreen() {
     }
     setCameraOpen(false);
     setCapturedUri(null);
+  };
+
+  const closeCamera = () => setCameraOpen(false);
+
+  const rotatePhoto = async () => {
+    if (!capturedUri || rotating) return;
+    setRotating(true);
+    try {
+      setCapturedUri(await rotatePreview(capturedUri));
+    } catch {
+      Alert.alert('Rotate failed', 'Could not rotate the photo. Please try again.');
+    } finally {
+      setRotating(false);
+    }
   };
 
   const retake = () => {
@@ -795,13 +809,13 @@ export default function SnagListScreen() {
       </Modal>
 
       {/* Camera modal */}
-      <Modal visible={cameraOpen} animationType="slide" statusBarTranslucent onRequestClose={() => setCameraOpen(false)}>
+      <Modal visible={cameraOpen} animationType="slide" statusBarTranslucent onRequestClose={closeCamera}>
         <View style={styles.cameraScreen}>
           {cameraOpen && cameraState === 'live' && (
             <>
               <CameraView ref={cameraRef} style={styles.camera} facing="back" />
               <SafeAreaView style={styles.cameraControls} edges={['bottom']}>
-                <Pressable onPress={() => setCameraOpen(false)} hitSlop={12}>
+                <Pressable onPress={closeCamera} hitSlop={12}>
                   <Text style={styles.camCancel}>Cancel</Text>
                 </Pressable>
                 <Pressable style={styles.shutter} onPress={takePhoto}>
@@ -819,10 +833,12 @@ export default function SnagListScreen() {
                 <Pressable onPress={retake} hitSlop={12}>
                   <Text style={styles.camCancel}>Retake</Text>
                 </Pressable>
+                <Pressable onPress={rotatePhoto} hitSlop={12} disabled={rotating}>
+                  {rotating ? <ActivityIndicator color="#fff" /> : <Text style={styles.camCancel}>Rotate</Text>}
+                </Pressable>
                 <Pressable style={styles.useBtn} onPress={confirmPhoto}>
                   <Text style={styles.useBtnText}>Use Photo</Text>
                 </Pressable>
-                <View style={{ width: 60 }} />
               </SafeAreaView>
             </>
           )}

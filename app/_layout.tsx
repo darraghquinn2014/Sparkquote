@@ -14,7 +14,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
     <ThemeProvider value={DefaultTheme}>
-      <Stack>
+      <Stack screenOptions={{ orientation: 'portrait' }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="estimate" options={{ headerShown: false }} />
         <Stack.Screen name="catalogue" options={{ headerShown: false }} />

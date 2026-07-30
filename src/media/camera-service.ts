@@ -65,3 +65,22 @@ export async function overwritePhotoFile(photo: Photo, newUri: string): Promise<
   await FileSystem.deleteAsync(photo.filePath, { idempotent: true });
   await FileSystem.moveAsync({ from: newUri, to: photo.filePath });
 }
+
+/**
+ * Rotate a camera preview image 90° clockwise, for the preview screen's
+ * manual "Rotate" button. Camera capture orientation is unreliable on iOS
+ * when combined with any screen-orientation unlocking (expo-camera reads
+ * UIDeviceOrientation, which just follows the app's current interface-
+ * orientation lock rather than the phone's true physical tilt — a confirmed
+ * long-standing upstream limitation, not something fixable from app code).
+ * So the camera UI stays portrait-only, and a sideways result is fixed by
+ * hand here instead of chasing that flakiness.
+ */
+export async function rotatePreview(uri: string): Promise<string> {
+  const result = await ImageManipulator.manipulateAsync(
+    uri,
+    [{ rotate: 90 }],
+    { compress: 1, format: ImageManipulator.SaveFormat.JPEG },
+  );
+  return result.uri;
+}

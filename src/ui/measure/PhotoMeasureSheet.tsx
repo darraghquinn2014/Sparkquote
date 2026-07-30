@@ -123,7 +123,7 @@ export function PhotoMeasureSheet({ visible, roomName, locationId, materials, on
   // Unlocks rotation while this sheet is open so a wall photo taken with the
   // phone turned sideways actually comes out landscape, instead of always
   // being forced into the app's fixed portrait orientation.
-  useCameraOrientation(visible);
+  const relockPortrait = useCameraOrientation(visible);
 
   // Core state
   const [step, setStep]       = useState<Step>('camera');
@@ -175,7 +175,14 @@ export function PhotoMeasureSheet({ visible, roomName, locationId, materials, on
 
   const resetMeasurement = () => { setPhoto(null); setPts([]); setRefMm(86); setStep('camera'); resetZoom(); };
 
-  const handleClose = () => { resetAll(); onClose(); };
+  // Relock BEFORE dismissing — not after. iOS only re-lays-out the
+  // presenting screen to match the orientation lock at the moment the
+  // modal's dismissal transition actually happens (see useCameraOrientation).
+  const handleClose = async () => {
+    resetAll();
+    await relockPortrait();
+    onClose();
+  };
 
   // ── Camera ──────────────────────────────────────────────────────────────────
   const shoot = async () => {

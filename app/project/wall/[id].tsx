@@ -23,8 +23,7 @@ import type { Photo } from '@/src/media/media-types';
 import type { SymbolType } from '@/src/media/annotation-service';
 import { loadLocation } from '@/src/data/project-repo';
 import { loadPhoto, addLocationPhoto, deleteLocationPhoto } from '@/src/data/photo-repo';
-import { saveCapture, deletePhoto } from '@/src/media/camera-service';
-import { useCameraOrientation } from '@/src/media/useCameraOrientation';
+import { saveCapture, deletePhoto, rotatePreview } from '@/src/media/camera-service';
 import {
   loadWall, loadWallSymbols, renameWall, setWallPhoto,
   addWallSymbol, updateWallSymbolPhotoY, deleteWallSymbol, deleteWall,
@@ -107,9 +106,9 @@ export default function WallScreen() {
   const [cameraState, setCameraState] = useState<CameraState>('live');
   const [capturedUri, setCapturedUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [rotating, setRotating] = useState(false);
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
-  useCameraOrientation(cameraOpen);
 
   const [containerSize, setContainerSize] = useState({ width: 1, height: 1 });
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
@@ -207,6 +206,20 @@ export default function WallScreen() {
       setSaving(false);
       setCameraOpen(false);
       setCapturedUri(null);
+    }
+  };
+
+  const closeCamera = () => setCameraOpen(false);
+
+  const rotatePhoto = async () => {
+    if (!capturedUri || rotating) return;
+    setRotating(true);
+    try {
+      setCapturedUri(await rotatePreview(capturedUri));
+    } catch {
+      Alert.alert('Rotate failed', 'Could not rotate the photo. Please try again.');
+    } finally {
+      setRotating(false);
     }
   };
 
@@ -499,13 +512,13 @@ export default function WallScreen() {
       )}
 
       {/* Camera modal */}
-      <Modal visible={cameraOpen} animationType="slide" statusBarTranslucent onRequestClose={() => setCameraOpen(false)}>
+      <Modal visible={cameraOpen} animationType="slide" statusBarTranslucent onRequestClose={closeCamera}>
         <View style={styles.cameraScreen}>
           {cameraOpen && cameraState === 'live' && (
             <>
               <CameraView ref={cameraRef} style={styles.camera} facing="back" />
               <SafeAreaView style={styles.cameraControls} edges={['bottom']}>
-                <Pressable onPress={() => setCameraOpen(false)} hitSlop={12}>
+                <Pressable onPress={closeCamera} hitSlop={12}>
                   <Text style={styles.camCancel}>Cancel</Text>
                 </Pressable>
                 <Pressable style={styles.shutter} onPress={takePhoto}>
@@ -523,6 +536,9 @@ export default function WallScreen() {
                 <Pressable onPress={retake} hitSlop={12}>
                   <Text style={styles.camCancel}>Retake</Text>
                 </Pressable>
+                <Pressable onPress={rotatePhoto} hitSlop={12} disabled={rotating}>
+                  {rotating ? <ActivityIndicator color="#fff" /> : <Text style={styles.camCancel}>Rotate</Text>}
+                </Pressable>
                 {saving ? (
                   <ActivityIndicator color={colors.accent} />
                 ) : (
@@ -530,7 +546,6 @@ export default function WallScreen() {
                     <Text style={styles.useBtnText}>Use Photo</Text>
                   </Pressable>
                 )}
-                <View style={{ width: 60 }} />
               </SafeAreaView>
             </>
           )}
