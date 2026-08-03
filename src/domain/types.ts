@@ -467,6 +467,10 @@ export interface WallSymbol {
   photoY: number;
   color?: string;
   createdAt: number;
+  /** How this symbol was placed — manual tap (default) or an AI plan scan. */
+  source?: 'manual' | 'ai';
+  /** False only for AI-placed symbols whose photoY hasn't been reviewed yet. */
+  heightConfirmed?: boolean;
 }
 
 export interface Estimate {

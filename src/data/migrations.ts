@@ -232,5 +232,17 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 20,
+      steps: [
+        addColumns({
+          table: 'wall_symbols',
+          columns: [
+            { name: 'source', type: 'string', isOptional: true },
+            { name: 'height_confirmed', type: 'boolean', isOptional: true },
+          ],
+        }),
+      ],
+    },
   ],
 });

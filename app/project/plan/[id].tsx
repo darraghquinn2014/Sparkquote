@@ -50,7 +50,7 @@ import type { Project, Location, Wall, WallSymbol } from '@/src/domain/types';
 import { loadProjects, loadLocation, loadLocations, setLocationHeight } from '@/src/data/project-repo';
 import {
   loadFloorPlanForLocation, addFloorPlan, updateFloorPlanFile, deleteFloorPlan,
-  addWall, loadWallsForFloorPlan, loadWallSymbolsForFloorPlan, setFloorPlanScale,
+  addWall, addWallSymbol, loadWallsForFloorPlan, loadWallSymbolsForFloorPlan, setFloorPlanScale,
   updateWallEndpoints, deleteWall,
 } from '@/src/data/floor-plan-repo';
 import { loadPhoto, deleteLocationPhoto } from '@/src/data/photo-repo';
@@ -60,9 +60,11 @@ import { SimpleCameraCapture } from '@/src/ui/photos/SimpleCameraCapture';
 import {
   containerPointToImageNorm, imageNormToContainerPoint, imageFitRect,
   findNearestWall, wallPointAt, calibrateScale, wallLengthMeters, snapDraftPoint,
+  DEFAULT_PHOTO_Y,
   type Point,
 } from '@/src/domain/wall-geometry';
-import { PlacedSymbolGroup } from '@/src/ui/annotations/symbols';
+import { PlacedSymbolGroup, SYMBOL_TYPE_COLORS } from '@/src/ui/annotations/symbols';
+import { scanFloorPlanForSymbols } from '@/src/ai/plan-scan-service';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 
 const mediaPaths = {
@@ -75,6 +77,8 @@ type DragTarget = 'draftA' | 'draftB' | 'selStart' | 'selEnd';
 
 /** Calibration line colour — must read as "not a wall" next to accent-blue walls. */
 const CALIB_COLOR = '#E8590C';
+/** Traced but not yet photographed — bright orange so it's obvious at a glance which walls still need a photo. */
+const NO_PHOTO_COLOR = '#FF6A00';
 /** Handle border while magnet-snapped onto another wall's endpoint. */
 const SNAP_COLOR = '#12B76A';
 
@@ -167,6 +171,7 @@ export default function FloorPlanScreen() {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [scanning, setScanning] = useState(false);
 
   const [mode, setModeState] = useState<Mode>('view');
   const [containerSize, setContainerSize] = useState({ width: 1, height: 1 });
@@ -326,6 +331,39 @@ export default function FloorPlanScreen() {
         },
       ],
     );
+  };
+
+  // ── AI Plan Mode: scan the imported plan image for symbols near each
+  // already-traced wall, then let the guided capture wizard place them on
+  // each wall's photo. Opt-in and network-dependent — manual tagging
+  // (PlanSymbolTagger, direct tap on the wall screen) always still works.
+  const runAiScan = async () => {
+    if (!floorPlan || walls.length === 0) return;
+    setScanning(true);
+    try {
+      const detections = await scanFloorPlanForSymbols(floorPlan, walls);
+      if (detections.length === 0) {
+        Alert.alert('No symbols found', "The AI scan didn't find any electrical symbols near the traced walls. You can still tag them manually.");
+        return;
+      }
+      for (const d of detections) {
+        await addWallSymbol(d.wallId, d.type, d.positionAlongWall, DEFAULT_PHOTO_Y, SYMBOL_TYPE_COLORS[d.type], 'ai');
+      }
+      await reload();
+      const wallCount = new Set(detections.map((d) => d.wallId)).size;
+      Alert.alert(
+        'AI scan complete',
+        `Found ${detections.length} symbol${detections.length === 1 ? '' : 's'} across ${wallCount} wall${wallCount === 1 ? '' : 's'}. Review heights as you photograph each wall.`,
+        [
+          { text: 'Later', style: 'cancel' },
+          { text: 'Review now', onPress: () => router.push(`/project/plan/capture/${floorId}` as any) },
+        ],
+      );
+    } catch (e) {
+      Alert.alert('AI scan failed', e instanceof Error ? e.message : String(e));
+    } finally {
+      setScanning(false);
+    }
   };
 
   const openOverflow = () => {
@@ -860,6 +898,22 @@ export default function FloorPlanScreen() {
                 : 'No scale yet — use Calibrate so wall and room sizes can be worked out'}
             </Text>
 
+            {walls.length > 0 && (
+              <View style={styles.aiRow}>
+                <Pressable style={styles.aiScanBtn} onPress={runAiScan} disabled={scanning}>
+                  {scanning
+                    ? <ActivityIndicator color={colors.accentInk} />
+                    : <Text style={styles.aiScanBtnText}>✨ AI Scan for symbols</Text>}
+                </Pressable>
+                <Pressable
+                  style={styles.aiCaptureBtn}
+                  onPress={() => router.push(`/project/plan/capture/${floorId}` as any)}
+                >
+                  <Text style={styles.aiCaptureBtnText}>📷 Guided wall photos</Text>
+                </Pressable>
+              </View>
+            )}
+
             <GestureDetector gesture={gesture}>
               <View
                 style={styles.canvas}
@@ -889,12 +943,15 @@ export default function FloorPlanScreen() {
                   {walls.map((wall) => {
                     const geom = wallGeometry(wall);
                     const isSelected = selected?.id === wall.id;
+                    const color = isSelected
+                      ? colors.accentSecondary
+                      : wall.photoId ? colors.accent : NO_PHOTO_COLOR;
                     return (
                       <WallLine
                         key={wall.id}
                         start={toContainer(geom.start)}
                         end={toContainer(geom.end)}
-                        color={isSelected ? colors.accentSecondary : colors.accent}
+                        color={color}
                         thickness={isSelected ? 4 : 3}
                       />
                     );
@@ -1125,6 +1182,20 @@ const styles = StyleSheet.create({
   modeBtnActive: { backgroundColor: colors.accent },
   modeBtnText: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
   modeBtnTextActive: { color: colors.accentInk },
+
+  aiRow: {
+    flexDirection: 'row', gap: space.sm, paddingHorizontal: space.lg, marginBottom: space.sm,
+  },
+  aiScanBtn: {
+    flex: 1, backgroundColor: colors.accent, borderRadius: radius.pill,
+    paddingVertical: space.sm, alignItems: 'center', justifyContent: 'center',
+  },
+  aiScanBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 13 },
+  aiCaptureBtn: {
+    flex: 1, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.hairline,
+    paddingVertical: space.sm, alignItems: 'center', justifyContent: 'center',
+  },
+  aiCaptureBtnText: { color: colors.textSecondary, fontWeight: '700', fontSize: 13 },
 
   canvas: { flex: 1, position: 'relative', backgroundColor: '#000', overflow: 'hidden' },
   hint: { color: colors.textMuted, fontSize: 12, textAlign: 'center', paddingVertical: space.md },

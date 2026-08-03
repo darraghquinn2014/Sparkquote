@@ -576,6 +576,22 @@ export default function RoomScreen() {
           <Text style={styles.hint}>Tap to view / name  ·  Hold to delete</Text>
         )}
 
+        {(() => {
+          const wallsNeedingPhoto = walls.filter((w) => !w.photoId);
+          if (wallsNeedingPhoto.length === 0 || !location.parentId) return null;
+          return (
+            <Pressable
+              style={styles.wallsReminderBanner}
+              onPress={() => router.push(`/project/plan/capture/${location.parentId}` as any)}
+            >
+              <Text style={styles.wallsReminderText}>
+                {wallsNeedingPhoto.length} wall{wallsNeedingPhoto.length === 1 ? '' : 's'} still need{wallsNeedingPhoto.length === 1 ? 's' : ''} photos
+              </Text>
+              <Text style={styles.wallsReminderLink}>Continue ›</Text>
+            </Pressable>
+          );
+        })()}
+
         <View style={styles.wallsHeaderRow}>
           <Text style={[styles.subtitle, styles.wallsSubtitle, { marginBottom: 0 }]}>Walls</Text>
           {walls.some((w) => w.photoId) && (
@@ -976,6 +992,15 @@ const styles = StyleSheet.create({
   emptyHint: { color: colors.textMuted, fontSize: 13 },
   empty: { color: colors.textMuted, textAlign: 'center', marginTop: space.xxl },
 
+  wallsReminderBanner: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: 'rgba(255,176,32,0.12)', borderRadius: radius.tile,
+    borderWidth: 1, borderColor: colors.accent,
+    paddingHorizontal: space.md, paddingVertical: space.sm, marginTop: space.xl,
+  },
+  wallsReminderText: { color: colors.textPrimary, fontSize: 13, fontWeight: '700', flex: 1 },
+  wallsReminderLink: { color: colors.accent, fontSize: 13, fontWeight: '800' },
+
   wallsSubtitle: { marginTop: space.xl, marginBottom: space.md },
   wallsHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   wallsSelectToggle: { color: colors.accent, fontSize: 13, fontWeight: '700' },
@@ -987,7 +1012,12 @@ const styles = StyleSheet.create({
     padding: space.sm, marginBottom: space.xs,
   },
   wallThumb: { width: 44, height: 44, borderRadius: radius.tile / 2 },
-  wallThumbEmpty: { width: 44, height: 44, borderRadius: radius.tile / 2, backgroundColor: colors.ground },
+  // Distinct amber tint (matches wallsReminderBanner) so an untraced-but-
+  // unphotographed wall stands out from a normal thumbnail at a glance.
+  wallThumbEmpty: {
+    width: 44, height: 44, borderRadius: radius.tile / 2,
+    backgroundColor: 'rgba(255,176,32,0.15)', borderWidth: 1, borderColor: colors.accent,
+  },
   wallRowText: { flex: 1, color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
   wallChevron: { color: colors.textMuted, fontSize: 20 },
   checkbox: {

@@ -15,9 +15,8 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as DocumentPicker from 'expo-document-picker';
 import { Image } from 'expo-image';
 import * as FileSystem from 'expo-file-system/legacy';
-import Svg from 'react-native-svg';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
+import { runOnJS } from 'react-native-reanimated';
 import type { FloorPlan, Location, Wall, WallSymbol } from '@/src/domain/types';
 import type { Photo } from '@/src/media/media-types';
 import type { SymbolType } from '@/src/media/annotation-service';
@@ -30,8 +29,8 @@ import {
   loadFloorPlan, flipWallDirection,
 } from '@/src/data/floor-plan-repo';
 import { useVoiceAction } from '@/src/voice/voice-bus';
-import { symbolPhotoX } from '@/src/domain/wall-geometry';
-import { PlacedSymbolGroup, SYMBOL_TYPES, SYMBOL_LABELS, SYMBOL_TYPE_COLORS } from '@/src/ui/annotations/symbols';
+import { SYMBOL_TYPES, SYMBOL_LABELS, SYMBOL_TYPE_COLORS } from '@/src/ui/annotations/symbols';
+import { WallSymbolOverlay, type RenderedRect } from '@/src/ui/annotations/WallSymbolOverlay';
 import { PlanSymbolTagger } from '@/src/ui/annotations/PlanSymbolTagger';
 import { ActionSheet } from '@/src/ui/ActionSheet';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
@@ -42,53 +41,6 @@ const mediaPaths = {
 };
 
 type CameraState = 'live' | 'preview';
-
-function DraggableSymbol({
-  symbol, x, baseY, enabled, onDragEnd, onTap,
-}: {
-  symbol: WallSymbol;
-  x: number;
-  baseY: number;
-  enabled: boolean;
-  /** Raw vertical drag distance in container px — the parent converts it to
-   * a photoY against the letterboxed photo rect (NOT the container height,
-   * which made drags land at a fraction of the dragged distance). */
-  onDragEnd: (translationY: number) => void;
-  onTap: () => void;
-}) {
-  const dragOffset = useSharedValue(0);
-
-  const handleDragEnd = (translationY: number) => {
-    onDragEnd(translationY);
-    dragOffset.value = 0;
-  };
-
-  const panGesture = Gesture.Pan()
-    .enabled(enabled)
-    .minDistance(10)
-    .onUpdate((e) => { dragOffset.value = e.translationY; })
-    .onEnd((e) => {
-      runOnJS(handleDragEnd)(e.translationY);
-    });
-
-  const tapGesture = Gesture.Tap().enabled(enabled).onEnd(() => { runOnJS(onTap)(); });
-
-  const gesture = Gesture.Exclusive(tapGesture, panGesture);
-
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: dragOffset.value }],
-  }));
-
-  return (
-    <GestureDetector gesture={gesture}>
-      <Animated.View style={[{ position: 'absolute', left: x - 20, top: baseY - 20, width: 40, height: 40 }, animStyle]}>
-        <Svg width={40} height={40}>
-          <PlacedSymbolGroup symbol={{ id: symbol.id, type: symbol.type, x: 20, y: 20, color: symbol.color ?? '#FFFFFF' }} />
-        </Svg>
-      </Animated.View>
-    </GestureDetector>
-  );
-}
 
 export default function WallScreen() {
   const router = useRouter();
@@ -110,8 +62,7 @@ export default function WallScreen() {
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
 
-  const [containerSize, setContainerSize] = useState({ width: 1, height: 1 });
-  const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
+  const [overlayRect, setOverlayRect] = useState<RenderedRect | null>(null);
 
   const [editingLabel, setEditingLabel] = useState(false);
   const [labelText, setLabelText] = useState('');
@@ -137,18 +88,6 @@ export default function WallScreen() {
   }, [wallId]);
 
   useFocusEffect(useCallback(() => { reload(); }, [reload]));
-
-  // Contain-fit rendered rect of the photo within its container — symbol
-  // pixel positions must use this, not the raw container size, or they'd
-  // drift into the letterbox margin whenever the photo's aspect ratio
-  // doesn't match the container's.
-  const renderedRect = (() => {
-    if (!naturalSize) return null;
-    const scale = Math.min(containerSize.width / naturalSize.width, containerSize.height / naturalSize.height);
-    const width = naturalSize.width * scale;
-    const height = naturalSize.height * scale;
-    return { width, height, offsetX: (containerSize.width - width) / 2, offsetY: (containerSize.height - height) / 2 };
-  })();
 
   const openCamera = async () => {
     if (!permission?.granted) {
@@ -303,9 +242,7 @@ export default function WallScreen() {
     ]);
   };
 
-  const handleSymbolDragEnd = async (symbol: WallSymbol, translationY: number) => {
-    if (!renderedRect) return;
-    const photoY = Math.max(0, Math.min(1, symbol.photoY + translationY / renderedRect.height));
+  const handleSymbolDragEnd = async (symbol: WallSymbol, photoY: number) => {
     setSymbols((prev) => prev.map((s) => (s.id === symbol.id ? { ...s, photoY } : s)));
     await updateWallSymbolPhotoY(symbol.id, photoY);
   };
@@ -313,7 +250,7 @@ export default function WallScreen() {
   // ── Add symbol (tap the photo while in "adding" mode) ────────────────────
 
   const handlePlaceTap = (containerX: number, containerY: number) => {
-    if (!renderedRect) return;
+    if (!overlayRect) return;
     setPendingTap({ x: containerX, y: containerY });
   };
 
@@ -322,9 +259,9 @@ export default function WallScreen() {
     .onEnd((e) => { runOnJS(handlePlaceTap)(e.x, e.y); });
 
   const commitSymbol = async () => {
-    if (!wall || !pendingTap || !renderedRect) return;
-    const positionAlongWall = Math.max(0, Math.min(1, (pendingTap.x - renderedRect.offsetX) / renderedRect.width));
-    const photoY = Math.max(0, Math.min(1, (pendingTap.y - renderedRect.offsetY) / renderedRect.height));
+    if (!wall || !pendingTap || !overlayRect) return;
+    const positionAlongWall = Math.max(0, Math.min(1, (pendingTap.x - overlayRect.offsetX) / overlayRect.width));
+    const photoY = Math.max(0, Math.min(1, (pendingTap.y - overlayRect.offsetY) / overlayRect.height));
     await addWallSymbol(wall.id, selectedSymbolType, positionAlongWall, photoY, SYMBOL_TYPE_COLORS[selectedSymbolType]);
     setPendingTap(null);
     reload();
@@ -400,32 +337,15 @@ export default function WallScreen() {
             </View>
 
             <GestureDetector gesture={placeTapGesture}>
-              <View
+              <WallSymbolOverlay
+                photoUri={photo.filePath}
+                symbols={symbols}
+                enabled={!addingSymbol}
+                onSymbolDragEnd={handleSymbolDragEnd}
+                onSymbolTap={confirmRemoveSymbol}
+                onRenderedRectChange={setOverlayRect}
                 style={styles.photoWrap}
-                onLayout={(e) => setContainerSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
-              >
-                <Image
-                  source={{ uri: photo.filePath }}
-                  style={StyleSheet.absoluteFill}
-                  contentFit="contain"
-                  onLoad={(e) => setNaturalSize({ width: e.source.width, height: e.source.height })}
-                />
-                {renderedRect && symbols.map((symbol) => {
-                  const x = renderedRect.offsetX + symbolPhotoX(symbol.positionAlongWall, renderedRect.width);
-                  const y = renderedRect.offsetY + symbol.photoY * renderedRect.height;
-                  return (
-                    <DraggableSymbol
-                      key={symbol.id}
-                      symbol={symbol}
-                      x={x}
-                      baseY={y}
-                      enabled={!addingSymbol}
-                      onDragEnd={(translationY) => handleSymbolDragEnd(symbol, translationY)}
-                      onTap={() => confirmRemoveSymbol(symbol)}
-                    />
-                  );
-                })}
-              </View>
+              />
             </GestureDetector>
           </>
         )}

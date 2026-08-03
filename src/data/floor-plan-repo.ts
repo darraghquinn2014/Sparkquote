@@ -54,6 +54,11 @@ function toWallSymbol(r: WallSymbolModel): WallSymbol {
     positionAlongWall: r.positionAlongWall,
     photoY: r.photoY,
     createdAt: r.createdAt,
+    // Pre-migration rows have no source/height_confirmed value — treat them as
+    // manually placed and already correct, since that's how every symbol was
+    // created before AI-suggested placement existed.
+    source: (r.source as 'manual' | 'ai' | null) ?? 'manual',
+    heightConfirmed: r.heightConfirmed ?? true,
   };
   if (r.color != null) symbol.color = r.color;
   return symbol;
@@ -312,6 +317,7 @@ export async function addWallSymbol(
   positionAlongWall: number,
   photoY: number,
   color?: string,
+  source: 'manual' | 'ai' = 'manual',
 ): Promise<string> {
   let newId = '';
   await database.write(async () => {
@@ -322,6 +328,10 @@ export async function addWallSymbol(
       r.photoY = photoY;
       r.color = color ?? null;
       r.createdAt = Date.now();
+      r.source = source;
+      // Manual placements are exactly where the user tapped; AI placements
+      // still need a human to confirm the vertical position it guessed.
+      r.heightConfirmed = source === 'manual';
     });
     newId = row.id;
   });
@@ -353,7 +363,20 @@ export async function loadWallSymbolsForFloorPlan(floorPlanId: string): Promise<
 export async function updateWallSymbolPhotoY(id: string, photoY: number): Promise<void> {
   await database.write(async () => {
     const row = await database.get<WallSymbolModel>('wall_symbols').find(id);
-    await row.update((r) => { r.photoY = photoY; });
+    // Any manual height adjustment counts as confirming it, regardless of source.
+    await row.update((r) => { r.photoY = photoY; r.heightConfirmed = true; });
+  });
+}
+
+/** Bulk-confirm every not-yet-reviewed (AI-placed) symbol on a wall, without moving them. */
+export async function confirmAllSymbolHeights(wallId: string): Promise<void> {
+  const rows = await database
+    .get<WallSymbolModel>('wall_symbols')
+    .query(Q.where('wall_id', wallId), Q.where('height_confirmed', false))
+    .fetch();
+  if (rows.length === 0) return;
+  await database.write(async () => {
+    await database.batch(...rows.map((r) => r.prepareUpdate((row) => { row.heightConfirmed = true; })));
   });
 }
 

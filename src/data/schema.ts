@@ -13,7 +13,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 19,
+  version: 20,
   tables: [
     // ── Catalogue ────────────────────────────────────────────────────────
     tableSchema({
@@ -192,6 +192,8 @@ export const schema = appSchema({
         { name: 'photo_y', type: 'number' }, // 0-1, photo-only vertical
         { name: 'color', type: 'string', isOptional: true },
         { name: 'created_at', type: 'number' },
+        { name: 'source', type: 'string', isOptional: true }, // 'manual' | 'ai'
+        { name: 'height_confirmed', type: 'boolean', isOptional: true },
       ],
     }),
 

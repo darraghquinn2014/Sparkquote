@@ -152,6 +152,8 @@ export class WallSymbolModel extends Model {
   @field('photo_y') photoY!: number;
   @text('color') color!: string | null;
   @field('created_at') createdAt!: number;
+  @text('source') source!: string | null;
+  @field('height_confirmed') heightConfirmed!: boolean | null;
 }
 
 export class SnagItemModel extends Model {
