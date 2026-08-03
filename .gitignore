@@ -48,3 +48,4 @@ app-example
 
 # local build logs
 *.log
+.metro-log.txt
