@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -170,6 +170,7 @@ export default function HomeScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Brand */}
         <View style={styles.brandRow}>
+          <Image source={require('@/assets/images/brand-mark.png')} style={styles.brandMark} />
           <View style={{ flex: 1 }}>
             <Text style={styles.brandName}>
               <Text style={{ color: C.brand }}>Spark</Text>Quote
@@ -245,10 +246,16 @@ const styles = StyleSheet.create({
 
   brandRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
+    gap: space.sm,
     paddingTop: space.xl,
     paddingBottom: space.lg,
+  },
+  brandMark: {
+    width: 52,
+    height: 52,
+    resizeMode: 'contain',
   },
   brandName: {
     fontSize: 40,
