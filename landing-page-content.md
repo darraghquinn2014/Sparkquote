@@ -21,7 +21,11 @@ This version replaced the original 8-section wordy draft (see git history for th
 
 # Lose the signal. Not the job.
 
-Price it, get it signed, and send it — from the plant room, the basement, the new-build with no wifi yet. No laptop. No waiting till you're back at the yard.
+**The offline-first job estimating & quoting app built for electricians in the UK & Ireland.**
+
+**Snap or import a floor-plan photo, then mark up sockets, switches and circuits right on it — an easy visual reference for the whole job.**
+
+Estimating, quoting, projects, floor plans, symbol marking — all of it runs with **zero signal**. Price it, mark it up, get it signed, and send it — from the plant room, the basement, the new-build with no wifi yet. No laptop. No waiting till you're back at the yard.
 
 **[Notify me when it's ready]**
 > First **500** sign-ups lock Founder's Lifetime at **£249** — forever. Price rises once early access opens.
