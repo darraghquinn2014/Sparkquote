@@ -7,9 +7,9 @@
  */
 import React, { useCallback, useRef, useState } from 'react';
 import {
-  View, Text, Pressable, StyleSheet, Alert, ActivityIndicator, Modal, TextInput, ScrollView,
+  View, Text, Pressable, StyleSheet, Alert, ActivityIndicator, Modal, TextInput,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as DocumentPicker from 'expo-document-picker';
@@ -28,8 +28,10 @@ import {
   addWallSymbol, updateWallSymbolPhotoY, deleteWallSymbol, deleteWall,
   loadFloorPlan, flipWallDirection,
 } from '@/src/data/floor-plan-repo';
+import { wallLengthMeters } from '@/src/domain/wall-geometry';
 import { useVoiceAction } from '@/src/voice/voice-bus';
-import { SYMBOL_TYPES, SYMBOL_LABELS, SYMBOL_TYPE_COLORS } from '@/src/ui/annotations/symbols';
+import { SYMBOL_LABELS, SYMBOL_TYPE_COLORS } from '@/src/ui/annotations/symbols';
+import { SymbolTypePicker } from '@/src/ui/annotations/SymbolTypePicker';
 import { WallSymbolOverlay, type RenderedRect } from '@/src/ui/annotations/WallSymbolOverlay';
 import { PlanSymbolTagger } from '@/src/ui/annotations/PlanSymbolTagger';
 import { ActionSheet } from '@/src/ui/ActionSheet';
@@ -45,6 +47,7 @@ type CameraState = 'live' | 'preview';
 export default function WallScreen() {
   const router = useRouter();
   const { id: wallId } = useLocalSearchParams<{ id: string }>();
+  const insets = useSafeAreaInsets();
 
   const [wall, setWall] = useState<Wall | null>(null);
   const [room, setRoom] = useState<Location | null>(null);
@@ -70,6 +73,7 @@ export default function WallScreen() {
   const [addingSymbol, setAddingSymbol] = useState(false);
   const [pendingTap, setPendingTap] = useState<{ x: number; y: number } | null>(null);
   const [selectedSymbolType, setSelectedSymbolType] = useState<SymbolType>('socket');
+  const [infoSymbol, setInfoSymbol] = useState<WallSymbol | null>(null);
 
   const reload = useCallback(async () => {
     if (!wallId) return;
@@ -242,6 +246,21 @@ export default function WallScreen() {
     ]);
   };
 
+  // Distance from each end of THIS wall (its start/end are where it meets the
+  // adjoining walls) needs the floor plan's own calibration (pxPerMeter) —
+  // real-world wall length is otherwise unknown. Height above the floor
+  // assumes the wall's photo was framed exactly floor-to-ceiling (nothing
+  // checks that) and needs the room's ceiling height on record; omit either
+  // figure rather than block the info card when its input is missing.
+  const wallLenMeters = wall && floorPlan?.pxPerMeter
+    ? wallLengthMeters(wall, { width: floorPlan.width, height: floorPlan.height }, floorPlan.pxPerMeter)
+    : null;
+  const infoDistFromStart = infoSymbol && wallLenMeters != null ? infoSymbol.positionAlongWall * wallLenMeters : null;
+  const infoDistFromEnd = infoSymbol && wallLenMeters != null ? (1 - infoSymbol.positionAlongWall) * wallLenMeters : null;
+  const infoHeightAboveFloor = infoSymbol && room?.heightMeters != null
+    ? (1 - infoSymbol.photoY) * room.heightMeters
+    : null;
+
   const handleSymbolDragEnd = async (symbol: WallSymbol, photoY: number) => {
     setSymbols((prev) => prev.map((s) => (s.id === symbol.id ? { ...s, photoY } : s)));
     await updateWallSymbolPhotoY(symbol.id, photoY);
@@ -342,7 +361,7 @@ export default function WallScreen() {
                 symbols={symbols}
                 enabled={!addingSymbol}
                 onSymbolDragEnd={handleSymbolDragEnd}
-                onSymbolTap={confirmRemoveSymbol}
+                onSymbolTap={setInfoSymbol}
                 onRenderedRectChange={setOverlayRect}
                 style={styles.photoWrap}
               />
@@ -352,7 +371,7 @@ export default function WallScreen() {
 
         {photo && (
           <Text style={styles.hint}>
-            {addingSymbol ? 'Tap the photo to place a symbol' : 'Drag a symbol to adjust height · Tap to remove'}
+            {addingSymbol ? 'Tap the photo to place a symbol' : 'Drag a symbol to adjust height · Tap for distance & to remove'}
           </Text>
         )}
       </SafeAreaView>
@@ -365,22 +384,9 @@ export default function WallScreen() {
           coordinate math in commitSymbol and pushing every placement down. */}
       <Modal visible={pendingTap != null} transparent animationType="fade" onRequestClose={() => setPendingTap(null)}>
         <Pressable style={styles.sheetOverlay} onPress={() => setPendingTap(null)}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
+          <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + space.xxl }]} onPress={() => {}}>
             <Text style={styles.sheetTitle}>What symbol is this?</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.symbolRow}>
-              {SYMBOL_TYPES.map((type) => (
-                <Pressable
-                  key={type}
-                  style={[styles.symbolBtn, selectedSymbolType === type && styles.symbolBtnActive]}
-                  onPress={() => setSelectedSymbolType(type)}
-                  hitSlop={4}
-                >
-                  <Text style={[styles.symbolBtnText, selectedSymbolType === type && styles.symbolBtnTextActive]}>
-                    {SYMBOL_LABELS[type]}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
+            <SymbolTypePicker selected={selectedSymbolType} onSelect={setSelectedSymbolType} />
             <Pressable style={styles.sheetConfirm} onPress={commitSymbol}>
               <Text style={styles.sheetConfirmText}>Place {SYMBOL_LABELS[selectedSymbolType]}</Text>
             </Pressable>
@@ -391,10 +397,53 @@ export default function WallScreen() {
         </Pressable>
       </Modal>
 
+      {/* Symbol info — distance from each end of the wall + height above the
+          floor, shown on tap instead of jumping straight to a remove confirm. */}
+      <Modal visible={infoSymbol != null} transparent animationType="fade" onRequestClose={() => setInfoSymbol(null)}>
+        <Pressable style={styles.sheetOverlay} onPress={() => setInfoSymbol(null)}>
+          <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + space.xxl }]} onPress={() => {}}>
+            {infoSymbol && (
+              <>
+                <Text style={styles.sheetTitle}>{SYMBOL_LABELS[infoSymbol.type]}</Text>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Along the wall</Text>
+                  <Text style={styles.infoValue}>
+                    {infoDistFromStart != null && infoDistFromEnd != null
+                      ? `${infoDistFromStart.toFixed(2)}m from one end · ${infoDistFromEnd.toFixed(2)}m from the other`
+                      : 'Wall not calibrated — open the floor plan to calibrate it'}
+                  </Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Height above floor</Text>
+                  <Text style={styles.infoValue}>
+                    {infoHeightAboveFloor != null
+                      ? `${infoHeightAboveFloor.toFixed(2)}m (assumes the photo is framed floor-to-ceiling)`
+                      : "Room's ceiling height isn't set — add it on the room screen"}
+                  </Text>
+                </View>
+                <Pressable
+                  style={styles.sheetRemove}
+                  onPress={() => {
+                    const symbol = infoSymbol;
+                    setInfoSymbol(null);
+                    confirmRemoveSymbol(symbol);
+                  }}
+                >
+                  <Text style={styles.sheetRemoveText}>Remove symbol</Text>
+                </Pressable>
+                <Pressable onPress={() => setInfoSymbol(null)} style={styles.sheetCancel}>
+                  <Text style={styles.sheetCancelText}>Close</Text>
+                </Pressable>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* Rename sheet */}
       <Modal visible={editingLabel} transparent animationType="fade" onRequestClose={() => setEditingLabel(false)}>
         <Pressable style={styles.sheetOverlay} onPress={() => setEditingLabel(false)}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
+          <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + space.xxl }]} onPress={() => {}}>
             <Text style={styles.sheetTitle}>Wall name</Text>
             <TextInput
               value={labelText}
@@ -520,14 +569,11 @@ const styles = StyleSheet.create({
   sheetCancel: { alignItems: 'center', paddingTop: space.md },
   sheetCancelText: { color: colors.danger, fontSize: 14, fontWeight: '600' },
 
-  symbolRow: { gap: space.sm, paddingBottom: space.xs },
-  symbolBtn: {
-    paddingHorizontal: space.md, paddingVertical: 6, borderRadius: radius.pill,
-    borderWidth: 1, borderColor: colors.hairline,
-  },
-  symbolBtnActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  symbolBtnText: { color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
-  symbolBtnTextActive: { color: colors.accentInk },
+  infoRow: { marginBottom: space.md },
+  infoLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 },
+  infoValue: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
+  sheetRemove: { backgroundColor: colors.danger, borderRadius: radius.tile, paddingVertical: space.md, alignItems: 'center', marginTop: space.sm },
+  sheetRemoveText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 
   cameraScreen: { flex: 1, backgroundColor: '#000' },
   camera: { flex: 1 },

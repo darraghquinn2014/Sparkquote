@@ -1,16 +1,26 @@
 /**
  * AnnotationEditor — full-screen photo markup tool.
  *
- * Two modes:
- *  • Draw — freehand cable routes / faults / notes (existing behaviour)
+ * Three modes:
+ *  • Draw — freehand cable routes / faults / notes
  *  • Symbol — tap to stamp an electrical symbol (socket, switch, CU…)
+ *  • Eraser — tap a drawn line to remove it whole, or drag to rub out part of one
  *
- * Strokes and symbols share a single undo history so ↩ always removes
- * the last thing added regardless of type.
+ * Strokes and symbols share a single undo history so Undo always removes
+ * the last thing added regardless of type. Erasing is NOT part of that
+ * history — it edits/removes existing strokes directly rather than
+ * appending a new entry, so Undo can't step back through an erase (only
+ * through draw/place actions either side of it).
+ *
+ * Header action buttons are plain text ("Undo"/"Clear"), not Unicode glyph
+ * characters (↩/✕) — those silently failed to render on at least one real
+ * Android device's system font, making the buttons invisible despite being
+ * present and working. Same class of fragility as the lucide-icon crash
+ * note in SPARKQUOTE.md — prefer plain text/ASCII over icon glyphs.
  */
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, Pressable, StyleSheet, Modal, Image, ScrollView, Alert,
+  View, Text, Pressable, StyleSheet, Modal, Image, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
@@ -18,9 +28,11 @@ import Animated, { useSharedValue, useAnimatedProps, runOnJS } from 'react-nativ
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 import {
   saveAnnotations, normalizeStroke, denormalizeStroke, normalizeSymbolPoint, denormalizeSymbol,
+  eraseStrokeSegments, parseStrokePoints,
   type AnnotationStroke, type PlacedSymbol, type SymbolType,
 } from '@/src/media/annotation-service';
-import { PlacedSymbolGroup, SYMBOL_TYPES, SYMBOL_LABELS } from './symbols';
+import { PlacedSymbolGroup } from './symbols';
+import { SymbolTypePicker } from './SymbolTypePicker';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
@@ -42,7 +54,10 @@ function PlacedSymbolTapTarget({
     .blocksExternalGesture(blockGesture);
   return (
     <GestureDetector gesture={tapGesture}>
-      <View style={{ position: 'absolute', left: x - 20, top: y - 20, width: 40, height: 40 }} />
+      <View
+        collapsable={false}
+        style={{ position: 'absolute', left: x - 20, top: y - 20, width: 40, height: 40 }}
+      />
     </GestureDetector>
   );
 }
@@ -57,7 +72,16 @@ const COLORS = [
 
 const WIDTHS = [2, 4, 7];
 
-type DrawMode = 'draw' | 'symbol';
+// Eraser hit/rub-out radius, normalized (fraction of the photo's own image
+// content width/height) — same 3-step small/medium/large selector as the
+// pen's WIDTHS, reused for the eraser's toolbar so no extra UI is needed.
+const ERASER_RADII = [0.02, 0.035, 0.055];
+// A tap-to-remove-the-whole-line hit test uses a fixed, generous radius
+// (not tied to the size selector — removing a whole line is an on/off
+// choice, not something you'd want to "size").
+const TAP_REMOVE_RADIUS = 0.035;
+
+type DrawMode = 'draw' | 'symbol' | 'eraser';
 type HistoryItem =
   | { kind: 'stroke'; data: AnnotationStroke }
   | { kind: 'symbol'; data: PlacedSymbol };
@@ -114,6 +138,7 @@ export function AnnotationEditor({
   const currentPath = useSharedValue('');
   const svColor = useSharedValue(COLORS[0].hex);
   const svWidth = useSharedValue(WIDTHS[1]);
+  const currentErasePath = useSharedValue('');
 
   // Orientation unlock lives in the standalone/preview build (expo-screen-orientation
   // native module). No-op here so the dev client doesn't crash.
@@ -162,6 +187,52 @@ export function AnnotationEditor({
     ]);
   };
 
+  // Eraser — tap a line to remove it whole. History strokes are stored
+  // already-normalized (0-1, image content space), so the tap only needs
+  // normalizing once to compare directly against each stroke's own points —
+  // no denormalize round-trip needed.
+  const removeStrokeNearTap = (rawX: number, rawY: number) => {
+    if (!imageSize) return;
+    const tap = normalizeSymbolPoint(rawX, rawY, canvasSize, imageSize);
+    let closestIndex = -1;
+    let closestDist = Infinity;
+    history.forEach((item, index) => {
+      if (item.kind !== 'stroke') return;
+      for (const p of parseStrokePoints(item.data.path)) {
+        const dist = Math.hypot(p.x - tap.x, p.y - tap.y);
+        if (dist < closestDist) {
+          closestDist = dist;
+          closestIndex = index;
+        }
+      }
+    });
+    if (closestIndex === -1 || closestDist > TAP_REMOVE_RADIUS) return;
+    const target = closestIndex;
+    Alert.alert('Remove this line?', undefined, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => setHistory(prev => prev.filter((_, i) => i !== target)),
+      },
+    ]);
+  };
+
+  // Eraser — drag to rub out just the part of a line under the drag path.
+  // Not part of the undo history (see file header comment): splits/shortens
+  // strokes in place rather than appending a removable entry.
+  const commitErase = (rawPath: string) => {
+    if (!imageSize) return;
+    const rawPoints = parseStrokePoints(rawPath);
+    if (rawPoints.length === 0) return;
+    const eraserPoints = rawPoints.map((p) => normalizeSymbolPoint(p.x, p.y, canvasSize, imageSize));
+    const radius = ERASER_RADII[widthIdx]!;
+    setHistory((prev) => prev.flatMap((item): HistoryItem[] => {
+      if (item.kind !== 'stroke') return [item];
+      return eraseStrokeSegments(item.data, eraserPoints, radius).map((data) => ({ kind: 'stroke' as const, data }));
+    }));
+  };
+
   const panGesture = Gesture.Pan()
     .enabled(drawMode === 'draw' && imageSize != null)
     .minDistance(0)
@@ -185,9 +256,36 @@ export function AnnotationEditor({
       runOnJS(placeSymbol)(e.x, e.y);
     });
 
-  const gesture = Gesture.Exclusive(panGesture, placeTapGesture);
+  // Tap-vs-drag disambiguation: Tap only wins if the finger barely moved
+  // (maxDistance); Pan has a small minDistance so it doesn't steal a
+  // near-stationary tap before Tap gets a chance to resolve on release.
+  // Same pattern as the wall screen's DraggableSymbol (Tap + Pan on one view).
+  const eraseTapGesture = Gesture.Tap()
+    .enabled(drawMode === 'eraser' && imageSize != null)
+    .maxDistance(10)
+    .onEnd((e) => {
+      runOnJS(removeStrokeNearTap)(e.x, e.y);
+    });
+
+  const erasePanGesture = Gesture.Pan()
+    .enabled(drawMode === 'eraser' && imageSize != null)
+    .minDistance(6)
+    .onStart((e) => {
+      currentErasePath.value = `M ${e.x.toFixed(1)} ${e.y.toFixed(1)}`;
+    })
+    .onUpdate((e) => {
+      currentErasePath.value = `${currentErasePath.value} L ${e.x.toFixed(1)} ${e.y.toFixed(1)}`;
+    })
+    .onEnd(() => {
+      const path = currentErasePath.value;
+      runOnJS(commitErase)(path);
+      currentErasePath.value = '';
+    });
+
+  const gesture = Gesture.Exclusive(panGesture, placeTapGesture, eraseTapGesture, erasePanGesture);
 
   const animatedProps = useAnimatedProps(() => ({ d: currentPath.value }));
+  const eraseAnimatedProps = useAnimatedProps(() => ({ d: currentErasePath.value }));
 
   const handleColorChange = (idx: number) => {
     setColorIdx(idx);
@@ -226,13 +324,30 @@ export function AnnotationEditor({
       <GestureHandlerRootView style={{ flex: 1 }}>
         <View style={[styles.screen, { paddingTop: insets.top }]}>
 
-          {/* Header */}
+          {/* Header — two rows: Cancel/actions on top, mode toggle centered below.
+              (Previously one row with the toggle squeezed in the middle; a 3rd
+              mode plus text-label action buttons no longer fit that shape.) */}
           <View style={styles.header}>
-            <Pressable onPress={handleClose} hitSlop={12}>
-              <Text style={styles.headerCancel}>Cancel</Text>
-            </Pressable>
+            <View style={styles.headerTopRow}>
+              <Pressable onPress={handleClose} hitSlop={12}>
+                <Text style={styles.headerCancel}>Cancel</Text>
+              </Pressable>
+              <View style={styles.headerRight}>
+                <Pressable onPress={undo} disabled={history.length === 0} hitSlop={10} style={styles.headerTextBtn}>
+                  <Text style={[styles.headerActionText, history.length === 0 && styles.actionDisabled]}>Undo</Text>
+                </Pressable>
+                <Pressable onPress={clear} disabled={history.length === 0} hitSlop={10} style={styles.headerTextBtn}>
+                  <Text style={[styles.headerActionText, history.length === 0 && styles.actionDisabled]}>Clear</Text>
+                </Pressable>
+                <Pressable onPress={handleDone} disabled={saving} hitSlop={10} style={styles.headerTextBtn}>
+                  <Text style={[styles.headerDone, saving && { opacity: 0.5 }]}>
+                    {saving ? 'Saving…' : 'Done'}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
 
-            {/* Draw / Symbol mode toggle */}
+            {/* Draw / Symbol / Eraser mode toggle */}
             <View style={styles.modeToggle}>
               <Pressable
                 style={[styles.modeBtn, drawMode === 'draw' && styles.modeBtnActive]}
@@ -252,18 +367,13 @@ export function AnnotationEditor({
                   Symbol
                 </Text>
               </Pressable>
-            </View>
-
-            <View style={styles.headerRight}>
-              <Pressable onPress={undo} disabled={history.length === 0} hitSlop={12} style={styles.headerIconBtn}>
-                <Text style={[styles.headerIcon, history.length === 0 && styles.actionDisabled]}>↩</Text>
-              </Pressable>
-              <Pressable onPress={clear} disabled={history.length === 0} hitSlop={12} style={styles.headerIconBtn}>
-                <Text style={[styles.headerIcon, history.length === 0 && styles.actionDisabled]}>✕</Text>
-              </Pressable>
-              <Pressable onPress={handleDone} disabled={saving} hitSlop={12}>
-                <Text style={[styles.headerDone, saving && { opacity: 0.5 }]}>
-                  {saving ? 'Saving…' : 'Done'}
+              <Pressable
+                style={[styles.modeBtn, drawMode === 'eraser' && styles.modeBtnActive]}
+                onPress={() => setDrawMode('eraser')}
+                hitSlop={8}
+              >
+                <Text style={[styles.modeBtnText, drawMode === 'eraser' && styles.modeBtnTextActive]}>
+                  Eraser
                 </Text>
               </Pressable>
             </View>
@@ -299,7 +409,7 @@ export function AnnotationEditor({
                   />
                 ))}
                 {renderedSymbols.map((sym) => (
-                  <PlacedSymbolGroup key={sym.id} symbol={sym} />
+                  <PlacedSymbolGroup key={sym.id} symbol={sym} showLabel />
                 ))}
                 <AnimatedPath
                   animatedProps={animatedProps}
@@ -308,6 +418,17 @@ export function AnnotationEditor({
                   fill="none"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                />
+                {/* Live eraser-drag trail — visual feedback only, the actual
+                    erase is computed once on release (see commitErase). */}
+                <AnimatedPath
+                  animatedProps={eraseAnimatedProps}
+                  stroke="rgba(255,255,255,0.85)"
+                  strokeWidth={WIDTHS[widthIdx] + 10}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeDasharray="1,10"
                 />
               </Svg>
               {drawMode === 'symbol' && renderedSymbols.map((sym) => (
@@ -324,7 +445,7 @@ export function AnnotationEditor({
 
           {/* Toolbar */}
           <View style={[styles.toolbar, { paddingBottom: insets.bottom + space.sm }]}>
-            {drawMode === 'draw' ? (
+            {drawMode === 'draw' && (
               <>
                 <View style={styles.toolRow}>
                   {COLORS.map((c, i) => (
@@ -347,27 +468,11 @@ export function AnnotationEditor({
                 </View>
                 <Text style={styles.toolHint}>{COLORS[colorIdx].label}</Text>
               </>
-            ) : (
+            )}
+            {drawMode === 'symbol' && (
               <>
                 {/* Symbol palette */}
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.symbolRow}
-                >
-                  {SYMBOL_TYPES.map((type) => (
-                    <Pressable
-                      key={type}
-                      style={[styles.symbolBtn, selectedSymbol === type && styles.symbolBtnActive]}
-                      onPress={() => setSelectedSymbol(type)}
-                      hitSlop={4}
-                    >
-                      <Text style={[styles.symbolBtnText, selectedSymbol === type && styles.symbolBtnTextActive]}>
-                        {SYMBOL_LABELS[type]}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
+                <SymbolTypePicker selected={selectedSymbol} onSelect={setSelectedSymbol} />
                 {/* Colour row — symbols take the active colour */}
                 <View style={[styles.toolRow, { marginTop: space.xs }]}>
                   {COLORS.map((c, i) => (
@@ -384,6 +489,26 @@ export function AnnotationEditor({
                 </Text>
               </>
             )}
+            {drawMode === 'eraser' && (
+              <>
+                {/* Same small/medium/large selector as the pen's width row,
+                    reused here to size the eraser's rub-out radius. */}
+                <View style={styles.toolRow}>
+                  {WIDTHS.map((w, i) => (
+                    <Pressable
+                      key={w}
+                      onPress={() => handleWidthChange(i)}
+                      style={[styles.widthBtn, i === widthIdx && styles.widthBtnActive]}
+                    >
+                      <View style={[styles.widthDot, { width: (w + 6) * 2.5, height: (w + 6) * 2.5, borderRadius: (w + 6) * 2.5 }]} />
+                    </Pressable>
+                  ))}
+                </View>
+                <Text style={styles.toolHint}>
+                  Tap a line to remove it entirely · Drag to rub out just part of it
+                </Text>
+              </>
+            )}
           </View>
 
         </View>
@@ -397,25 +522,25 @@ const styles = StyleSheet.create({
   canvas: { flex: 1 },
 
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    height: 52,
     paddingHorizontal: space.lg,
+    paddingVertical: space.sm,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.hairline,
+    gap: space.sm,
   },
-  headerCancel: { color: colors.danger, fontSize: 15, fontWeight: '600', width: 56 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: space.md, width: 56, justifyContent: 'flex-end' },
-  headerIconBtn: { padding: 2 },
-  headerIcon: { color: '#fff', fontSize: 20, fontWeight: '700' },
+  headerTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerCancel: { color: colors.danger, fontSize: 15, fontWeight: '600' },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: space.lg },
+  headerTextBtn: { padding: 2 },
+  headerActionText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   headerDone: { color: colors.accent, fontSize: 15, fontWeight: '800' },
   actionDisabled: { opacity: 0.3 },
 
-  // Draw / Symbol mode toggle
+  // Draw / Symbol / Eraser mode toggle
   modeToggle: {
     flexDirection: 'row',
+    alignSelf: 'center',
     backgroundColor: colors.ground,
     borderRadius: radius.pill,
     padding: 3,
@@ -470,21 +595,4 @@ const styles = StyleSheet.create({
   },
   widthBtnActive: { backgroundColor: colors.hairline },
   widthDot: { backgroundColor: '#fff' },
-
-  // Symbol palette
-  symbolRow: {
-    flexDirection: 'row',
-    gap: space.sm,
-    paddingBottom: space.xs,
-  },
-  symbolBtn: {
-    paddingHorizontal: space.md,
-    paddingVertical: 6,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.hairline,
-  },
-  symbolBtnActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  symbolBtnText: { color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
-  symbolBtnTextActive: { color: colors.accentInk },
 });

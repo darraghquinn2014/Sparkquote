@@ -17,7 +17,7 @@
  * pivot; its children inherit the rotation).
  */
 import React, { useState } from 'react';
-import { Modal, View, Text, Pressable, StyleSheet, Alert, ScrollView } from 'react-native';
+import { Modal, View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import Svg from 'react-native-svg';
@@ -27,7 +27,8 @@ import type { FloorPlan, Wall, WallSymbol } from '@/src/domain/types';
 import type { SymbolType } from '@/src/media/annotation-service';
 import { addWallSymbol, deleteWallSymbol } from '@/src/data/floor-plan-repo';
 import { DEFAULT_PHOTO_Y } from '@/src/domain/wall-geometry';
-import { PlacedSymbolGroup, SYMBOL_TYPES, SYMBOL_LABELS, SYMBOL_TYPE_COLORS } from '@/src/ui/annotations/symbols';
+import { PlacedSymbolGroup, SYMBOL_LABELS, SYMBOL_TYPE_COLORS } from '@/src/ui/annotations/symbols';
+import { SymbolTypePicker } from '@/src/ui/annotations/SymbolTypePicker';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 
 const clamp01 = (t: number) => Math.max(0, Math.min(1, t));
@@ -173,20 +174,7 @@ export function PlanSymbolTagger({ visible, wall, floorPlan, symbols, onChanged,
           {pendingPos != null && (
             <View style={[styles.palette, { paddingBottom: insets.bottom + space.xxl }]}>
               <Text style={styles.paletteTitle}>What symbol is this?</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.symbolRow}>
-                {SYMBOL_TYPES.map((type) => (
-                  <Pressable
-                    key={type}
-                    style={[styles.symbolBtn, selectedType === type && styles.symbolBtnActive]}
-                    onPress={() => setSelectedType(type)}
-                    hitSlop={4}
-                  >
-                    <Text style={[styles.symbolBtnText, selectedType === type && styles.symbolBtnTextActive]}>
-                      {SYMBOL_LABELS[type]}
-                    </Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
+              <SymbolTypePicker selected={selectedType} onSelect={setSelectedType} />
               <Pressable style={styles.paletteConfirm} onPress={commit}>
                 <Text style={styles.paletteConfirmText}>Tag {SYMBOL_LABELS[selectedType]}</Text>
               </Pressable>
@@ -223,14 +211,6 @@ const styles = StyleSheet.create({
     padding: space.xl, paddingBottom: space.xxl, elevation: 8,
   },
   paletteTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '800', marginBottom: space.md },
-  symbolRow: { gap: space.sm, paddingBottom: space.xs },
-  symbolBtn: {
-    paddingHorizontal: space.md, paddingVertical: 6, borderRadius: radius.pill,
-    borderWidth: 1, borderColor: colors.hairline,
-  },
-  symbolBtnActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  symbolBtnText: { color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
-  symbolBtnTextActive: { color: colors.accentInk },
   paletteConfirm: { backgroundColor: colors.accent, borderRadius: radius.tile, paddingVertical: space.md, alignItems: 'center', marginTop: space.md },
   paletteConfirmText: { color: colors.accentInk, fontWeight: '800', fontSize: 15 },
   paletteCancel: { alignItems: 'center', paddingTop: space.md },

@@ -600,7 +600,7 @@ export default function SnagListScreen() {
       {/* Location picker */}
       <Modal visible={locationPickerOpen} transparent animationType="fade" onRequestClose={() => setLocationPickerOpen(false)}>
         <Pressable style={styles.sheetOverlay} onPress={() => setLocationPickerOpen(false)}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
+          <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + space.xxl }]} onPress={() => {}}>
             <Text style={styles.sheetTitle}>Which floor / room?</Text>
             <ScrollView style={{ maxHeight: 360 }}>
               <Pressable

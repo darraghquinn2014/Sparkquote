@@ -8,7 +8,7 @@ import {
   ActivityIndicator, Modal, Dimensions, TextInput, KeyboardAvoidingView, Platform,
   Image as RNImage,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Image } from 'expo-image';
@@ -36,6 +36,7 @@ import { AnnotationEditor } from '@/src/ui/annotations/AnnotationEditor';
 import { PlacedSymbolGroup } from '@/src/ui/annotations/symbols';
 import { WallShareCapture } from '@/src/ui/walls/WallShareCapture';
 import { PhotoDimensionStamp } from '@/src/ui/photos/PhotoDimensionStamp';
+import { PhotoShareCapture } from '@/src/ui/photos/PhotoShareCapture';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import * as Sharing from 'expo-sharing';
 import Share from 'react-native-share';
@@ -78,6 +79,7 @@ function buildDimensionsCaption(
 export default function RoomScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const insets = useSafeAreaInsets();
   const [location, setLocation] = useState<Location | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [walls, setWalls] = useState<Wall[]>([]);
@@ -92,6 +94,7 @@ export default function RoomScreen() {
   const [renderedSharePaths, setRenderedSharePaths] = useState<string[]>([]);
   const [captureItem, setCaptureItem] = useState<{ wall: Wall; photo: Photo; symbols: WallSymbol[] } | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [photoShareItem, setPhotoShareItem] = useState<{ photo: Photo; strokes: AnnotationStroke[]; symbols: PlacedSymbol[] } | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -185,19 +188,6 @@ export default function RoomScreen() {
   const footprint = computeFootprint(floorPlan, walls);
 
   const openCamera = async () => {
-    if (!footprint) {
-      Alert.alert(
-        'Room size needed',
-        "This room's dimensions aren't set yet, so photos can't be stamped with them. Calibrate the floor plan and trace this room's walls first.",
-        [
-          { text: 'Cancel', style: 'cancel' },
-          ...(location?.parentId
-            ? [{ text: 'Open floor plan', onPress: () => router.push(`/project/plan/${location.parentId}` as any) }]
-            : []),
-        ],
-      );
-      return;
-    }
     if (!permission?.granted) {
       const result = await requestPermission();
       if (!result.granted) {
@@ -310,10 +300,35 @@ export default function RoomScreen() {
         Alert.alert('Sharing not available', 'Your device does not support sharing files.');
         return;
       }
-      await Sharing.shareAsync(photo.filePath, { mimeType: 'image/jpeg', UTI: 'public.image', dialogTitle: photo.caption ?? 'Share photo' });
+      // Annotations (strokes/symbols) are normally just a live SVG overlay in-app,
+      // never baked into the photo file — flatten them in first via PhotoShareCapture
+      // so a recipient without the app still sees them. Skip that render pass
+      // entirely when there's nothing to flatten.
+      const { strokes, symbols } = await loadAnnotations(photo.id);
+      if (strokes.length === 0 && symbols.length === 0) {
+        await Sharing.shareAsync(photo.filePath, { mimeType: 'image/jpeg', UTI: 'public.image', dialogTitle: photo.caption ?? 'Share photo' });
+        return;
+      }
+      setPhotoShareItem({ photo, strokes, symbols });
     } catch (e) {
       Alert.alert('Share failed', String(e));
     }
+  };
+
+  const handlePhotoShareCaptured = async (filePath: string) => {
+    const photo = photoShareItem?.photo;
+    setPhotoShareItem(null);
+    if (!photo) return;
+    try {
+      await Sharing.shareAsync(filePath, { mimeType: 'image/jpeg', UTI: 'public.image', dialogTitle: photo.caption ?? 'Share photo' });
+    } catch (e) {
+      Alert.alert('Share failed', String(e));
+    }
+  };
+
+  const handlePhotoShareError = (e: unknown) => {
+    setPhotoShareItem(null);
+    Alert.alert('Share failed', String(e));
   };
 
   // ── Share selected wall photos (with symbols flattened in) ───────────────
@@ -665,6 +680,17 @@ export default function RoomScreen() {
         />
       )}
 
+      {/* Off-screen capture used to flatten a single photo's own annotations before sharing */}
+      {photoShareItem && (
+        <PhotoShareCapture
+          photo={photoShareItem.photo}
+          strokes={photoShareItem.strokes}
+          symbols={photoShareItem.symbols}
+          onReady={handlePhotoShareCaptured}
+          onError={handlePhotoShareError}
+        />
+      )}
+
       {/* Off-screen capture used to burn the room-dimensions caption into a photo */}
       {stampItem && (
         <PhotoDimensionStamp
@@ -702,7 +728,7 @@ export default function RoomScreen() {
               {lightboxSymbols
                 .map((sym) => denormalizeSymbol(sym, { width: SCREEN_W, height: SCREEN_H }, lightboxImageSize))
                 .map((sym) => (
-                  <PlacedSymbolGroup key={sym.id} symbol={sym} />
+                  <PlacedSymbolGroup key={sym.id} symbol={sym} showLabel />
                 ))}
             </Svg>
           )}
@@ -799,7 +825,7 @@ export default function RoomScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <Pressable style={styles.captionBackdrop} onPress={() => setCaptionModalOpen(false)} />
-          <View style={styles.captionSheet}>
+          <View style={[styles.captionSheet, { paddingBottom: insets.bottom + space.xxl }]}>
             <Text style={styles.captionSheetTitle}>Photo details</Text>
             <Text style={styles.captionLabel}>Stage</Text>
             <View style={styles.stageRow}>
@@ -866,7 +892,7 @@ export default function RoomScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <Pressable style={styles.captionBackdrop} onPress={() => setHeightModalOpen(false)} />
-          <View style={styles.captionSheet}>
+          <View style={[styles.captionSheet, { paddingBottom: insets.bottom + space.xxl }]}>
             <Text style={styles.captionSheetTitle}>Ceiling height</Text>
             <Text style={styles.captionLabel}>Metres</Text>
             <TextInput

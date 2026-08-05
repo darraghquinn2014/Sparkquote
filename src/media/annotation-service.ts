@@ -2,7 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import {
   containerPointToImageNorm, imageNormToContainerPoint, imageFitRect,
   type Point, type Size,
-} from '@/src/domain/wall-geometry';
+} from '../domain/wall-geometry';
 
 export interface AnnotationStroke {
   color: string;
@@ -17,7 +17,8 @@ export interface AnnotationStroke {
   path: string;
 }
 
-export type SymbolType =
+/** The 8 broad pictogram categories shown as top-level pills in the symbol picker. */
+export type SymbolFamily =
   | 'socket'
   | 'switch'
   | 'ceiling_rose'
@@ -26,6 +27,33 @@ export type SymbolType =
   | 'junction_box'
   | 'smoke_detector'
   | 'fan';
+
+/**
+ * Specific placeable symbol. Each family's plain name (e.g. 'socket') is its
+ * default/most-common variant, kept as-is for backward compatibility with
+ * already-saved annotations and wall symbols — only the extra variants are new.
+ */
+export type SymbolType =
+  | 'socket'
+  | 'socket_double'
+  | 'socket_double_usb'
+  | 'socket_floor'
+  | 'socket_outdoor'
+  | 'switch'
+  | 'switch_2way'
+  | 'switch_dimmer'
+  | 'switch_pull_cord'
+  | 'ceiling_rose'
+  | 'downlight'
+  | 'downlight_dimmable'
+  | 'consumer_unit'
+  | 'consumer_unit_sub'
+  | 'junction_box'
+  | 'smoke_detector'
+  | 'heat_detector'
+  | 'co_detector'
+  | 'fan'
+  | 'fan_humidistat';
 
 export interface PlacedSymbol {
   id: string;
@@ -52,6 +80,39 @@ export function buildStrokePath(points: Point[]): string {
     `M ${first!.x.toFixed(4)} ${first!.y.toFixed(4)}` +
     rest.map((p) => ` L ${p.x.toFixed(4)} ${p.y.toFixed(4)}`).join('')
   );
+}
+
+/**
+ * Remove the portion(s) of a stroke that pass within `radius` of any point on
+ * an eraser drag path — both in the same normalized (0-1, image-content)
+ * space. A point is erased if it's close enough to ANY eraser-path point.
+ * Erasing the middle of a line splits it into two separate remaining strokes;
+ * erasing an end just shortens it; erasing all of it returns [].
+ */
+export function eraseStrokeSegments(
+  stroke: AnnotationStroke,
+  eraserPath: Point[],
+  radius: number,
+): AnnotationStroke[] {
+  const points = parseStrokePoints(stroke.path);
+  if (points.length === 0 || eraserPath.length === 0) return [stroke];
+
+  const isErased = (p: Point) =>
+    eraserPath.some((ep) => Math.hypot(p.x - ep.x, p.y - ep.y) <= radius);
+
+  const runs: Point[][] = [];
+  let current: Point[] = [];
+  for (const p of points) {
+    if (isErased(p)) {
+      if (current.length >= 2) runs.push(current);
+      current = [];
+    } else {
+      current.push(p);
+    }
+  }
+  if (current.length >= 2) runs.push(current);
+
+  return runs.map((run) => ({ ...stroke, path: buildStrokePath(run) }));
 }
 
 /** Convert a freshly-drawn stroke (raw container pixels) into its stored, normalized form. */
