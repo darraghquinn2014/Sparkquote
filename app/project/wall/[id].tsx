@@ -12,6 +12,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraPreview } from '@/src/media/CameraPreview';
 import * as DocumentPicker from 'expo-document-picker';
 import { Image } from 'expo-image';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -485,7 +486,7 @@ export default function WallScreen() {
         <View style={styles.cameraScreen}>
           {cameraOpen && cameraState === 'live' && (
             <>
-              <CameraView ref={cameraRef} style={styles.camera} facing="back" />
+              <CameraPreview ref={cameraRef} facing="back" />
               <SafeAreaView style={styles.cameraControls} edges={['bottom']}>
                 <Pressable onPress={closeCamera} hitSlop={12}>
                   <Text style={styles.camCancel}>Cancel</Text>

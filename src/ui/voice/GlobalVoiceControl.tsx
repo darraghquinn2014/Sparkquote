@@ -123,7 +123,8 @@ export function GlobalVoiceControl() {
     || pathname === '/review' || pathname.startsWith('/project/plan/') || pathname.startsWith('/project/wall/')
     || pathname.startsWith('/project/certificates/') || pathname.startsWith('/certificate/')
     || pathname === '/settings' || pathname === '/business-profile' || pathname === '/media-settings'
-    || pathname === '/cloud-backup' || pathname === '/profit-report' || pathname === '/suppliers' || pathname === '/import';
+    || pathname === '/cloud-backup' || pathname === '/profit-report' || pathname === '/suppliers' || pathname === '/import'
+    || pathname === '/feedback';
   const { projectId: currentProjectId, locationId: currentLocationId } = useCurrentProjectContext();
   const voice = useVoiceCommand();
 

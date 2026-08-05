@@ -116,6 +116,13 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* Feedback */}
+        <Text style={styles.sectionHeader}>FEEDBACK</Text>
+        <Pressable style={styles.row} onPress={() => router.push('/feedback' as any)}>
+          <Text style={styles.rowText}>Send feedback</Text>
+          <Text style={styles.chevron}>›</Text>
+        </Pressable>
+
         {/* App settings */}
         <Text style={styles.sectionHeader}>APP</Text>
 
