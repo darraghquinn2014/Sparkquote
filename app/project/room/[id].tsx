@@ -701,9 +701,15 @@ export default function RoomScreen() {
         />
       )}
 
-      {/* Lightbox */}
+      {/* Lightbox — hidden (not un-rendered) while the Annotate/Edit sheets
+          are open, rather than staying visible underneath them. Two RN
+          <Modal>s visible at once works fine on Android but iOS's modal
+          presentation only reliably shows one at a time — Annotate/Edit
+          silently did nothing on iOS because the lightbox Modal was still
+          "on top" as far as UIKit was concerned. State (lightboxPhoto etc.)
+          stays intact underneath; it just isn't presented for that instant. */}
       <Modal
-        visible={lightboxPhoto != null}
+        visible={lightboxPhoto != null && !annotatorOpen && !captionModalOpen}
         animationType="fade"
         statusBarTranslucent
         onRequestClose={() => setLightboxPhoto(null)}
