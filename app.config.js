@@ -15,6 +15,11 @@ const config = require('./app.json');
 // project.pbxproj") since EAS's cached scheme name didn't match. infoPlist's
 // CFBundleDisplayName only affects the name shown under the home-screen icon
 // without touching the underlying Xcode project/target naming.
+// "field" profile (eas.json) deliberately does NOT set IS_PREVIEW — it's for
+// installing on a field tester's own device, which has nothing else of ours
+// on it, so there's no need for a separate bundle id, and no provisioning
+// profile exists for the .preview id yet (preview builds have errored since
+// that id was introduced — no one's fixed the Apple-side credentials for it).
 const IS_PREVIEW = process.env.EAS_BUILD_PROFILE === 'preview';
 
 if (IS_PREVIEW) {
