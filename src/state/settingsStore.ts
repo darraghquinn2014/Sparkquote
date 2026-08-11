@@ -15,6 +15,13 @@ interface SettingsData {
   /** Whether the first-run voice vocabulary setup screen has been completed
    * or explicitly skipped. */
   voiceSetupComplete: boolean;
+  /** Master switch for the in-app hint bubbles (Settings > Show hints).
+   * Turning this off both stops auto-play on unseen screens and hides the
+   * per-screen "?" replay button — a full opt-out for users adept with the app. */
+  hintsEnabled: boolean;
+  /** Group ids (one per screen's walkthrough) that have already auto-played
+   * once, so returning to a screen doesn't replay it uninvited. */
+  seenHintGroups: string[];
 }
 
 const DEFAULTS: SettingsData = {
@@ -25,6 +32,8 @@ const DEFAULTS: SettingsData = {
   showLaborBreakdown: true,
   customVoiceWords: [],
   voiceSetupComplete: false,
+  hintsEnabled: true,
+  seenHintGroups: [],
 };
 
 const settingsPath = () =>
@@ -55,6 +64,9 @@ interface SettingsStore extends SettingsData {
   setShowLaborBreakdown: (show: boolean) => void;
   setCustomVoiceWords: (words: string[]) => void;
   setVoiceSetupComplete: (complete: boolean) => void;
+  setHintsEnabled: (enabled: boolean) => void;
+  markHintGroupSeen: (groupId: string) => void;
+  resetHints: () => void;
 }
 
 function snapshot(s: SettingsStore): SettingsData {
@@ -66,6 +78,8 @@ function snapshot(s: SettingsStore): SettingsData {
     showLaborBreakdown: s.showLaborBreakdown,
     customVoiceWords: s.customVoiceWords,
     voiceSetupComplete: s.voiceSetupComplete,
+    hintsEnabled: s.hintsEnabled,
+    seenHintGroups: s.seenHintGroups,
   };
 }
 
@@ -112,5 +126,22 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   setVoiceSetupComplete: (complete) => {
     set({ voiceSetupComplete: complete });
     saveToDisk({ ...snapshot(get()), voiceSetupComplete: complete });
+  },
+
+  setHintsEnabled: (enabled) => {
+    set({ hintsEnabled: enabled });
+    saveToDisk({ ...snapshot(get()), hintsEnabled: enabled });
+  },
+
+  markHintGroupSeen: (groupId) => {
+    if (get().seenHintGroups.includes(groupId)) return;
+    const seenHintGroups = [...get().seenHintGroups, groupId];
+    set({ seenHintGroups });
+    saveToDisk({ ...snapshot(get()), seenHintGroups });
+  },
+
+  resetHints: () => {
+    set({ seenHintGroups: [] });
+    saveToDisk({ ...snapshot(get()), seenHintGroups: [] });
   },
 }));

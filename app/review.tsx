@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Alert, Switch, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SignAndSendScreen } from '@/src/ui/pdf/SignAndSendScreen';
 import { toClientEstimate } from '@/src/pdf/client-view-model';
@@ -17,8 +17,16 @@ import { loadBusinessProfile, readLogoDataUri, type BusinessProfile } from '@/sr
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
+import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
+import { ScreenHints } from '@/src/ui/hints/ScreenHints';
 
 const toggles = seedLaborToggles.map(toLaborToggle);
+
+const REVIEW_HINTS = [
+  { id: 'labour-toggle', text: 'Choose whether the client-facing quote shows an "includes labour" note or stays materials-only.' },
+  { id: 'sign', text: 'Scroll down to have the client sign on screen — that turns this into a signed PDF quote.' },
+  { id: 'print', text: 'Tap Print quote up here any time for a paper copy without needing a signature first.' },
+];
 
 export default function ReviewRoute() {
   const router = useRouter();
@@ -35,6 +43,8 @@ export default function ReviewRoute() {
   const hydrateSettings = useSettingsStore((s) => s.hydrate);
 
   const estimate = { ...(projectEstimate ?? activeEstimate), showLaborBreakdown };
+  const hint = useHintWalkthrough('review', REVIEW_HINTS);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     hydrateSettings();
@@ -127,6 +137,7 @@ export default function ReviewRoute() {
       </Pressable>
       <SignAndSendScreen estimate={client} onSigned={onSigned} onCancel={() => router.back()} />
       {busy && <View style={styles.busy}><Text style={styles.busyText}>Generating PDF…</Text></View>}
+      <ScreenHints hint={hint} bottomInset={insets.bottom} />
     </SafeAreaView>
   );
 }

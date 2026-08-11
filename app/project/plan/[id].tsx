@@ -66,6 +66,14 @@ import {
 import { PlacedSymbolGroup, SYMBOL_TYPE_COLORS } from '@/src/ui/annotations/symbols';
 import { scanFloorPlanForSymbols } from '@/src/ai/plan-scan-service';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
+import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
+import { ScreenHints } from '@/src/ui/hints/ScreenHints';
+
+const FLOOR_PLAN_HINTS = [
+  { id: 'calibrate-first', text: "Once you've imported a plan, tap Calibrate and mark two ends of a known distance (a printed dimension, or one you measure on site) — this makes wall lengths and room sizes accurate." },
+  { id: 'trace', text: 'Switch to Trace walls: tap one end of a wall, then the other. Drag the rings to fine-tune before saving. Tap the middle of a traced wall to edit it.' },
+  { id: 'photo-and-tag', text: "Saving a wall takes you straight to attach its photo and tag electrical symbols on it — or tap ✨ AI Scan to find symbols on the plan automatically." },
+];
 
 const mediaPaths = {
   documentDir: FileSystem.documentDirectory ?? '',
@@ -160,6 +168,7 @@ export default function FloorPlanScreen() {
   const { id: floorId } = useLocalSearchParams<{ id: string }>();
 
   const insets = useSafeAreaInsets();
+  const hint = useHintWalkthrough('floor-plan', FLOOR_PLAN_HINTS);
   const [floor, setFloor] = useState<Location | null>(null);
   const [project, setProject] = useState<Project | null>(null);
   const [rooms, setRooms] = useState<Location[]>([]);
@@ -1032,6 +1041,7 @@ export default function FloorPlanScreen() {
             <View style={styles.actionBar}>{renderActionBar()}</View>
           </>
         )}
+        <ScreenHints hint={hint} bottomInset={insets.bottom} />
       </SafeAreaView>
 
       <SimpleCameraCapture

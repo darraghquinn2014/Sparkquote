@@ -37,6 +37,14 @@ import { WallSymbolOverlay, type RenderedRect } from '@/src/ui/annotations/WallS
 import { PlanSymbolTagger } from '@/src/ui/annotations/PlanSymbolTagger';
 import { ActionSheet } from '@/src/ui/ActionSheet';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
+import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
+import { ScreenHints } from '@/src/ui/hints/ScreenHints';
+
+const WALL_HINTS = [
+  { id: 'attach-photo', text: 'Attach a photo of this wall or ceiling first — you\'ll tag what\'s on it while it\'s fresh in your memory.' },
+  { id: 'tag-symbol', text: 'Tap + Add symbol, then tap the photo to drop one in place — or Tag from plan to place several at once if you\'ve traced this wall.' },
+  { id: 'symbol-info', text: "Tap a placed symbol to see its distance from each end and remove it. Drag it up or down to adjust its height." },
+];
 
 const mediaPaths = {
   documentDir: FileSystem.documentDirectory ?? '',
@@ -49,6 +57,7 @@ export default function WallScreen() {
   const router = useRouter();
   const { id: wallId } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
+  const hint = useHintWalkthrough('wall-detail', WALL_HINTS);
 
   const [wall, setWall] = useState<Wall | null>(null);
   const [room, setRoom] = useState<Location | null>(null);
@@ -375,6 +384,7 @@ export default function WallScreen() {
             {addingSymbol ? 'Tap the photo to place a symbol' : 'Drag a symbol to adjust height · Tap for distance & to remove'}
           </Text>
         )}
+        <ScreenHints hint={hint} bottomInset={insets.bottom} />
       </SafeAreaView>
 
       {/* Symbol palette — after tapping the photo while adding a symbol.

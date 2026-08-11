@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { View, Text, Pressable, FlatList, TextInput, StyleSheet, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
 import { useRouter } from 'expo-router';
 import { useEstimateStore } from '@/src/state/estimateStore';
@@ -24,9 +24,17 @@ import { ShoppingListSheet } from '@/src/ui/estimate/ShoppingListSheet';
 import { useVoiceAction } from '@/src/voice/voice-bus';
 import { HeaderMicButton } from '@/src/ui/voice/HeaderMicButton';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
+import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
+import { ScreenHints } from '@/src/ui/hints/ScreenHints';
 
 const allToggles = seedLaborToggles.map(toLaborToggle);
 const toggleIndex = new Map(allToggles.map((t) => [t.id, t]));
+
+const ESTIMATE_HINTS = [
+  { id: 'add-buttons', text: 'Add + Job for a whole task (materials + labour together), or + Labour / + Material on their own.' },
+  { id: 'edit-line', text: 'Tap any item in the list to edit its quantity or price. Swipe left to delete it.' },
+  { id: 'preview', text: "When you're happy with the total, tap Preview PDF quote to see it as the client will." },
+];
 
 export default function EstimateScreen() {
   const router = useRouter();
@@ -54,6 +62,8 @@ export default function EstimateScreen() {
   const [shoppingOpen, setShoppingOpen] = useState(false);
   const breakdown = priceEstimate(estimate, allToggles);
   const swipeableRefs = useRef<Map<string, Swipeable>>(new Map());
+  const hint = useHintWalkthrough('estimate', ESTIMATE_HINTS);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     loadCatalogue().then((c) => { setMaterials(c.materials); setAssemblies(c.assemblies); }).catch(() => {});
@@ -254,6 +264,7 @@ export default function EstimateScreen() {
         estimate={estimate}
         onClose={() => setShoppingOpen(false)}
       />
+      <ScreenHints hint={hint} bottomInset={insets.bottom} />
     </SafeAreaView>
   );
 }

@@ -11,8 +11,16 @@ import { formatMoney } from '@/src/domain/money';
 import { colors, space, radius, type as typo } from '@/src/ui/theme/tokens';
 import type { Material } from '@/src/domain/types';
 import { HeaderMicButton } from '@/src/ui/voice/HeaderMicButton';
+import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
+import { ScreenHints } from '@/src/ui/hints/ScreenHints';
 
 type Tab = 'materials' | 'assemblies';
+
+const CATALOGUE_HINTS = [
+  { id: 'tabs', text: 'Materials are your priced parts list. Assemblies are job templates that bundle materials + labour — switch between them here.' },
+  { id: 'edit-price', text: 'Tap any material to edit its price — useful when a supplier changes their rates.' },
+  { id: 'assembly-manager', text: 'On the Assemblies tab, tap Open Assembly Manager to create job templates or choose which ones show in + Job.' },
+];
 
 export default function CatalogueScreen() {
   const router = useRouter();
@@ -32,6 +40,7 @@ export default function CatalogueScreen() {
   const [editTarget, setEditTarget] = useState<Material | null>(null);
   const [priceText, setPriceText] = useState('');
   const [saving, setSaving] = useState(false);
+  const hint = useHintWalkthrough('catalogue', CATALOGUE_HINTS);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -227,6 +236,7 @@ export default function CatalogueScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      <ScreenHints hint={hint} bottomInset={insets.bottom} />
     </SafeAreaView>
   );
 }
