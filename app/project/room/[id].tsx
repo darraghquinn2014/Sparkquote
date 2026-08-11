@@ -6,7 +6,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, Pressable, ScrollView, StyleSheet, Alert,
   ActivityIndicator, Modal, Dimensions, TextInput, KeyboardAvoidingView, Platform,
-  Image as RNImage,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -279,11 +278,6 @@ export default function RoomScreen() {
     // (see annotation-service.ts) — need the photo's natural pixel size to
     // convert them into this full-screen lightbox's own letterboxing.
     setLightboxImageSize(null);
-    RNImage.getSize(
-      photo.filePath,
-      (width, height) => setLightboxImageSize({ width, height }),
-      () => setLightboxImageSize(null),
-    );
   };
 
   const openCaptionEdit = () => {
@@ -721,6 +715,7 @@ export default function RoomScreen() {
               source={{ uri: lightboxPhoto.filePath }}
               style={styles.lightboxImage}
               contentFit="contain"
+              onLoad={(e) => setLightboxImageSize({ width: e.source.width, height: e.source.height })}
             />
           )}
           {/* Annotation overlay — strokes + symbols, denormalized to this

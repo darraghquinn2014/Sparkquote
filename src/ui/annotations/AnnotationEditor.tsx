@@ -20,8 +20,9 @@
  */
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, Pressable, StyleSheet, Modal, Image, Alert,
+  View, Text, Pressable, StyleSheet, Modal, Alert,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedProps, runOnJS } from 'react-native-reanimated';
@@ -114,7 +115,7 @@ export function AnnotationEditor({
   const strokes = history.filter(h => h.kind === 'stroke').map(h => h.data as AnnotationStroke);
   const symbols = history.filter(h => h.kind === 'symbol').map(h => h.data as PlacedSymbol);
 
-  const [drawMode, setDrawMode] = useState<DrawMode>('draw');
+  const [drawMode, setDrawMode] = useState<DrawMode>('symbol');
   const [selectedSymbol, setSelectedSymbol] = useState<SymbolType>('socket');
   const [colorIdx, setColorIdx] = useState(0);
   const [widthIdx, setWidthIdx] = useState(1);
@@ -128,11 +129,6 @@ export function AnnotationEditor({
   // (canvas-pixel) coordinate space.
   useEffect(() => {
     setImageSize(null);
-    Image.getSize(
-      photoUri,
-      (width, height) => setImageSize({ width, height }),
-      () => setImageSize(null),
-    );
   }, [photoUri]);
 
   const currentPath = useSharedValue('');
@@ -390,7 +386,8 @@ export function AnnotationEditor({
               <Image
                 source={{ uri: photoUri }}
                 style={StyleSheet.absoluteFillObject}
-                resizeMode="contain"
+                contentFit="contain"
+                onLoad={(e) => setImageSize({ width: e.source.width, height: e.source.height })}
               />
               <Svg
                 width={canvasSize.width}
