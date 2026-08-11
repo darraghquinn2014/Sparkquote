@@ -12,6 +12,13 @@ import { loadProjects, loadLocations } from '@/src/data/project-repo';
 import { colors, space, radius, type as typo } from '@/src/ui/theme/tokens';
 import { TabBarHeightReporter } from '@/src/ui/TabBarHeightReporter';
 import { HeaderMicButton } from '@/src/ui/voice/HeaderMicButton';
+import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
+import { ScreenHints } from '@/src/ui/hints/ScreenHints';
+
+const PROJECTS_LIST_HINTS = [
+  { id: 'new-project', text: 'Tap + New project to start a full job — you\'ll add floors, rooms, photos and pricing per room.' },
+  { id: 'open-project', text: 'Tap any project below to open it and manage its floors and rooms.' },
+];
 
 export default function ProjectsScreen() {
   const router = useRouter();
@@ -19,6 +26,7 @@ export default function ProjectsScreen() {
   const [roomCounts, setRoomCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+  const hint = useHintWalkthrough('projects-list', PROJECTS_LIST_HINTS);
 
   const filteredProjects = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -123,6 +131,7 @@ export default function ProjectsScreen() {
           )}
         />
       )}
+      <ScreenHints hint={hint} />
     </SafeAreaView>
   );
 }

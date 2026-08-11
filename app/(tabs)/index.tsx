@@ -15,6 +15,8 @@ import { colors, space, radius } from '@/src/ui/theme/tokens';
 import { CircuitBackground } from '@/src/ui/home/CircuitBackground';
 import { TabBarHeightReporter } from '@/src/ui/TabBarHeightReporter';
 import { HeaderMicButton } from '@/src/ui/voice/HeaderMicButton';
+import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
+import { ScreenHints } from '@/src/ui/hints/ScreenHints';
 import {
   HouseIllustration,
   LightningIllustration,
@@ -35,6 +37,12 @@ const C = {
   help:       '#00BCD4',
 } as const;
 type Accent = keyof typeof C;
+
+const HOME_HINTS = [
+  { id: 'quick-estimate', text: "Start here for a quick, on-the-spot price — tap Quick estimate, or just talk (tap the mic)." },
+  { id: 'projects', text: 'For a full job with floors, rooms and photos, use Projects instead of Quick estimate.' },
+  { id: 'help', text: "Stuck? Tap Help any time — and you can switch these tips off in Settings once you're comfortable." },
+];
 
 interface BlockProps {
   accent: Accent;
@@ -122,6 +130,7 @@ export default function HomeScreen() {
 
   const [projectCount, setProjectCount] = useState<number | null>(null);
   const [materialCount, setMaterialCount] = useState<number | null>(null);
+  const hint = useHintWalkthrough('home', HOME_HINTS);
 
   useFocusEffect(
     useCallback(() => {
@@ -233,6 +242,7 @@ export default function HomeScreen() {
           />
         </View>
       </ScrollView>
+      <ScreenHints hint={hint} />
     </SafeAreaView>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, Pressable, TextInput, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, Pressable, TextInput, StyleSheet, ScrollView, Switch, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
@@ -16,6 +16,9 @@ export default function SettingsScreen() {
   const setHourlyRate = useSettingsStore((s) => s.setHourlyRate);
   const setVatRate = useSettingsStore((s) => s.setVatRate);
   const setCurrency = useSettingsStore((s) => s.setCurrency);
+  const hintsEnabled = useSettingsStore((s) => s.hintsEnabled);
+  const setHintsEnabled = useSettingsStore((s) => s.setHintsEnabled);
+  const resetHints = useSettingsStore((s) => s.resetHints);
 
   const [rateText, setRateText] = useState('');
   const [rateEditing, setRateEditing] = useState(false);
@@ -126,6 +129,31 @@ export default function SettingsScreen() {
         {/* App settings */}
         <Text style={styles.sectionHeader}>APP</Text>
 
+        <View style={styles.row}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowText}>Show hints</Text>
+            <Text style={styles.rowSub}>Bubble tips that show what to tap on each screen</Text>
+          </View>
+          <Switch
+            value={hintsEnabled}
+            onValueChange={setHintsEnabled}
+            trackColor={{ true: colors.accent, false: colors.hairline }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
+        {hintsEnabled && (
+          <Pressable
+            style={styles.row}
+            onPress={() => {
+              resetHints();
+              Alert.alert('Hints reset', "They'll show again the next time you open each screen.");
+            }}
+          >
+            <Text style={styles.rowText}>Replay all hints</Text>
+            <Text style={styles.chevron}>›</Text>
+          </Pressable>
+        )}
+
         <Pressable style={styles.row} onPress={() => router.push('/help')}>
           <Text style={styles.rowText}>Help</Text>
           <Text style={styles.chevron}>›</Text>
@@ -180,6 +208,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.tile, padding: 18, borderWidth: 1, borderColor: colors.hairline,
   },
   rowText: { fontSize: 16, color: colors.textPrimary, fontWeight: '600' },
+  rowSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   rowValue: { fontSize: 16, color: colors.accent, fontWeight: '700' },
   chevron: { fontSize: 22, color: colors.accent },
   inlineEdit: { flexDirection: 'row', alignItems: 'center' },

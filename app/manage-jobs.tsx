@@ -5,13 +5,21 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Alert, View, Text, TextInput, Pressable, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import type { Assembly, Material } from '@/src/domain/types';
 import { loadCatalogue, setAssemblyFavourite, deleteAssembly } from '@/src/data/catalogue-repo';
 import { colors, space, radius, type as typo } from '@/src/ui/theme/tokens';
 import { AssemblyBuilder } from '@/src/ui/manage/AssemblyBuilder';
 import { CANONICAL_CATEGORIES } from '@/src/domain/categories';
+import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
+import { ScreenHints } from '@/src/ui/hints/ScreenHints';
+
+const MANAGE_JOBS_HINTS = [
+  { id: 'new-job', text: 'Tap + New to build a job template — name it, then add the materials and labour hours it needs.' },
+  { id: 'show-hide', text: 'Show/Hide controls whether a job appears in + Job on the Estimate screen — hide ones you rarely use to keep that list short.' },
+  { id: 'swipe', text: 'Swipe a job right to edit it, or left to delete it.' },
+];
 
 export default function ManageJobsRoute() {
   const router = useRouter();
@@ -22,6 +30,8 @@ export default function ManageJobsRoute() {
   const [editingAssembly, setEditingAssembly] = useState<Assembly | undefined>(undefined);
   const [query, setQuery] = useState('');
   const swipeableRefs = useRef<Map<string, Swipeable | null>>(new Map());
+  const hint = useHintWalkthrough('manage-jobs', MANAGE_JOBS_HINTS);
+  const insets = useSafeAreaInsets();
 
   const reload = useCallback(async () => {
     const cat = await loadCatalogue();
@@ -165,6 +175,7 @@ export default function ManageJobsRoute() {
         onCreated={() => { setBuilderOpen(false); setEditingAssembly(undefined); reload(); }}
         assembly={editingAssembly}
       />
+      <ScreenHints hint={hint} bottomInset={insets.bottom} />
     </SafeAreaView>
   );
 }

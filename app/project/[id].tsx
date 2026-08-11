@@ -10,7 +10,7 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Image } from 'expo-image';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import type { Project, Location } from '@/src/domain/types';
 import { loadProjects, loadLocations, addLocation, deleteLocation, deleteProject, renameProject, renameLocation, setProjectPhoto, setProjectFinished, setProjectLocation } from '@/src/data/project-repo';
@@ -33,8 +33,16 @@ import { SimpleCameraCapture } from '@/src/ui/photos/SimpleCameraCapture';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import { useVoiceAction } from '@/src/voice/voice-bus';
 import { HeaderMicButton } from '@/src/ui/voice/HeaderMicButton';
+import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
+import { ScreenHints } from '@/src/ui/hints/ScreenHints';
 
 const allToggles = seedLaborToggles.map(toLaborToggle);
+
+const PROJECT_DETAIL_HINTS = [
+  { id: 'add-floor', text: 'Start with + Add floor (e.g. Ground floor), then add rooms underneath it.' },
+  { id: 'add-room', text: 'Inside a floor, tap + Add room — pricing and photos are organised per room.' },
+  { id: 'open-room', text: 'Tap a room to add reference photos and price items for that room specifically.' },
+];
 
 const mediaPaths = {
   documentDir: FileSystem.documentDirectory ?? '',
@@ -81,6 +89,8 @@ export default function ProjectDetailScreen() {
   const [locating, setLocating] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [photoSaving, setPhotoSaving] = useState(false);
+  const hint = useHintWalkthrough('project-detail', PROJECT_DETAIL_HINTS);
+  const insets = useSafeAreaInsets();
 
   const reload = useCallback(async () => {
     if (!id) return;
@@ -642,6 +652,7 @@ export default function ProjectDetailScreen() {
         items={overflowItems}
         onClose={() => setOverflowOpen(false)}
       />
+      <ScreenHints hint={hint} bottomInset={insets.bottom} />
     </SafeAreaView>
   );
 }

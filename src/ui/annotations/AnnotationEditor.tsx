@@ -115,6 +115,10 @@ export function AnnotationEditor({
   const strokes = history.filter(h => h.kind === 'stroke').map(h => h.data as AnnotationStroke);
   const symbols = history.filter(h => h.kind === 'symbol').map(h => h.data as PlacedSymbol);
 
+  // Default to Symbol, not Draw: Draw's pan gesture has minDistance(0), so any
+  // stray touch-drag right after opening immediately laid down a line before
+  // the user meant to draw anything. Symbol only fires on a discrete tap, and
+  // placing/removing a symbol is a much cheaper accident to undo than a stroke.
   const [drawMode, setDrawMode] = useState<DrawMode>('symbol');
   const [selectedSymbol, setSelectedSymbol] = useState<SymbolType>('socket');
   const [colorIdx, setColorIdx] = useState(0);
