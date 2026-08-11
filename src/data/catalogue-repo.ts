@@ -16,6 +16,7 @@ import {
 } from './models';
 import { toMaterial, toAssembly, toLaborToggle } from './mappers';
 import { seedMaterials } from './seed/materials';
+import { cefMaterials } from './seed/cef-materials';
 import { seedAssemblies, seedComponents, seedLaborToggles } from './seed/assemblies';
 import type { Assembly, LaborToggle, Material } from '../domain/types';
 
@@ -37,7 +38,7 @@ export async function seedIfEmpty(): Promise<void> {
 
     const batch: Model[] = [];
 
-    for (const m of seedMaterials) {
+    for (const m of [...seedMaterials, ...cefMaterials]) {
       batch.push(
         materials.prepareCreate((r) => {
           r._raw.id = m.id;
@@ -95,12 +96,13 @@ export async function seedIfEmpty(): Promise<void> {
  * e.g. a device where seedIfEmpty's one-time gate (materials.count > 0)
  * was already satisfied by an imported supplier catalogue before the
  * built-in seed materials ever landed, leaving the seed assemblies'
- * components pointing at ids that don't exist.
+ * components pointing at ids that don't exist. Also backfills the CEF
+ * price book (added after baseline-uk) onto devices seeded before it existed.
  */
 export async function repairMissingSeedMaterials(): Promise<void> {
   const table = database.get<MaterialModel>('materials');
   const existingIds = new Set((await table.query().fetch()).map((r) => r.id));
-  const missing = seedMaterials.filter((m) => !existingIds.has(m.id));
+  const missing = [...seedMaterials, ...cefMaterials].filter((m) => !existingIds.has(m.id));
   if (missing.length === 0) return;
 
   await database.write(async () => {
