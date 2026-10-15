@@ -13,7 +13,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 20,
+  version: 21,
   tables: [
     // ── Catalogue ────────────────────────────────────────────────────────
     tableSchema({
@@ -66,12 +66,28 @@ export const schema = appSchema({
       ],
     }),
 
+    // ── Clients — saved contacts reused across projects & certificates ───
+    tableSchema({
+      name: 'clients',
+      columns: [
+        { name: 'name', type: 'string' },
+        { name: 'phone', type: 'string', isOptional: true },
+        { name: 'email', type: 'string', isOptional: true },
+        { name: 'address', type: 'string', isOptional: true },
+        { name: 'created_at', type: 'number' },
+        { name: 'updated_at', type: 'number' },
+      ],
+    }),
+
     // ── Projects & physical locations (spec §3.3) ────────────────────────
     tableSchema({
       name: 'projects',
       columns: [
         { name: 'name', type: 'string' },
+        // client_name is kept alongside client_id (denormalised) so PDFs and
+        // search keep working without a join; client-repo keeps it in sync.
         { name: 'client_name', type: 'string', isOptional: true },
+        { name: 'client_id', type: 'string', isOptional: true, isIndexed: true },
         { name: 'address', type: 'string', isOptional: true },
         { name: 'photo_path', type: 'string', isOptional: true },
         { name: 'finished_at', type: 'number', isOptional: true },

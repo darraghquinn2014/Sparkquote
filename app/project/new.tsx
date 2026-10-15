@@ -13,6 +13,8 @@ import { saveCapture } from '@/src/media/camera-service';
 import { captureCurrentLocation } from '@/src/media/location-service';
 import { SimpleCameraCapture } from '@/src/ui/photos/SimpleCameraCapture';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
+import { ClientPicker } from '@/src/ui/clients/ClientPicker';
+import type { Client } from '@/src/domain/types';
 
 const mediaPaths = {
   documentDir: FileSystem.documentDirectory ?? '',
@@ -22,7 +24,8 @@ const mediaPaths = {
 export default function NewProjectScreen() {
   const router = useRouter();
   const [name, setName] = useState('');
-  const [clientName, setClientName] = useState('');
+  const [client, setClient] = useState<Client | null>(null);
+  const [clientPickerOpen, setClientPickerOpen] = useState(false);
   const [address, setAddress] = useState('');
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locating, setLocating] = useState(false);
@@ -49,7 +52,7 @@ export default function NewProjectScreen() {
     if (!canSave) return;
     try {
       setSaving(true);
-      const id = await createProject(name.trim(), clientName.trim() || undefined, address.trim() || undefined, location ?? undefined);
+      const id = await createProject(name.trim(), client?.name, address.trim() || undefined, location ?? undefined, client?.id);
       if (photoUri) {
         const photo = await saveCapture({ sourceUri: photoUri, paths: mediaPaths, projectId: id, quality: 'medium' });
         await setProjectPhoto(id, photo.filePath);
@@ -75,8 +78,18 @@ export default function NewProjectScreen() {
         <Text style={styles.label}>Project name</Text>
         <TextInput value={name} onChangeText={setName} placeholder="e.g. Smith Kitchen Rewire" placeholderTextColor={colors.textMuted} style={styles.input} autoFocus />
 
-        <Text style={styles.label}>Client name (optional)</Text>
-        <TextInput value={clientName} onChangeText={setClientName} placeholder="e.g. John Smith" placeholderTextColor={colors.textMuted} style={styles.input} />
+        <Text style={styles.label}>Client (optional)</Text>
+        <Pressable style={styles.clientRow} onPress={() => setClientPickerOpen(true)}>
+          {client ? (
+            <View style={{ flex: 1 }}>
+              <Text style={styles.clientName}>{client.name}</Text>
+              {client.phone ? <Text style={styles.clientMeta}>{client.phone}</Text> : null}
+            </View>
+          ) : (
+            <Text style={[styles.clientPlaceholder, { flex: 1 }]}>Choose or add a client</Text>
+          )}
+          <Text style={styles.clientChange}>{client ? 'Change' : '›'}</Text>
+        </Pressable>
 
         <Text style={styles.label}>Site address (optional)</Text>
         <TextInput value={address} onChangeText={setAddress} placeholder="e.g. 14 Main St, Mulliban" placeholderTextColor={colors.textMuted} style={styles.input} />
@@ -107,11 +120,28 @@ export default function NewProjectScreen() {
         onClose={() => setCameraOpen(false)}
         onCaptured={(uri) => { setPhotoUri(uri); setCameraOpen(false); }}
       />
+      <ClientPicker
+        visible={clientPickerOpen}
+        selectedId={client?.id}
+        onPick={(c) => {
+          setClient(c);
+          // Domestic jobs are usually at the client's own address.
+          if (!address.trim() && c.address) setAddress(c.address);
+          setClientPickerOpen(false);
+        }}
+        onClear={() => { setClient(null); setClientPickerOpen(false); }}
+        onClose={() => setClientPickerOpen(false)}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  clientRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.md, minHeight: 50 },
+  clientName: { color: colors.textPrimary, fontSize: 16, fontWeight: '600' },
+  clientMeta: { color: colors.textMuted, fontSize: 13, marginTop: 2 },
+  clientPlaceholder: { color: colors.textMuted, fontSize: 16 },
+  clientChange: { color: colors.accent, fontSize: 15, fontWeight: '700' },
   screen: { flex: 1, backgroundColor: colors.ground },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.lg, paddingVertical: space.md, borderBottomWidth: 1, borderBottomColor: colors.hairline },
   cancel: { color: colors.danger, fontSize: 16, fontWeight: '600' },

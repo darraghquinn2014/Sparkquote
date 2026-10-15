@@ -16,6 +16,8 @@ import * as Sharing from 'expo-sharing';
 import SignatureScreen, { type SignatureViewRef } from 'react-native-signature-canvas';
 import { getCertificate, updateCertificateFields, setCertificateStatus, deleteCertificate } from '@/src/data/certificate-repo';
 import { loadProjects } from '@/src/data/project-repo';
+import { loadClient } from '@/src/data/client-repo';
+import { ClientPicker } from '@/src/ui/clients/ClientPicker';
 import { loadBusinessProfile, readLogoDataUri } from '@/src/data/business-profile';
 import { renderMinorWorksCertificateHtml } from '@/src/pdf/render-certificate';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
@@ -48,6 +50,7 @@ export default function CertificateEditScreen() {
   // stays simple; converted at save time via numOrUndef.
   const [clientName, setClientName] = useState('');
   const [clientAddress, setClientAddress] = useState('');
+  const [clientPickerOpen, setClientPickerOpen] = useState(false);
   const [descriptionOfWork, setDescriptionOfWork] = useState('');
   const [dateCompleted, setDateCompleted] = useState('');
   const [systemEarthing, setSystemEarthing] = useState<SystemEarthing | undefined>(undefined);
@@ -80,8 +83,9 @@ export default function CertificateEditScreen() {
       // Prefill from the project record on a fresh draft only — never overwrite
       // an already-saved value, since the client name/address on a certificate
       // can legitimately differ from the project's (e.g. a tenant vs landlord).
-      setClientName(f.clientName ?? project?.clientName ?? '');
-      setClientAddress(f.clientAddress ?? project?.address ?? '');
+      const linkedClient = project?.clientId ? await loadClient(project.clientId) : null;
+      setClientName(f.clientName ?? linkedClient?.name ?? project?.clientName ?? '');
+      setClientAddress(f.clientAddress ?? linkedClient?.address ?? project?.address ?? '');
       setDescriptionOfWork(f.descriptionOfWork ?? '');
       setDateCompleted(f.dateCompleted ?? '');
       setSystemEarthing(f.systemEarthing);
@@ -245,6 +249,9 @@ export default function CertificateEditScreen() {
           <Section title="Part 1 — Description of the minor works">
             <Field label="Client name" value={clientName} onChangeText={setClientName} placeholder="e.g. Jane Smith" />
             <Field label="Client address" value={clientAddress} onChangeText={setClientAddress} placeholder={projectAddress || 'Site address'} />
+            <Pressable onPress={() => setClientPickerOpen(true)} hitSlop={8} style={{ alignSelf: 'flex-start', marginBottom: space.md }}>
+              <Text style={{ color: ACCENT, fontWeight: '700', fontSize: 14 }}>Choose saved client</Text>
+            </Pressable>
             <Field label="Description of the minor works" value={descriptionOfWork} onChangeText={setDescriptionOfWork} placeholder="e.g. Replaced socket outlet in kitchen" multiline />
             <Field label="Date completed" value={dateCompleted} onChangeText={setDateCompleted} placeholder="YYYY-MM-DD" />
           </Section>
@@ -337,6 +344,15 @@ export default function CertificateEditScreen() {
           <Text style={styles.busyText}>Generating certificate…</Text>
         </View>
       )}
+      <ClientPicker
+        visible={clientPickerOpen}
+        onPick={(c) => {
+          setClientName(c.name);
+          if (c.address) setClientAddress(c.address);
+          setClientPickerOpen(false);
+        }}
+        onClose={() => setClientPickerOpen(false)}
+      />
     </SafeAreaView>
   );
 }

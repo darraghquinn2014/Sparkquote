@@ -13,6 +13,7 @@ import type { Project, Location } from '../domain/types';
 function toProject(r: ProjectModel): Project {
   const p: Project = { id: r.id, name: r.name, createdAt: r.createdAt.getTime() };
   if (r.clientName != null) p.clientName = r.clientName;
+  if (r.clientId != null) p.clientId = r.clientId;
   if (r.address != null) p.address = r.address;
   if (r.photoPath != null) p.photoPath = r.photoPath;
   if (r.finishedAt != null) p.finishedAt = r.finishedAt;
@@ -42,12 +43,14 @@ export async function createProject(
   clientName?: string,
   address?: string,
   location?: { latitude: number; longitude: number },
+  clientId?: string,
 ): Promise<string> {
   let newId = '';
   await database.write(async () => {
     const row = await database.get<ProjectModel>('projects').create((r) => {
       r.name = name;
       r.clientName = clientName ?? null;
+      r.clientId = clientId ?? null;
       r.address = address ?? null;
       r.latitude = location?.latitude ?? null;
       r.longitude = location?.longitude ?? null;

@@ -5,6 +5,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-na
 import { useFocusEffect, useRouter } from 'expo-router';
 import { seedIfEmpty, prefixAssembliesWithInstall, repairMissingSeedMaterials, loadCatalogue } from '@/src/data/catalogue-repo';
 import { loadProjects } from '@/src/data/project-repo';
+import { backfillClientsFromProjects } from '@/src/data/client-repo';
 import { useEstimateStore } from '@/src/state/estimateStore';
 import { useSettingsStore } from '@/src/state/settingsStore';
 import { priceEstimate } from '@/src/domain/pricing';
@@ -149,6 +150,10 @@ export default function HomeScreen() {
           // Voice setup is no longer forced on first launch — it's optional,
           // reachable from Settings → "Voice & vocabulary".
           await Promise.all([hydrate(), hydrateSettings()]);
+          if (!useSettingsStore.getState().clientsBackfilled) {
+            await backfillClientsFromProjects();
+            useSettingsStore.getState().setClientsBackfilled();
+          }
           if (!useSettingsStore.getState().firstRunSetupComplete) {
             router.push('/setup' as any);
           }

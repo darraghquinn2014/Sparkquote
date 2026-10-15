@@ -31,6 +31,9 @@ interface SettingsData {
   /** Simple mode is the default: Tools, voice, the shopping list, project
    * Documents and the less-used Settings rows stay hidden until this is on. */
   advancedMode: boolean;
+  /** Whether existing projects' free-text client names have been turned
+   * into saved clients (one-time, after the v21 migration). */
+  clientsBackfilled: boolean;
 }
 
 const DEFAULTS: SettingsData = {
@@ -46,6 +49,7 @@ const DEFAULTS: SettingsData = {
   firstRunSetupComplete: false,
   preferredSupplierId: null,
   advancedMode: false,
+  clientsBackfilled: false,
 };
 
 const settingsPath = () =>
@@ -82,6 +86,7 @@ interface SettingsStore extends SettingsData {
   setFirstRunSetupComplete: (complete: boolean) => void;
   setPreferredSupplierId: (id: string | null) => void;
   setAdvancedMode: (on: boolean) => void;
+  setClientsBackfilled: () => void;
 }
 
 function snapshot(s: SettingsStore): SettingsData {
@@ -98,6 +103,7 @@ function snapshot(s: SettingsStore): SettingsData {
     firstRunSetupComplete: s.firstRunSetupComplete,
     preferredSupplierId: s.preferredSupplierId,
     advancedMode: s.advancedMode,
+    clientsBackfilled: s.clientsBackfilled,
   };
 }
 
@@ -186,5 +192,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   setAdvancedMode: (on) => {
     set({ advancedMode: on });
     saveToDisk({ ...snapshot(get()), advancedMode: on });
+  },
+
+  setClientsBackfilled: () => {
+    set({ clientsBackfilled: true });
+    saveToDisk({ ...snapshot(get()), clientsBackfilled: true });
   },
 }));

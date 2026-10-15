@@ -244,5 +244,25 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 21,
+      steps: [
+        createTable({
+          name: 'clients',
+          columns: [
+            { name: 'name', type: 'string' },
+            { name: 'phone', type: 'string', isOptional: true },
+            { name: 'email', type: 'string', isOptional: true },
+            { name: 'address', type: 'string', isOptional: true },
+            { name: 'created_at', type: 'number' },
+            { name: 'updated_at', type: 'number' },
+          ],
+        }),
+        addColumns({
+          table: 'projects',
+          columns: [{ name: 'client_id', type: 'string', isOptional: true, isIndexed: true }],
+        }),
+      ],
+    },
   ],
 });

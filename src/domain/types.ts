@@ -386,10 +386,23 @@ export interface EicrCertificate extends CertificateBase {
 
 export type Certificate = MinorWorksCertificate | EicCertificate | EicrCertificate;
 
+/** A saved client, reused across projects and certificates. */
+export interface Client {
+  id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  /** The client's own address — may differ from a project's site address. */
+  address?: string;
+  createdAt: number; // Unix ms
+}
+
 export interface Project {
   id: string;
   name: string;
+  /** Display name of the client — kept in sync with the linked Client. */
   clientName?: string;
+  clientId?: string;
   /** Physical site address, free text. */
   address?: string;
   /** GPS-captured site location — set independently of `address`, since some

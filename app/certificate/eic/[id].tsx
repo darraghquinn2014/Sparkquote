@@ -17,6 +17,8 @@ import * as Sharing from 'expo-sharing';
 import SignatureScreen, { type SignatureViewRef } from 'react-native-signature-canvas';
 import { getCertificate, updateCertificateFields, setCertificateStatus, deleteCertificate } from '@/src/data/certificate-repo';
 import { loadProjects } from '@/src/data/project-repo';
+import { loadClient } from '@/src/data/client-repo';
+import { ClientPicker } from '@/src/ui/clients/ClientPicker';
 import { loadBusinessProfile, readLogoDataUri } from '@/src/data/business-profile';
 import { renderEicCertificateHtml } from '@/src/pdf/render-eic-certificate';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
@@ -125,6 +127,7 @@ export default function EicEditScreen() {
 
   const [clientName, setClientName] = useState('');
   const [clientAddress, setClientAddress] = useState('');
+  const [clientPickerOpen, setClientPickerOpen] = useState(false);
   const [installationAddress, setInstallationAddress] = useState('');
   const [installationType, setInstallationType] = useState<EicInstallationType | undefined>(undefined);
   const [descriptionOfInstallation, setDescriptionOfInstallation] = useState('');
@@ -167,8 +170,9 @@ export default function EicEditScreen() {
       setProjectAddress(project?.address);
       const f = loaded.fields;
 
-      setClientName(f.clientName ?? project?.clientName ?? '');
-      setClientAddress(f.clientAddress ?? project?.address ?? '');
+      const linkedClient = project?.clientId ? await loadClient(project.clientId) : null;
+      setClientName(f.clientName ?? linkedClient?.name ?? project?.clientName ?? '');
+      setClientAddress(f.clientAddress ?? linkedClient?.address ?? project?.address ?? '');
       setInstallationAddress(f.installationAddress ?? '');
       setInstallationType(f.installationType);
       setDescriptionOfInstallation(f.descriptionOfInstallation ?? '');
@@ -357,6 +361,9 @@ export default function EicEditScreen() {
           <Section title="Part 1 — Client & installation">
             <Field label="Client name" value={clientName} onChangeText={setClientName} placeholder="e.g. Jane Smith" />
             <Field label="Client address" value={clientAddress} onChangeText={setClientAddress} placeholder={projectAddress || 'Site address'} />
+            <Pressable onPress={() => setClientPickerOpen(true)} hitSlop={8} style={{ alignSelf: 'flex-start', marginBottom: space.md }}>
+              <Text style={{ color: ACCENT, fontWeight: '700', fontSize: 14 }}>Choose saved client</Text>
+            </Pressable>
             <Field label="Installation address (if different)" value={installationAddress} onChangeText={setInstallationAddress} />
             <Text style={styles.fieldLabel}>Installation type</Text>
             <View style={styles.chipRow}>
@@ -510,6 +517,15 @@ export default function EicEditScreen() {
           <Text style={styles.busyText}>Generating certificate…</Text>
         </View>
       )}
+      <ClientPicker
+        visible={clientPickerOpen}
+        onPick={(c) => {
+          setClientName(c.name);
+          if (c.address) setClientAddress(c.address);
+          setClientPickerOpen(false);
+        }}
+        onClose={() => setClientPickerOpen(false)}
+      />
     </SafeAreaView>
   );
 }

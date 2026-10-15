@@ -12,7 +12,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { Image } from 'expo-image';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import type { Project, Location } from '@/src/domain/types';
+import type { Client, Project, Location } from '@/src/domain/types';
 import { loadProjects, loadLocations, addLocation, deleteLocation, deleteProject, renameProject, renameLocation, setProjectPhoto, setProjectFinished, setProjectLocation } from '@/src/data/project-repo';
 import { captureCurrentLocation, mapsUrlForLocation } from '@/src/media/location-service';
 import { loadFloorPlanForLocation, loadWallsForFloorPlan } from '@/src/data/floor-plan-repo';
@@ -30,6 +30,8 @@ import { seedLaborToggles } from '@/src/data/seed/assemblies';
 import { saveCapture } from '@/src/media/camera-service';
 import { ActionSheet } from '@/src/ui/ActionSheet';
 import { useSettingsStore } from '@/src/state/settingsStore';
+import { loadClient, setProjectClient } from '@/src/data/client-repo';
+import { ClientPicker } from '@/src/ui/clients/ClientPicker';
 import { SimpleCameraCapture } from '@/src/ui/photos/SimpleCameraCapture';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import { useVoiceAction } from '@/src/voice/voice-bus';
@@ -102,7 +104,9 @@ export default function ProjectDetailScreen() {
       loadLocations(id),
       loadProjectEstimate(id),
     ]);
-    setProject(ps.find((p) => p.id === id) ?? null);
+    const p = ps.find((x) => x.id === id) ?? null;
+    setProject(p);
+    setClient(p?.clientId ? await loadClient(p.clientId) : null);
     setLocations(locs);
 
     const floorLocs = locs.filter((l) => l.parentId == null);
@@ -331,6 +335,15 @@ export default function ProjectDetailScreen() {
   // silently drop the rest, which left this 4-option menu with no visible
   // Cancel and no way to dismiss it.
   const [overflowOpen, setOverflowOpen] = useState(false);
+  const [client, setClient] = useState<Client | null>(null);
+  const [clientPickerOpen, setClientPickerOpen] = useState(false);
+
+  const pickClient = async (c: Client | null) => {
+    setClientPickerOpen(false);
+    if (!project) return;
+    await setProjectClient(project.id, c);
+    reload();
+  };
   const advancedMode = useSettingsStore((s) => s.advancedMode);
 
   const overflowItems = project
@@ -431,7 +444,18 @@ export default function ProjectDetailScreen() {
             <Pressable onPress={() => startEdit("project", project.name)} hitSlop={8}><Text style={styles.editBtn}>Edit</Text></Pressable>
           </View>
         )}
-        {project.clientName ? <Text style={styles.client}>{project.clientName}</Text> : null}
+        <View style={styles.clientLine}>
+          <Pressable onPress={() => setClientPickerOpen(true)} hitSlop={8} style={{ flexShrink: 1 }}>
+            {project.clientName
+              ? <Text style={styles.client}>{project.clientName}</Text>
+              : <Text style={styles.addClient}>+ Add client</Text>}
+          </Pressable>
+          {client?.phone ? (
+            <Pressable onPress={() => Linking.openURL(`tel:${client.phone!.replace(/s+/g, '')}`).catch(() => {})} hitSlop={8}>
+              <Text style={styles.callLink}>📞 {client.phone}</Text>
+            </Pressable>
+          ) : null}
+        </View>
 
         {editingAddress ? (
           <View>
@@ -661,6 +685,13 @@ export default function ProjectDetailScreen() {
         items={overflowItems}
         onClose={() => setOverflowOpen(false)}
       />
+      <ClientPicker
+        visible={clientPickerOpen}
+        selectedId={project.clientId}
+        onPick={pickClient}
+        onClear={() => pickClient(null)}
+        onClose={() => setClientPickerOpen(false)}
+      />
       <ScreenHints hint={hint} bottomInset={insets.bottom} showFab={false} />
     </SafeAreaView>
   );
@@ -683,7 +714,10 @@ const styles = StyleSheet.create({
   editRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   editInput: { flex: 1, backgroundColor: colors.surface, borderRadius: radius.tile, paddingHorizontal: space.md, paddingVertical: space.sm, color: colors.textPrimary, fontSize: 18, fontWeight: '700' },
   projectName: { color: colors.textPrimary, fontSize: 26, fontWeight: '800' },
-  client: { color: colors.textSecondary, fontSize: 15, marginTop: 2 },
+  client: { color: colors.textSecondary, fontSize: 15 },
+  clientLine: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', columnGap: space.md, marginTop: 2 },
+  addClient: { color: colors.accent, fontSize: 15, fontWeight: '700' },
+  callLink: { color: colors.accent, fontSize: 15, fontWeight: '600' },
   addressRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.xs, gap: space.sm },
   address: { color: colors.textMuted, fontSize: 14 },
   addAddressLink: { color: colors.accent, fontWeight: '600', fontSize: 13, marginTop: space.xs },

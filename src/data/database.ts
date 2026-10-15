@@ -12,6 +12,7 @@ import { schema } from './schema';
 import { migrations } from './migrations';
 import {
   MaterialModel,
+  ClientModel,
   AssemblyModel,
   AssemblyComponentModel,
   LaborToggleModel,
@@ -45,6 +46,7 @@ export const database = new Database({
     AssemblyModel,
     AssemblyComponentModel,
     LaborToggleModel,
+    ClientModel,
     ProjectModel,
     LocationModel,
     EstimateModel,

@@ -192,6 +192,7 @@ const HELP_GROUPS: HelpGroup[] = [
         summary: 'The hub for one job — floors, rooms, and quick links to everything under it.',
         actions: [
           { label: 'Cover photo', detail: 'Tap to change it.' },
+          { label: 'Client', detail: 'Under the project name. Tap it (or "+ Add client") to choose a saved client, add a new one, or remove it. If they have a phone number, tap 📞 to call them.' },
           { label: 'Site address', detail: 'Tap to add/edit it, or refresh its GPS pin.' },
           { label: '£ Quote', detail: 'Opens the per-room Project Quote screen.' },
           { label: '⚠ Snags', detail: "Opens this project's punch list." },
@@ -407,6 +408,7 @@ const HELP_GROUPS: HelpGroup[] = [
         summary: 'Your defaults for every new estimate, plus links to everything else app-wide.',
         actions: [
           { label: 'Show advanced features', detail: 'Off by default to keep things simple. Turn it on for site calculators (Tools), voice control, the shopping list, project Documents, and the Voice, Photos & storage, Cloud backup and Profit report settings.' },
+          { label: 'Clients', detail: 'Your saved client list — name, phone, email and address. Pick a client for any project or certificate instead of retyping their details. Editing a client updates the name on all their projects; deleting one keeps their name on old projects.' },
           { label: 'Run setup again', detail: 'Re-opens the first-run setup: business name and logo, labour rate, VAT, and which price list to use.' },
           { label: 'Labour rate / VAT rate / Currency', detail: 'The defaults new estimates start with — each can still be overridden per-estimate or per-project.' },
           { label: 'Business profile', detail: 'Your logo, company name, and tagline shown on every PDF.' },

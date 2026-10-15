@@ -17,6 +17,8 @@ import * as Sharing from 'expo-sharing';
 import SignatureScreen, { type SignatureViewRef } from 'react-native-signature-canvas';
 import { getCertificate, updateCertificateFields, setCertificateStatus, deleteCertificate } from '@/src/data/certificate-repo';
 import { loadProjects } from '@/src/data/project-repo';
+import { loadClient } from '@/src/data/client-repo';
+import { ClientPicker } from '@/src/ui/clients/ClientPicker';
 import { loadBusinessProfile, readLogoDataUri } from '@/src/data/business-profile';
 import { renderEicrCertificateHtml } from '@/src/pdf/render-eicr-certificate';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
@@ -138,6 +140,7 @@ export default function EicrEditScreen() {
 
   const [clientName, setClientName] = useState('');
   const [clientAddress, setClientAddress] = useState('');
+  const [clientPickerOpen, setClientPickerOpen] = useState(false);
   const [installationAddress, setInstallationAddress] = useState('');
   const [reasonForReport, setReasonForReport] = useState<EicrReportReason | undefined>(undefined);
   const [estimatedAgeYears, setEstimatedAgeYears] = useState('');
@@ -182,8 +185,9 @@ export default function EicrEditScreen() {
       setProjectAddress(project?.address);
       const f = loaded.fields;
 
-      setClientName(f.clientName ?? project?.clientName ?? '');
-      setClientAddress(f.clientAddress ?? project?.address ?? '');
+      const linkedClient = project?.clientId ? await loadClient(project.clientId) : null;
+      setClientName(f.clientName ?? linkedClient?.name ?? project?.clientName ?? '');
+      setClientAddress(f.clientAddress ?? linkedClient?.address ?? project?.address ?? '');
       setInstallationAddress(f.installationAddress ?? '');
       setReasonForReport(f.reasonForReport);
       setEstimatedAgeYears(f.estimatedAgeYears != null ? String(f.estimatedAgeYears) : '');
@@ -386,6 +390,9 @@ export default function EicrEditScreen() {
           <Section title="Client & installation">
             <Field label="Client name" value={clientName} onChangeText={setClientName} placeholder="e.g. Jane Smith" />
             <Field label="Client address" value={clientAddress} onChangeText={setClientAddress} placeholder={projectAddress || 'Site address'} />
+            <Pressable onPress={() => setClientPickerOpen(true)} hitSlop={8} style={{ alignSelf: 'flex-start', marginBottom: space.md }}>
+              <Text style={{ color: ACCENT, fontWeight: '700', fontSize: 14 }}>Choose saved client</Text>
+            </Pressable>
             <Field label="Installation address (if different)" value={installationAddress} onChangeText={setInstallationAddress} />
             <Text style={styles.fieldLabel}>Reason for this report</Text>
             <View style={styles.chipRow}>
@@ -586,6 +593,15 @@ export default function EicrEditScreen() {
           <Text style={styles.busyText}>Generating report…</Text>
         </View>
       )}
+      <ClientPicker
+        visible={clientPickerOpen}
+        onPick={(c) => {
+          setClientName(c.name);
+          if (c.address) setClientAddress(c.address);
+          setClientPickerOpen(false);
+        }}
+        onClose={() => setClientPickerOpen(false)}
+      />
     </SafeAreaView>
   );
 }

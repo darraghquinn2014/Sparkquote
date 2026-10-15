@@ -50,10 +50,21 @@ export class LaborToggleModel extends Model {
   @readonly @date('updated_at') updatedAt!: Date;
 }
 
+export class ClientModel extends Model {
+  static table = 'clients';
+  @text('name') name!: string;
+  @text('phone') phone!: string | null;
+  @text('email') email!: string | null;
+  @text('address') address!: string | null;
+  @readonly @date('created_at') createdAt!: Date;
+  @readonly @date('updated_at') updatedAt!: Date;
+}
+
 export class ProjectModel extends Model {
   static table = 'projects';
   @text('name') name!: string;
   @text('client_name') clientName!: string | null;
+  @text('client_id') clientId!: string | null;
   @text('address') address!: string | null;
   @text('photo_path') photoPath!: string | null;
   @field('finished_at') finishedAt!: number | null;
