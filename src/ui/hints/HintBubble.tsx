@@ -66,7 +66,23 @@ export function HintFab({ onPress, bottomInset = 0 }: HintFabProps) {
   );
 }
 
+/** Inline "?" for a screen header — use instead of the floating HintFab on
+ * screens whose content reaches the bottom edge (e.g. Home), where the FAB
+ * would sit on top of a card. Same look as HeaderMicButton. */
+export function HintHeaderButton({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable style={styles.headerBtn} onPress={onPress} hitSlop={8} accessibilityLabel="Show tips">
+      <Text style={styles.fabText}>?</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  headerBtn: {
+    width: 36, height: 36, borderRadius: radius.pill,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.hairline,
+  },
   wrap: {
     position: 'absolute',
     left: space.lg,

@@ -16,7 +16,7 @@ import { CircuitBackground } from '@/src/ui/home/CircuitBackground';
 import { TabBarHeightReporter } from '@/src/ui/TabBarHeightReporter';
 import { HeaderMicButton } from '@/src/ui/voice/HeaderMicButton';
 import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
-import { ScreenHints } from '@/src/ui/hints/ScreenHints';
+import { ScreenHints, HintHeaderSlot } from '@/src/ui/hints/ScreenHints';
 import {
   HouseIllustration,
   LightningIllustration,
@@ -40,7 +40,7 @@ const C = {
 type Accent = keyof typeof C;
 
 const HOME_HINTS = [
-  { id: 'quick-estimate', text: "For a one-off job, tap Quick quote for an on-the-spot price — or just talk (tap the mic)." },
+  { id: 'quick-estimate', text: "For a one-off job, tap Quick quote for an on-the-spot price." },
   { id: 'projects', text: 'For a bigger job across several rooms, use Projects instead. Not sure which? Tap “Which one?” on the Quick quote tile.' },
   { id: 'help', text: "Stuck? Tap Help any time — and you can switch these tips off in Settings once you're comfortable." },
 ];
@@ -136,6 +136,7 @@ export default function HomeScreen() {
   const [projectCount, setProjectCount] = useState<number | null>(null);
   const [materialCount, setMaterialCount] = useState<number | null>(null);
   const [explainerOpen, setExplainerOpen] = useState(false);
+  const advancedMode = useSettingsStore((s) => s.advancedMode);
   const hint = useHintWalkthrough('home', HOME_HINTS);
 
   useFocusEffect(
@@ -180,7 +181,7 @@ export default function HomeScreen() {
     : `${materialCount} materials`;
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
       <TabBarHeightReporter />
       <CircuitBackground />
 
@@ -197,7 +198,10 @@ export default function HomeScreen() {
               <Text style={styles.brandTag}>Electrical estimating</Text>
             </View>
           </View>
-          <HeaderMicButton />
+          <View style={styles.headerBtns}>
+            <HintHeaderSlot hint={hint} />
+            <HeaderMicButton />
+          </View>
         </View>
 
         {/* Bento grid */}
@@ -237,14 +241,16 @@ export default function HomeScreen() {
               onPress={() => router.push('/catalogue' as never)}
             />
           </View>
-          <Block
-            accent="tools"
-            icon="Ω"
-            label="Tools"
-            sub="Site calculators"
-            wide thin
-            onPress={() => router.push('/tools' as never)}
-          />
+          {advancedMode && (
+            <Block
+              accent="tools"
+              icon="Ω"
+              label="Tools"
+              sub="Site calculators"
+              wide thin
+              onPress={() => router.push('/tools' as never)}
+            />
+          )}
           <Block
             accent="help"
             icon="?"
@@ -253,6 +259,15 @@ export default function HomeScreen() {
             wide thin
             onPress={() => router.push('/help')}
           />
+          {!advancedMode && (
+            <Pressable style={styles.moreCard} onPress={() => router.navigate('/(tabs)/settings' as never)}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.moreTitle}>More features available</Text>
+                <Text style={styles.moreSub}>Calculators, voice, shopping lists & more — switch on in Settings.</Text>
+              </View>
+              <Text style={styles.moreArrow}>›</Text>
+            </Pressable>
+          )}
         </View>
       </ScrollView>
       <QuoteTypeExplainer
@@ -263,7 +278,7 @@ export default function HomeScreen() {
         onProject={() => { setExplainerOpen(false); router.navigate('/(tabs)/projects' as never); }}
         onClose={() => setExplainerOpen(false)}
       />
-      <ScreenHints hint={hint} />
+      <ScreenHints hint={hint} showFab={false} />
     </SafeAreaView>
   );
 }
@@ -359,6 +374,15 @@ const styles = StyleSheet.create({
   badgeIcon: { fontSize: 22, fontWeight: '700' },
   badgeIconSm: { fontSize: 18, fontWeight: '700' },
 
+  headerBtns: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  moreCard: {
+    flexDirection: 'row', alignItems: 'center', gap: space.md,
+    borderWidth: 1, borderStyle: 'dashed', borderColor: colors.hairline,
+    borderRadius: radius.bar, padding: space.lg,
+  },
+  moreTitle: { fontSize: 15, fontWeight: '800', color: colors.textPrimary, marginBottom: 2 },
+  moreSub: { fontSize: 12, color: colors.textMuted, lineHeight: 17 },
+  moreArrow: { fontSize: 26, fontWeight: '300', color: colors.textMuted },
   blockTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   asideLink: { borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: 6, backgroundColor: colors.ground },
   asideLinkText: { fontSize: 13, fontWeight: '800' },

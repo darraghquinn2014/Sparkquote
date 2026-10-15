@@ -38,7 +38,7 @@ import { PlanSymbolTagger } from '@/src/ui/annotations/PlanSymbolTagger';
 import { ActionSheet } from '@/src/ui/ActionSheet';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
-import { ScreenHints } from '@/src/ui/hints/ScreenHints';
+import { ScreenHints, HintHeaderSlot } from '@/src/ui/hints/ScreenHints';
 
 const WALL_HINTS = [
   { id: 'attach-photo', text: 'Attach a photo of this wall or ceiling first — you\'ll tag what\'s on it while it\'s fresh in your memory.' },
@@ -326,9 +326,12 @@ export default function WallScreen() {
             <Text style={styles.title} numberOfLines={1}>{wall.label || 'Wall'}</Text>
             {room && <Text style={styles.subtitle}>{room.name}</Text>}
           </View>
-          <Pressable onPress={() => setOverflowOpen(true)} hitSlop={12}>
-            <Text style={styles.moreBtn}>•••</Text>
-          </Pressable>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+            <HintHeaderSlot hint={hint} />
+            <Pressable onPress={() => setOverflowOpen(true)} hitSlop={12}>
+              <Text style={styles.moreBtn}>•••</Text>
+            </Pressable>
+          </View>
         </View>
 
         {!photo ? (
@@ -384,7 +387,7 @@ export default function WallScreen() {
             {addingSymbol ? 'Tap the photo to place a symbol' : 'Drag a symbol to adjust height · Tap for distance & to remove'}
           </Text>
         )}
-        <ScreenHints hint={hint} bottomInset={insets.bottom} />
+        <ScreenHints hint={hint} bottomInset={insets.bottom} showFab={false} />
       </SafeAreaView>
 
       {/* Symbol palette — after tapping the photo while adding a symbol.

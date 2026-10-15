@@ -19,6 +19,8 @@ export default function SettingsScreen() {
   const hintsEnabled = useSettingsStore((s) => s.hintsEnabled);
   const setHintsEnabled = useSettingsStore((s) => s.setHintsEnabled);
   const resetHints = useSettingsStore((s) => s.resetHints);
+  const advancedMode = useSettingsStore((s) => s.advancedMode);
+  const setAdvancedMode = useSettingsStore((s) => s.setAdvancedMode);
 
   const [rateText, setRateText] = useState('');
   const [rateEditing, setRateEditing] = useState(false);
@@ -131,6 +133,19 @@ export default function SettingsScreen() {
 
         <View style={styles.row}>
           <View style={{ flex: 1 }}>
+            <Text style={styles.rowText}>Show advanced features</Text>
+            <Text style={styles.rowSub}>Site calculators, voice control, shopping list, project documents, profit report and backup</Text>
+          </View>
+          <Switch
+            value={advancedMode}
+            onValueChange={setAdvancedMode}
+            trackColor={{ true: colors.accent, false: colors.hairline }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
+
+        <View style={styles.row}>
+          <View style={{ flex: 1 }}>
             <Text style={styles.rowText}>Show hints</Text>
             <Text style={styles.rowSub}>Bubble tips that show what to tap on each screen</Text>
           </View>
@@ -166,22 +181,6 @@ export default function SettingsScreen() {
           <Text style={styles.rowText}>Business profile</Text>
           <Text style={styles.chevron}>›</Text>
         </Pressable>
-        <Pressable style={styles.row} onPress={() => router.push('/voice-setup' as any)}>
-          <Text style={styles.rowText}>Voice &amp; vocabulary</Text>
-          <Text style={styles.chevron}>›</Text>
-        </Pressable>
-        <Pressable style={styles.row} onPress={() => router.push('/media-settings')}>
-          <Text style={styles.rowText}>Photos & storage</Text>
-          <Text style={styles.chevron}>›</Text>
-        </Pressable>
-        <Pressable style={styles.row} onPress={() => router.push('/cloud-backup')}>
-          <Text style={styles.rowText}>Cloud backup</Text>
-          <Text style={styles.chevron}>›</Text>
-        </Pressable>
-        <Pressable style={styles.row} onPress={() => router.push('/profit-report' as any)}>
-          <Text style={styles.rowText}>Profit report</Text>
-          <Text style={styles.chevron}>›</Text>
-        </Pressable>
         <Pressable style={styles.row} onPress={() => router.push('/suppliers')}>
           <Text style={styles.rowText}>Manage price lists</Text>
           <Text style={styles.chevron}>›</Text>
@@ -190,10 +189,30 @@ export default function SettingsScreen() {
           <Text style={styles.rowText}>Import wholesale prices</Text>
           <Text style={styles.chevron}>›</Text>
         </Pressable>
-        <Pressable style={styles.row} onPress={() => router.push('/review')}>
-          <Text style={styles.rowText}>Demo: Review & sign PDF</Text>
-          <Text style={styles.chevron}>›</Text>
-        </Pressable>
+        {advancedMode && (
+          <>
+          <Pressable style={styles.row} onPress={() => router.push('/voice-setup' as any)}>
+            <Text style={styles.rowText}>Voice &amp; vocabulary</Text>
+            <Text style={styles.chevron}>›</Text>
+          </Pressable>
+          <Pressable style={styles.row} onPress={() => router.push('/media-settings')}>
+            <Text style={styles.rowText}>Photos & storage</Text>
+            <Text style={styles.chevron}>›</Text>
+          </Pressable>
+          <Pressable style={styles.row} onPress={() => router.push('/cloud-backup')}>
+            <Text style={styles.rowText}>Cloud backup</Text>
+            <Text style={styles.chevron}>›</Text>
+          </Pressable>
+          <Pressable style={styles.row} onPress={() => router.push('/profit-report' as any)}>
+            <Text style={styles.rowText}>Profit report</Text>
+            <Text style={styles.chevron}>›</Text>
+          </Pressable>
+          <Pressable style={styles.row} onPress={() => router.push('/review')}>
+            <Text style={styles.rowText}>Demo: Review & sign PDF</Text>
+            <Text style={styles.chevron}>›</Text>
+          </Pressable>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

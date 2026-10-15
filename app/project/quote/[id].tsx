@@ -182,7 +182,7 @@ export default function ProjectQuoteScreen() {
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Quote'}</Text>
-        <HeaderMicButton />
+        <HeaderMicButton keepSpace />
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>

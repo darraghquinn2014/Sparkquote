@@ -13,7 +13,7 @@ import { colors, space, radius, type as typo } from '@/src/ui/theme/tokens';
 import { AssemblyBuilder } from '@/src/ui/manage/AssemblyBuilder';
 import { CANONICAL_CATEGORIES } from '@/src/domain/categories';
 import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
-import { ScreenHints } from '@/src/ui/hints/ScreenHints';
+import { ScreenHints, HintHeaderSlot } from '@/src/ui/hints/ScreenHints';
 
 const MANAGE_JOBS_HINTS = [
   { id: 'new-job', text: 'Tap + New to build a job template — name it, then add the materials and labour hours it needs.' },
@@ -104,9 +104,12 @@ export default function ManageJobsRoute() {
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
         <Text style={styles.title}>Manage jobs</Text>
-        <Pressable style={styles.newBtn} onPress={() => { setEditingAssembly(undefined); setBuilderOpen(true); }}>
-          <Text style={styles.newText}>+ New</Text>
-        </Pressable>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+          <HintHeaderSlot hint={hint} />
+          <Pressable style={styles.newBtn} onPress={() => { setEditingAssembly(undefined); setBuilderOpen(true); }}>
+            <Text style={styles.newText}>+ New</Text>
+          </Pressable>
+        </View>
       </View>
 
       {!loading && (
@@ -175,7 +178,7 @@ export default function ManageJobsRoute() {
         onCreated={() => { setBuilderOpen(false); setEditingAssembly(undefined); reload(); }}
         assembly={editingAssembly}
       />
-      <ScreenHints hint={hint} bottomInset={insets.bottom} />
+      <ScreenHints hint={hint} bottomInset={insets.bottom} showFab={false} />
     </SafeAreaView>
   );
 }

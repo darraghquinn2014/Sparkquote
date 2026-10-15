@@ -29,14 +29,17 @@ import { toLaborToggle } from '@/src/data/mappers';
 import { seedLaborToggles } from '@/src/data/seed/assemblies';
 import { saveCapture } from '@/src/media/camera-service';
 import { ActionSheet } from '@/src/ui/ActionSheet';
+import { useSettingsStore } from '@/src/state/settingsStore';
 import { SimpleCameraCapture } from '@/src/ui/photos/SimpleCameraCapture';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import { useVoiceAction } from '@/src/voice/voice-bus';
 import { HeaderMicButton } from '@/src/ui/voice/HeaderMicButton';
 import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
-import { ScreenHints } from '@/src/ui/hints/ScreenHints';
+import { ScreenHints, HintHeaderSlot } from '@/src/ui/hints/ScreenHints';
 
 const allToggles = seedLaborToggles.map(toLaborToggle);
+// Plum, same as the certificate screens.
+const CERT_ACCENT = '#6B4C6E';
 
 const PROJECT_DETAIL_HINTS = [
   { id: 'add-floor', text: 'Start with + Add floor (e.g. Ground floor), then add rooms underneath it.' },
@@ -328,11 +331,12 @@ export default function ProjectDetailScreen() {
   // silently drop the rest, which left this 4-option menu with no visible
   // Cancel and no way to dismiss it.
   const [overflowOpen, setOverflowOpen] = useState(false);
+  const advancedMode = useSettingsStore((s) => s.advancedMode);
 
   const overflowItems = project
     ? [
-        { label: 'Documents', onPress: () => router.push(`/project/drawings/${id}` as any) },
-        { label: 'Certificates', onPress: () => router.push(`/project/certificates/${id}` as any) },
+        // Certificates lives on the main action row; Documents is advanced-only.
+        ...(advancedMode ? [{ label: 'Documents', onPress: () => router.push(`/project/drawings/${id}` as any) }] : []),
         { label: project.finishedAt ? 'Reopen project' : 'Mark project finished', onPress: toggleFinished },
         { label: 'Delete project', destructive: true, onPress: confirmDeleteProject },
       ]
@@ -372,6 +376,7 @@ export default function ProjectDetailScreen() {
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12}><Text style={styles.back}>‹ Back</Text></Pressable>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+          <HintHeaderSlot hint={hint} />
           <Pressable onPress={() => setOverflowOpen(true)} hitSlop={12}>
             <Text style={styles.moreBtn}>•••</Text>
           </Pressable>
@@ -387,6 +392,10 @@ export default function ProjectDetailScreen() {
         <Pressable style={[styles.reportBtn, { backgroundColor: `${colors.danger}1A`, borderColor: `${colors.danger}55` }]} onPress={() => router.push(`/project/snag/${id}` as any)} hitSlop={8}>
           <Text style={[styles.reportBtnIcon, { color: colors.danger }]}>⚠</Text>
           <Text style={[styles.reportBtnText, { color: colors.danger }]}>Snags</Text>
+        </Pressable>
+        <Pressable style={[styles.reportBtn, { backgroundColor: `${CERT_ACCENT}1A`, borderColor: `${CERT_ACCENT}55` }]} onPress={() => router.push(`/project/certificates/${id}` as any)} hitSlop={8}>
+          <Text style={[styles.reportBtnIcon, { color: CERT_ACCENT }]}>✓</Text>
+          <Text style={[styles.reportBtnText, { color: CERT_ACCENT }]}>Certs</Text>
         </Pressable>
         <Pressable style={[styles.reportBtn, { backgroundColor: `${colors.accentSecondary}1A`, borderColor: `${colors.accentSecondary}55` }]} onPress={generateReport} disabled={reportBusy} hitSlop={8}>
           <Text style={[styles.reportBtnIcon, { color: colors.accentSecondary }]}>▤</Text>
@@ -652,7 +661,7 @@ export default function ProjectDetailScreen() {
         items={overflowItems}
         onClose={() => setOverflowOpen(false)}
       />
-      <ScreenHints hint={hint} bottomInset={insets.bottom} />
+      <ScreenHints hint={hint} bottomInset={insets.bottom} showFab={false} />
     </SafeAreaView>
   );
 }

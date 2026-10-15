@@ -12,7 +12,7 @@ import { colors, space, radius, type as typo } from '@/src/ui/theme/tokens';
 import type { Material } from '@/src/domain/types';
 import { HeaderMicButton } from '@/src/ui/voice/HeaderMicButton';
 import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
-import { ScreenHints } from '@/src/ui/hints/ScreenHints';
+import { ScreenHints, HintHeaderSlot } from '@/src/ui/hints/ScreenHints';
 
 type Tab = 'materials' | 'assemblies';
 
@@ -99,7 +99,10 @@ export default function CatalogueScreen() {
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
         <Text style={styles.title}>Catalogue</Text>
-        <HeaderMicButton />
+        <View style={styles.headerRight}>
+          <HintHeaderSlot hint={hint} />
+          <HeaderMicButton />
+        </View>
       </View>
 
       {/* Tabs */}
@@ -236,7 +239,7 @@ export default function CatalogueScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-      <ScreenHints hint={hint} bottomInset={insets.bottom} />
+      <ScreenHints hint={hint} bottomInset={insets.bottom} showFab={false} />
     </SafeAreaView>
   );
 }
@@ -248,6 +251,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.lg, paddingVertical: space.md,
   },
   back: { color: colors.textSecondary, fontSize: 16, fontWeight: '600', width: 60 },
+  // Same width as back so the title stays centred.
+  headerRight: { minWidth: 60, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: space.xs },
   title: { fontSize: 20, fontWeight: '800', color: colors.textPrimary },
 
   tabRow: {

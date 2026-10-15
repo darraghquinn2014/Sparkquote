@@ -1,5 +1,5 @@
 import React from 'react';
-import { HintBubble, HintFab } from './HintBubble';
+import { HintBubble, HintFab, HintHeaderButton } from './HintBubble';
 import type { useHintWalkthrough } from './useHintWalkthrough';
 
 interface ScreenHintsProps {
@@ -10,12 +10,23 @@ interface ScreenHintsProps {
    * padding. Tab screens (content box already ends above the tab bar) should
    * leave this at the default 0. */
   bottomInset?: number;
+  /** false = the screen puts a HintHeaderSlot in its header instead of the
+   * floating "?" (which can cover content at the bottom of the screen). */
+  showFab?: boolean;
 }
 
 /** Renders the active hint bubble (if any) plus the persistent "?" replay FAB
  * for a screen wired up via useHintWalkthrough. Drop this once near the end
  * of a screen's JSX, after everything else so it draws on top. */
-export function ScreenHints({ hint, bottomInset = 0 }: ScreenHintsProps) {
+/** The "?" replay button for a screen header. Stays visible while a hint is
+ * showing so the header doesn't shift; hidden when hints are off. Pair with
+ * <ScreenHints showFab={false} />. */
+export function HintHeaderSlot({ hint }: { hint: ReturnType<typeof useHintWalkthrough> }) {
+  if (!hint.hintsEnabled) return null;
+  return <HintHeaderButton onPress={hint.replay} />;
+}
+
+export function ScreenHints({ hint, bottomInset = 0, showFab = true }: ScreenHintsProps) {
   if (!hint.hintsEnabled) return null;
   return (
     <>
@@ -29,7 +40,7 @@ export function ScreenHints({ hint, bottomInset = 0 }: ScreenHintsProps) {
           bottomInset={bottomInset}
         />
       )}
-      {!hint.active && <HintFab onPress={hint.replay} bottomInset={bottomInset} />}
+      {showFab && !hint.active && <HintFab onPress={hint.replay} bottomInset={bottomInset} />}
     </>
   );
 }

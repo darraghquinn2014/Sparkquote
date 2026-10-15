@@ -25,7 +25,7 @@ import { useVoiceAction } from '@/src/voice/voice-bus';
 import { HeaderMicButton } from '@/src/ui/voice/HeaderMicButton';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
-import { ScreenHints } from '@/src/ui/hints/ScreenHints';
+import { ScreenHints, HintHeaderSlot } from '@/src/ui/hints/ScreenHints';
 
 const allToggles = seedLaborToggles.map(toLaborToggle);
 const toggleIndex = new Map(allToggles.map((t) => [t.id, t]));
@@ -49,6 +49,7 @@ export default function EstimateScreen() {
   const setHourlyRate = useEstimateStore((s) => s.setHourlyRate);
   const addLabour = useEstimateStore((s) => s.addLabour);
   const showLaborBreakdown = useSettingsStore((s) => s.showLaborBreakdown);
+  const advancedMode = useSettingsStore((s) => s.advancedMode);
   const [editing, setEditing] = useState<LineItem | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [labourOpen, setLabourOpen] = useState(false);
@@ -111,7 +112,10 @@ export default function EstimateScreen() {
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
         <Text style={styles.title}>Quick quote</Text>
-        <HeaderMicButton />
+        <View style={styles.headerRight}>
+          <HintHeaderSlot hint={hint} />
+          <HeaderMicButton />
+        </View>
       </View>
 
       <View style={styles.headerBtns}>
@@ -124,9 +128,11 @@ export default function EstimateScreen() {
         <Pressable style={styles.addItemBtn} onPress={() => setPickerOpen(true)}>
           <Text style={styles.addItemText} numberOfLines={1}>+ Material</Text>
         </Pressable>
-        <Pressable style={styles.addItemBtn} onPress={() => setShoppingOpen(true)}>
-          <Text style={styles.addItemText} numberOfLines={1}>+ Shop</Text>
-        </Pressable>
+        {advancedMode && (
+          <Pressable style={styles.addItemBtn} onPress={() => setShoppingOpen(true)}>
+            <Text style={styles.addItemText} numberOfLines={1}>+ Shop</Text>
+          </Pressable>
+        )}
       </View>
 
       <FlatList
@@ -150,7 +156,7 @@ export default function EstimateScreen() {
             </View>
           ) : null
         }
-        ListEmptyComponent={<Text style={styles.empty}>No items yet. Add a job, labour, or material above — or just say it.</Text>}
+        ListEmptyComponent={<Text style={styles.empty}>No items yet. Add a job, labour, or material above.</Text>}
         ListFooterComponent={estimate.lineItems.length === 0 ? null : (
           <View style={styles.footer}>
             <Pressable style={styles.rateRow} onPress={() => { setRateText(String(estimate.hourlyRateMinor / 100)); setRateEditing(true); }}>
@@ -264,7 +270,7 @@ export default function EstimateScreen() {
         estimate={estimate}
         onClose={() => setShoppingOpen(false)}
       />
-      <ScreenHints hint={hint} bottomInset={insets.bottom} />
+      <ScreenHints hint={hint} bottomInset={insets.bottom} showFab={false} />
     </SafeAreaView>
   );
 }
@@ -276,6 +282,8 @@ const styles = StyleSheet.create({
     paddingVertical: space.md,
   },
   back: { color: colors.textSecondary, fontSize: 16, fontWeight: '600', width: 60 },
+  // Same width as back so the title stays centred.
+  headerRight: { minWidth: 60, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: space.xs },
   title: { fontSize: 20, fontWeight: '800', color: colors.textPrimary },
   addItemBtn: { flex: 1, alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.pill, paddingHorizontal: 4, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.hairline },
   addItemText: { color: colors.accent, fontWeight: '700', fontSize: 13 },

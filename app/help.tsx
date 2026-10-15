@@ -195,12 +195,13 @@ const HELP_GROUPS: HelpGroup[] = [
           { label: 'Site address', detail: 'Tap to add/edit it, or refresh its GPS pin.' },
           { label: '£ Quote', detail: 'Opens the per-room Project Quote screen.' },
           { label: '⚠ Snags', detail: "Opens this project's punch list." },
+          { label: '✓ Certs', detail: "Opens this project's certificates (Minor Works, EIC, EICR)." },
           { label: '▤ Report', detail: 'Generates and shares an internal PDF report (floors, rooms, photos, line items) — for your own records, distinct from the client-facing quote PDF.' },
           { label: '+ Add floor', detail: 'Adds a top-level floor/area — a chip list of common names, or "+ Custom".' },
           { label: 'Floor row', detail: 'Tap to open its Floor detail screen. "Plan" opens/imports its floor plan. Edit/Delete rename or remove it (deleting a floor takes its rooms with it).' },
           { label: '+ Add room', detail: 'Adds a nested room under a floor, same quick-name chips.' },
           { label: 'Room row', detail: 'Tap to open the Room screen (photos, walls). Edit/Delete as above.' },
-          { label: '••• overflow', detail: 'Documents (drawings/PDFs/photos filed against the project), Certificates (BS7671/EICR paperwork), Mark project finished/Reopen, and Delete project (destructive).' },
+          { label: '••• overflow', detail: 'Documents (drawings/PDFs/photos filed against the project — advanced features only), Mark project finished/Reopen, and Delete project (destructive).' },
         ],
       },
       {
@@ -265,7 +266,7 @@ const HELP_GROUPS: HelpGroup[] = [
         icon: '📄',
         accent: colors.catLighting,
         title: 'Documents',
-        summary: 'A per-project filing cabinet for drawings, PDFs, and any other reference file.',
+        summary: 'A per-project filing cabinet for drawings, PDFs, and any other reference file. Needs “Show advanced features” on in Settings.',
         actions: [
           { label: '+ Add', detail: 'Imports one or more files of any type at once.' },
           { label: 'Tap an image', detail: 'Opens a pinch-to-zoom viewer with Share.' },
@@ -313,7 +314,7 @@ const HELP_GROUPS: HelpGroup[] = [
         title: 'Certificates (EICR / BS7671)',
         summary: "Generate compliance paperwork for a job — separate from the client quote, and never shown on it.",
         actions: [
-          { label: 'Reaching it', detail: "A project's ••• overflow menu → \"Certificates\"." },
+          { label: 'Reaching it', detail: "The ✓ Certs button at the top of a project." },
           { label: '+ New certificate', detail: 'Choose Minor Works Certificate, Electrical Installation Certificate (EIC), or Electrical Installation Condition Report (EICR).' },
           { label: 'Minor Works form', detail: 'Client/description, installation details (earthing, protective device), the essential test results, and a declaration.' },
           { label: 'EIC form', detail: 'Client/installation details, supply characteristics, particulars at the origin, and a repeatable Schedule of Test Results — "+ Add circuit" per circuit tested, "Remove" takes one off.' },
@@ -405,6 +406,8 @@ const HELP_GROUPS: HelpGroup[] = [
         title: 'Settings',
         summary: 'Your defaults for every new estimate, plus links to everything else app-wide.',
         actions: [
+          { label: 'Show advanced features', detail: 'Off by default to keep things simple. Turn it on for site calculators (Tools), voice control, the shopping list, project Documents, and the Voice, Photos & storage, Cloud backup and Profit report settings.' },
+          { label: 'Run setup again', detail: 'Re-opens the first-run setup: business name and logo, labour rate, VAT, and which price list to use.' },
           { label: 'Labour rate / VAT rate / Currency', detail: 'The defaults new estimates start with — each can still be overridden per-estimate or per-project.' },
           { label: 'Business profile', detail: 'Your logo, company name, and tagline shown on every PDF.' },
           { label: 'Voice & vocabulary', detail: 'Re-opens the voice setup screen any time.' },

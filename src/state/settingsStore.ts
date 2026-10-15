@@ -28,6 +28,9 @@ interface SettingsData {
   /** Price list (material catalogueId) the Material Picker opens filtered
    * to. null = show every installed price list. */
   preferredSupplierId: string | null;
+  /** Simple mode is the default: Tools, voice, the shopping list, project
+   * Documents and the less-used Settings rows stay hidden until this is on. */
+  advancedMode: boolean;
 }
 
 const DEFAULTS: SettingsData = {
@@ -42,6 +45,7 @@ const DEFAULTS: SettingsData = {
   seenHintGroups: [],
   firstRunSetupComplete: false,
   preferredSupplierId: null,
+  advancedMode: false,
 };
 
 const settingsPath = () =>
@@ -77,6 +81,7 @@ interface SettingsStore extends SettingsData {
   resetHints: () => void;
   setFirstRunSetupComplete: (complete: boolean) => void;
   setPreferredSupplierId: (id: string | null) => void;
+  setAdvancedMode: (on: boolean) => void;
 }
 
 function snapshot(s: SettingsStore): SettingsData {
@@ -92,6 +97,7 @@ function snapshot(s: SettingsStore): SettingsData {
     seenHintGroups: s.seenHintGroups,
     firstRunSetupComplete: s.firstRunSetupComplete,
     preferredSupplierId: s.preferredSupplierId,
+    advancedMode: s.advancedMode,
   };
 }
 
@@ -175,5 +181,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   setPreferredSupplierId: (id) => {
     set({ preferredSupplierId: id });
     saveToDisk({ ...snapshot(get()), preferredSupplierId: id });
+  },
+
+  setAdvancedMode: (on) => {
+    set({ advancedMode: on });
+    saveToDisk({ ...snapshot(get()), advancedMode: on });
   },
 }));

@@ -13,7 +13,7 @@ import { colors, space, radius, type as typo } from '@/src/ui/theme/tokens';
 import { TabBarHeightReporter } from '@/src/ui/TabBarHeightReporter';
 import { HeaderMicButton } from '@/src/ui/voice/HeaderMicButton';
 import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
-import { ScreenHints } from '@/src/ui/hints/ScreenHints';
+import { ScreenHints, HintHeaderSlot } from '@/src/ui/hints/ScreenHints';
 
 const PROJECTS_LIST_HINTS = [
   { id: 'new-project', text: 'Tap + New project to start a full job — you\'ll add floors, rooms, photos and pricing per room.' },
@@ -63,6 +63,7 @@ export default function ProjectsScreen() {
           <Pressable style={styles.newBtn} onPress={() => router.push('/project/new' as any)}>
             <Text style={styles.newText}>+ New project</Text>
           </Pressable>
+          <HintHeaderSlot hint={hint} />
           <HeaderMicButton />
         </View>
       </View>
@@ -131,7 +132,7 @@ export default function ProjectsScreen() {
           )}
         />
       )}
-      <ScreenHints hint={hint} />
+      <ScreenHints hint={hint} showFab={false} />
     </SafeAreaView>
   );
 }

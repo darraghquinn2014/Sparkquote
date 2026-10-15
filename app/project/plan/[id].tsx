@@ -67,7 +67,7 @@ import { PlacedSymbolGroup, SYMBOL_TYPE_COLORS } from '@/src/ui/annotations/symb
 import { scanFloorPlanForSymbols } from '@/src/ai/plan-scan-service';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
-import { ScreenHints } from '@/src/ui/hints/ScreenHints';
+import { ScreenHints, HintHeaderSlot } from '@/src/ui/hints/ScreenHints';
 
 const FLOOR_PLAN_HINTS = [
   { id: 'calibrate-first', text: "Once you've imported a plan, tap Calibrate and mark two ends of a known distance (a printed dimension, or one you measure on site) — this makes wall lengths and room sizes accurate." },
@@ -863,13 +863,16 @@ export default function FloorPlanScreen() {
           <Pressable onPress={() => router.back()} hitSlop={12}>
             <Text style={styles.back}>‹ Back</Text>
           </Pressable>
-          {floorPlan ? (
-            <Pressable onPress={openOverflow} hitSlop={12}>
-              <Text style={styles.moreBtn}>•••</Text>
-            </Pressable>
-          ) : (
-            <View style={{ width: 24 }} />
-          )}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+            <HintHeaderSlot hint={hint} />
+            {floorPlan ? (
+              <Pressable onPress={openOverflow} hitSlop={12}>
+                <Text style={styles.moreBtn}>•••</Text>
+              </Pressable>
+            ) : (
+              <View style={{ width: 24 }} />
+            )}
+          </View>
           <View style={styles.headerTitleOverlay} pointerEvents="none">
             <Text style={styles.title} numberOfLines={1}>{floor.name.toUpperCase()}</Text>
             {project?.name ? <Text style={styles.sub} numberOfLines={1}>{project.name}</Text> : null}
@@ -1041,7 +1044,7 @@ export default function FloorPlanScreen() {
             <View style={styles.actionBar}>{renderActionBar()}</View>
           </>
         )}
-        <ScreenHints hint={hint} bottomInset={insets.bottom} />
+        <ScreenHints hint={hint} bottomInset={insets.bottom} showFab={false} />
       </SafeAreaView>
 
       <SimpleCameraCapture

@@ -127,6 +127,8 @@ export function GlobalVoiceControl() {
     || pathname === '/feedback' || pathname === '/setup';
   const { projectId: currentProjectId, locationId: currentLocationId } = useCurrentProjectContext();
   const voice = useVoiceCommand();
+  // Voice is an advanced feature: no mic FAB in simple mode.
+  const advancedMode = useSettingsStore((s) => s.advancedMode);
 
   const [visible, setVisible] = useState(false);
   const [step, setStep] = useState<Step>('idle');
@@ -1828,7 +1830,7 @@ export function GlobalVoiceControl() {
 
   return (
     <>
-      {pathname !== '/voice-setup' && !hasOwnHeaderMic && !isVoiceFreeScreen && (
+      {advancedMode && pathname !== '/voice-setup' && !hasOwnHeaderMic && !isVoiceFreeScreen && (
         <Pressable
           style={[
             styles.fab,
