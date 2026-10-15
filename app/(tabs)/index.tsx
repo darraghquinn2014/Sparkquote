@@ -139,10 +139,9 @@ export default function HomeScreen() {
           await seedIfEmpty();
           await repairMissingSeedMaterials();
           await prefixAssembliesWithInstall();
+          // Voice setup is no longer forced on first launch — it's optional,
+          // reachable from Settings → "Voice & vocabulary".
           await Promise.all([hydrate(), hydrateSettings()]);
-          if (!useSettingsStore.getState().voiceSetupComplete) {
-            router.push('/voice-setup' as any);
-          }
           const [projects, cat] = await Promise.all([loadProjects(), loadCatalogue()]);
           setProjectCount(projects.length);
           setMaterialCount(cat.materials.length);
