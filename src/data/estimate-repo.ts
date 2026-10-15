@@ -57,6 +57,9 @@ export async function saveActiveEstimate(estimate: Estimate): Promise<void> {
       r.vatRatePct = estimate.vatRatePct;
       r.showLaborBreakdown = estimate.showLaborBreakdown ?? true;
       r.appliedLaborToggleIds = JSON.stringify(estimate.appliedLaborToggleIds);
+      // Set when the quick quote was started by repeating an earlier quote.
+      r.clientId = estimate.clientId ?? null;
+      r.clientName = estimate.clientName ?? null;
     };
 
     if (estRow) {

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { chaseUpMessage, daysSince, needsChaseUp, statusChange } from '../quotes';
+import { chaseUpMessage, copyAsNewDraft, daysSince, needsChaseUp, statusChange } from '../quotes';
+import type { Estimate } from '../types';
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.UTC(2026, 9, 16, 12);
@@ -56,5 +57,38 @@ describe('chaseUpMessage', () => {
     const msg = chaseUpMessage({ sentAt: NOW, totalText: '£10.00' });
     expect(msg.startsWith('Hi, just following up')).toBe(true);
     expect(msg.endsWith('Thanks')).toBe(true);
+  });
+});
+
+describe('copyAsNewDraft', () => {
+  const source: Estimate = {
+    id: 'q1', mode: 'project', status: 'invoiced', currency: 'GBP', hourlyRateMinor: 5500, vatRatePct: 20,
+    appliedLaborToggleIds: ['t1'], clientId: 'c1', clientName: 'John', sentAt: 1, statusChangedAt: 2, createdAt: 3,
+    lineItems: [
+      { id: 'l1', description: 'Socket', resolvedMaterialCostMinor: 500, laborBaseHours: 1, quantity: 2, appliedLaborToggleIds: [], locationId: 'room1' },
+      { id: 'l2', description: 'Cable', resolvedMaterialCostMinor: 90, laborBaseHours: 0, quantityMeters: 10, appliedLaborToggleIds: [] },
+    ],
+  };
+  let n = 0;
+  const copy = copyAsNewDraft(source, { estimateId: 'new', lineId: () => `nl${++n}` });
+
+  it('resets to a quick draft with no dates', () => {
+    expect(copy).toMatchObject({ id: 'new', mode: 'quick', status: 'draft' });
+    expect(copy.sentAt).toBeUndefined();
+    expect(copy.statusChangedAt).toBeUndefined();
+    expect(copy.createdAt).toBeUndefined();
+  });
+
+  it('keeps client, rates and items, with new line ids and no rooms', () => {
+    expect(copy).toMatchObject({ clientId: 'c1', clientName: 'John', hourlyRateMinor: 5500, appliedLaborToggleIds: ['t1'] });
+    expect(copy.lineItems.map((l) => l.id)).toEqual(['nl1', 'nl2']);
+    expect(copy.lineItems[0]).not.toHaveProperty('locationId');
+    expect(copy.lineItems[0]).toMatchObject({ description: 'Socket', quantity: 2, resolvedMaterialCostMinor: 500 });
+    expect(copy.lineItems[1]).toMatchObject({ quantityMeters: 10 });
+  });
+
+  it('leaves the source untouched', () => {
+    expect(source.lineItems[0]!.id).toBe('l1');
+    expect(source.status).toBe('invoiced');
   });
 });

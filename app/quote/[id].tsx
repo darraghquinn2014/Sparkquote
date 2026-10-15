@@ -15,7 +15,7 @@ import { loadBusinessProfile, readLogoDataUri } from '@/src/data/business-profil
 import { priceEstimate } from '@/src/domain/pricing';
 import { formatMoney } from '@/src/domain/money';
 import {
-  chaseUpMessage, daysSince, needsChaseUp, QUOTE_STATUSES, QUOTE_STATUS_LABELS,
+  chaseUpMessage, copyAsNewDraft, daysSince, needsChaseUp, QUOTE_STATUSES, QUOTE_STATUS_LABELS,
 } from '@/src/domain/quotes';
 import type { Client, EstimateStatus } from '@/src/domain/types';
 import { toLaborToggle } from '@/src/data/mappers';
@@ -23,6 +23,11 @@ import { seedLaborToggles } from '@/src/data/seed/assemblies';
 import { toClientEstimate } from '@/src/pdf/client-view-model';
 import { renderEstimateHtml } from '@/src/pdf/render-html';
 import { ClientPicker } from '@/src/ui/clients/ClientPicker';
+import { loadCatalogue } from '@/src/data/catalogue-repo';
+import { applyRefresh } from '@/src/domain/recalculation';
+import { materialLookupFrom } from '@/src/domain/assembly';
+import { useEstimateStore } from '@/src/state/estimateStore';
+import { newEstimateDefaults } from '@/src/state/settingsStore';
 import { QUOTE_STATUS_COLORS } from '@/src/ui/quotes/StatusChip';
 import { colors, radius, space } from '@/src/ui/theme/tokens';
 
@@ -105,6 +110,42 @@ export default function QuoteDetailScreen() {
     } catch (e) {
       Alert.alert('Could not share quote', String(e));
     }
+  };
+
+  /**
+   * Start a new quick quote from this one: same items and client, but today's
+   * labour rate/VAT and job prices refreshed from the current catalogue.
+   */
+  const repeatQuote = () => {
+    const go = async () => {
+      try {
+        const { materials, assemblies } = await loadCatalogue();
+        const stamp = Date.now().toString(36);
+        let n = 0;
+        const draft = copyAsNewDraft(estimate, { estimateId: `est_${stamp}`, lineId: () => `line_${stamp}_r${++n}` });
+        const fresh = {
+          ...draft,
+          ...newEstimateDefaults(),
+          clientId: quote.clientId,
+          clientName: quote.clientName,
+        };
+        const refreshed = applyRefresh(fresh, new Map(assemblies.map((a) => [a.id, a])), materialLookupFrom(materials));
+        useEstimateStore.getState().startFrom(refreshed);
+        router.push('/estimate' as any);
+      } catch (e) {
+        Alert.alert('Could not copy quote', String(e));
+      }
+    };
+    const current = useEstimateStore.getState().estimate.lineItems.length;
+    if (current === 0) { go(); return; }
+    Alert.alert(
+      'Replace your current quick quote?',
+      `You have a quick quote in progress with ${current} item${current === 1 ? '' : 's'}. It will be replaced by a copy of this one.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Replace', style: 'destructive', onPress: go },
+      ],
+    );
   };
 
   const confirmDelete = () => {
@@ -218,6 +259,10 @@ export default function QuoteDetailScreen() {
         })}
 
         {/* Actions */}
+        <Pressable style={styles.repeatBtn} onPress={repeatQuote}>
+          <Text style={styles.repeatText}>Repeat as new quote</Text>
+        </Pressable>
+        <Text style={styles.repeatHint}>Same items and client, at today's prices and labour rate.</Text>
         <Pressable style={styles.actionBtn} onPress={shareAgain}>
           <Text style={styles.actionText}>Share quote PDF again</Text>
         </Pressable>
@@ -289,8 +334,11 @@ const styles = StyleSheet.create({
   lineDesc: { flex: 1, color: colors.textPrimary, fontSize: 14 },
   lineQty: { color: colors.textMuted, fontSize: 13, minWidth: 40, textAlign: 'right' },
   lineTotal: { color: colors.textPrimary, fontSize: 14, fontWeight: '700', minWidth: 72, textAlign: 'right' },
+  repeatBtn: { marginTop: space.xl, backgroundColor: colors.accent, borderRadius: radius.pill, paddingVertical: space.md, alignItems: 'center' },
+  repeatText: { color: colors.accentInk, fontWeight: '800', fontSize: 15 },
+  repeatHint: { color: colors.textMuted, fontSize: 12, textAlign: 'center', marginTop: space.xs },
   actionBtn: {
-    marginTop: space.xl, borderWidth: 1, borderColor: colors.accent, borderRadius: radius.pill,
+    marginTop: space.md, borderWidth: 1, borderColor: colors.accent, borderRadius: radius.pill,
     paddingVertical: space.md, alignItems: 'center',
   },
   actionText: { color: colors.accent, fontWeight: '800', fontSize: 15 },

@@ -1,7 +1,7 @@
 /**
  * Quote tracking — pure logic for quote statuses and the chase-up nudge.
  */
-import type { EstimateStatus } from './types';
+import type { Estimate, EstimateStatus } from './types';
 
 export const QUOTE_STATUSES: readonly EstimateStatus[] = ['draft', 'sent', 'accepted', 'declined', 'invoiced'];
 
@@ -58,4 +58,25 @@ export function chaseUpMessage(opts: {
   const greeting = firstName ? `Hi ${firstName},` : 'Hi,';
   const signOff = opts.businessName?.trim() ? `\n\nThanks,\n${opts.businessName.trim()}` : '\n\nThanks';
   return `${greeting} just following up on the quote I sent on ${date} for ${opts.totalText}. Let me know if you have any questions or would like to go ahead.${signOff}`;
+}
+
+/**
+ * A fresh draft copied from an existing quote — the "repeat this quote"
+ * action. Keeps the items, rates and client; drops status/dates, gives every
+ * line a new id, and strips room links (the copy is a quick quote, which has
+ * no rooms). Prices are not touched here — the caller refreshes job lines to
+ * live catalogue prices with applyRefresh.
+ */
+export function copyAsNewDraft(
+  source: Estimate,
+  ids: { estimateId: string; lineId: () => string },
+): Estimate {
+  const { sentAt: _s, statusChangedAt: _c, createdAt: _d, ...rest } = source;
+  return {
+    ...rest,
+    id: ids.estimateId,
+    mode: 'quick',
+    status: 'draft',
+    lineItems: source.lineItems.map(({ locationId: _l, ...line }) => ({ ...line, id: ids.lineId() })),
+  };
 }

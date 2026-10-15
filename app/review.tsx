@@ -13,6 +13,7 @@ import { useSettingsStore } from '@/src/state/settingsStore';
 import { loadProjectEstimate, projectEstimateId } from '@/src/data/project-estimate-repo';
 import { loadProjects } from '@/src/data/project-repo';
 import { saveQuickQuote, setQuoteStatus } from '@/src/data/quote-repo';
+import { loadClient } from '@/src/data/client-repo';
 import type { Client, Estimate, EstimateStatus, Project } from '@/src/domain/types';
 import { loadBusinessProfile, readLogoDataUri, type BusinessProfile } from '@/src/data/business-profile';
 import * as Print from 'expo-print';
@@ -60,6 +61,15 @@ export default function ReviewRoute() {
     loadProjectEstimate(projectId).then((e) => { if (e) setProjectEstimate(e); }).catch(console.error);
     loadProjects().then((ps) => setProjectData(ps.find((p) => p.id === projectId) ?? null)).catch(console.error);
   }, [projectId]);
+
+  // A quick quote started by repeating an earlier quote carries its client.
+  useEffect(() => {
+    if (projectId || !activeEstimate.clientId) return;
+    const fallback = { id: activeEstimate.clientId, name: activeEstimate.clientName ?? '', createdAt: 0 };
+    loadClient(activeEstimate.clientId)
+      .then((c) => setQuoteClient(c ?? (fallback.name ? fallback : null)))
+      .catch(() => {});
+  }, [projectId, activeEstimate.clientId]);
 
   const clientName = projectId ? projectData?.clientName : quoteClient?.name;
 

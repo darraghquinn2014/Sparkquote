@@ -32,6 +32,8 @@ interface EstimateStore {
   reloadEstimate: () => Promise<void>;
 
   clear: () => void;
+  /** Replace the quick quote with a ready-made draft (e.g. a repeated quote). */
+  startFrom: (estimate: Estimate) => void;
   setHourlyRate: (rateMinor: number) => void;
   setStatus: (status: EstimateStatus) => void;
   setShowLaborBreakdown: (show: boolean) => void;
@@ -150,6 +152,12 @@ export const useEstimateStore = create<EstimateStore>((set, get) => ({
       const estimate = { ...s.estimate, showLaborBreakdown: show };
       persist(estimate, s.hydrated);
       return { estimate };
+    }),
+
+  startFrom: (estimate) =>
+    set((s) => {
+      persist(estimate, s.hydrated);
+      return { estimate, savedEstimate: null };
     }),
 
   clear: () =>

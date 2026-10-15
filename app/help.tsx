@@ -356,6 +356,7 @@ const HELP_GROUPS: HelpGroup[] = [
           { label: 'Reaching it', detail: 'The Quotes tile on Home. It shows how many quotes need chasing or are awaiting a reply.' },
           { label: 'Status', detail: 'Draft, Sent, Accepted, Declined or Invoiced. Tap a quote, then tap a status to change it.' },
           { label: 'Chase up', detail: 'A quote that\x27s been Sent for 3 days with no reply is flagged. Text follow-up opens a ready-written message to the client (or share it if they have no phone number saved).' },
+          { label: 'Repeat as new quote', detail: 'Copies a quote into a new Quick quote — same items and client, at today\x27s labour rate and job prices. Handy for repeat customers or the same job at a different house. (Individually added materials keep the price they had.)' },
           { label: 'Share quote PDF again', detail: 'Re-sends the same quote, e.g. if the client lost the email.' },
           { label: 'Delete quote', detail: 'Quick quotes only — project quotes stay with their project.' },
         ],
