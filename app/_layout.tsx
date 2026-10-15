@@ -47,6 +47,9 @@ export default function RootLayout() {
         <Stack.Screen name="media-settings" options={{ headerShown: false }} />
         <Stack.Screen name="feedback" options={{ headerShown: false }} />
         <Stack.Screen name="clients" options={{ headerShown: false }} />
+        <Stack.Screen name="review" options={{ headerShown: false }} />
+        <Stack.Screen name="quotes" options={{ headerShown: false }} />
+        <Stack.Screen name="quote/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <GlobalVoiceControl />

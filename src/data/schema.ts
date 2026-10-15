@@ -13,7 +13,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 21,
+  version: 22,
   tables: [
     // ── Catalogue ────────────────────────────────────────────────────────
     tableSchema({
@@ -118,13 +118,19 @@ export const schema = appSchema({
       columns: [
         { name: 'project_id', type: 'string', isOptional: true, isIndexed: true },
         { name: 'mode', type: 'string' }, // quick | project
-        { name: 'status', type: 'string' }, // draft | sent | signed
+        { name: 'status', type: 'string' }, // draft | sent | accepted | declined | invoiced
         { name: 'currency', type: 'string' },
         { name: 'hourly_rate_minor', type: 'number' },
         { name: 'vat_rate_pct', type: 'number' },
         { name: 'show_labor_breakdown', type: 'boolean', isOptional: true },
         // estimate-wide toggle ids, JSON-encoded array of strings
         { name: 'applied_labor_toggle_ids', type: 'string' },
+        // Quote tracking (v22). Quick quotes carry their own client; project
+        // quotes use the project's.
+        { name: 'client_id', type: 'string', isOptional: true, isIndexed: true },
+        { name: 'client_name', type: 'string', isOptional: true },
+        { name: 'sent_at', type: 'number', isOptional: true },
+        { name: 'status_changed_at', type: 'number', isOptional: true },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number' },
       ],

@@ -111,11 +111,11 @@ describe('planImport + commitImport (cascade)', () => {
     const plan = planImport(newRaw, existing, [assembly], [
       estimate('draft', 'd1'),
       estimate('sent', 's1'),
-      estimate('signed', 'g1'),
+      estimate('accepted', 'g1'),
     ]);
     expect(plan.draftImpacts).toHaveLength(1);
     expect(plan.draftImpacts[0]!.drifts[0]).toMatchObject({ snapshotMinor: 655, liveMinor: 780 });
-    expect(plan.frozenImpacts).toHaveLength(2); // sent + signed reported but frozen
+    expect(plan.frozenImpacts).toHaveLength(2); // sent + accepted reported but frozen
   });
 
   it('commit refreshes drafts and never touches sent/signed', async () => {

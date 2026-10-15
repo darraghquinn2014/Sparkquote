@@ -129,7 +129,8 @@ export interface LineItem {
   appliedLaborToggleIds: string[];
 }
 
-export type EstimateStatus = 'draft' | 'sent' | 'approved' | 'declined' | 'signed';
+/** Quote lifecycle. Anything other than draft freezes prices (spec §5.4). */
+export type EstimateStatus = 'draft' | 'sent' | 'accepted' | 'declined' | 'invoiced';
 export type EstimateMode = 'quick' | 'project';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -500,4 +501,13 @@ export interface Estimate {
   vatRatePct: number;
   /** Whether the client PDF shows the Materials/Labour split (true) or just the total. */
   showLaborBreakdown?: boolean;
+  /** Client for a saved quick quote (project quotes use the project's client). */
+  clientId?: string;
+  clientName?: string;
+  /** When the quote was first sent (Unix ms) — drives the chase-up nudge. */
+  sentAt?: number;
+  /** When the status last changed (Unix ms). */
+  statusChangedAt?: number;
+  /** Unix ms. Set when loaded from the database. */
+  createdAt?: number;
 }

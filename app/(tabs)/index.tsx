@@ -6,6 +6,8 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { seedIfEmpty, prefixAssembliesWithInstall, repairMissingSeedMaterials, loadCatalogue } from '@/src/data/catalogue-repo';
 import { loadProjects } from '@/src/data/project-repo';
 import { backfillClientsFromProjects } from '@/src/data/client-repo';
+import { loadQuotes } from '@/src/data/quote-repo';
+import { needsChaseUp } from '@/src/domain/quotes';
 import { useEstimateStore } from '@/src/state/estimateStore';
 import { useSettingsStore } from '@/src/state/settingsStore';
 import { priceEstimate } from '@/src/domain/pricing';
@@ -37,6 +39,8 @@ const C = {
   catalogue:  '#9B5DE5',
   tools:      '#FF6A3D',
   help:       '#00BCD4',
+  quotes:     '#FFB020',
+  chase:      '#E5564B',
 } as const;
 type Accent = keyof typeof C;
 
@@ -137,6 +141,7 @@ export default function HomeScreen() {
   const [projectCount, setProjectCount] = useState<number | null>(null);
   const [materialCount, setMaterialCount] = useState<number | null>(null);
   const [explainerOpen, setExplainerOpen] = useState(false);
+  const [quoteCounts, setQuoteCounts] = useState<{ chase: number; awaiting: number } | null>(null);
   const advancedMode = useSettingsStore((s) => s.advancedMode);
   const hint = useHintWalkthrough('home', HOME_HINTS);
 
@@ -157,8 +162,13 @@ export default function HomeScreen() {
           if (!useSettingsStore.getState().firstRunSetupComplete) {
             router.push('/setup' as any);
           }
-          const [projects, cat] = await Promise.all([loadProjects(), loadCatalogue()]);
+          const [projects, cat, quotes] = await Promise.all([loadProjects(), loadCatalogue(), loadQuotes()]);
           setProjectCount(projects.length);
+          const now = Date.now();
+          setQuoteCounts({
+            chase: quotes.filter((q) => needsChaseUp(q.estimate, now)).length,
+            awaiting: quotes.filter((q) => q.estimate.status === 'sent').length,
+          });
           setMaterialCount(cat.materials.length);
         } catch (e) {
           console.error('home init failed', e);
@@ -180,6 +190,12 @@ export default function HomeScreen() {
     : hasSaved && savedEstimate
       ? `${savedEstimate.lineItems.length} item${savedEstimate.lineItems.length !== 1 ? 's' : ''} · ${formatMoney(priceEstimate(savedEstimate, allToggles).grandTotalMinor, savedEstimate.currency)}`
       : undefined;
+
+  const quotesStat = quoteCounts == null
+    ? undefined
+    : quoteCounts.chase > 0
+      ? `${quoteCounts.chase} to chase up`
+      : quoteCounts.awaiting > 0 ? `${quoteCounts.awaiting} awaiting reply` : undefined;
 
   const catStat = materialCount == null
     ? undefined
@@ -246,6 +262,15 @@ export default function HomeScreen() {
               onPress={() => router.push('/catalogue' as never)}
             />
           </View>
+          <Block
+            accent={quoteCounts && quoteCounts.chase > 0 ? 'chase' : 'quotes'}
+            icon="✉"
+            label="Quotes"
+            sub="Sent quotes — track and chase up"
+            stat={quotesStat}
+            wide thin
+            onPress={() => router.push('/quotes' as never)}
+          />
           {advancedMode && (
             <Block
               accent="tools"

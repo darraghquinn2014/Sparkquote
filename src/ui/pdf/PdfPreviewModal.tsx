@@ -8,7 +8,8 @@ interface Props {
   visible: boolean;
   html: string | null;
   onClose: () => void;
-  /** When provided, the toolbar becomes Back / Final review instead of a single Done button. */
+  /** When provided, the toolbar becomes Back / Next and a "Next: send or sign"
+   * button runs along the bottom, instead of a single Done button. */
   onFinalReview?: () => void;
 }
 
@@ -26,7 +27,7 @@ export function PdfPreviewModal({ visible, html, onClose, onFinalReview }: Props
             <Text style={styles.toolbarTitle}>Quote preview</Text>
           )}
           <Pressable onPress={onFinalReview ?? onClose} style={styles.closeBtn} hitSlop={12}>
-            <Text style={styles.closeText}>{onFinalReview ? 'Final review ›' : 'Done'}</Text>
+            <Text style={styles.closeText}>{onFinalReview ? 'Next ›' : 'Done'}</Text>
           </Pressable>
         </View>
         {html ? (
@@ -38,6 +39,13 @@ export function PdfPreviewModal({ visible, html, onClose, onFinalReview }: Props
           />
         ) : (
           <ActivityIndicator color={colors.accent} style={styles.loader} />
+        )}
+        {onFinalReview && (
+          <View style={[styles.footer, { paddingBottom: insets.bottom + space.md }]}>
+            <Pressable style={styles.nextBtn} onPress={onFinalReview}>
+              <Text style={styles.nextText}>Next: send or sign ›</Text>
+            </Pressable>
+          </View>
         )}
       </View>
     </Modal>
@@ -57,5 +65,11 @@ const styles = StyleSheet.create({
   closeBtn: { backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.sm },
   closeText: { color: colors.accentInk, fontWeight: '800', fontSize: 14 },
   web: { flex: 1, backgroundColor: '#fff' },
+  footer: {
+    paddingHorizontal: space.lg, paddingTop: space.md,
+    borderTopWidth: 1, borderTopColor: colors.hairline, backgroundColor: colors.surface,
+  },
+  nextBtn: { backgroundColor: colors.accent, borderRadius: radius.bar, paddingVertical: space.lg, alignItems: 'center' },
+  nextText: { color: colors.accentInk, fontSize: 17, fontWeight: '800' },
   loader: { flex: 1 },
 });

@@ -264,5 +264,19 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 22,
+      steps: [
+        addColumns({
+          table: 'estimates',
+          columns: [
+            { name: 'client_id', type: 'string', isOptional: true, isIndexed: true },
+            { name: 'client_name', type: 'string', isOptional: true },
+            { name: 'sent_at', type: 'number', isOptional: true },
+            { name: 'status_changed_at', type: 'number', isOptional: true },
+          ],
+        }),
+      ],
+    },
   ],
 });

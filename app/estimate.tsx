@@ -33,7 +33,7 @@ const toggleIndex = new Map(allToggles.map((t) => [t.id, t]));
 const ESTIMATE_HINTS = [
   { id: 'add-buttons', text: 'Add + Job for a whole task (materials + labour together), or + Labour / + Material on their own.' },
   { id: 'edit-line', text: 'Tap any item in the list to edit its quantity or price. Swipe left to delete it.' },
-  { id: 'preview', text: "When you're happy with the total, tap Preview PDF quote to see it as the client will." },
+  { id: 'preview', text: "When you're happy with the total, tap Preview & send quote — check the PDF, then send it or have the client sign." },
 ];
 
 export default function EstimateScreen() {
@@ -48,6 +48,19 @@ export default function EstimateScreen() {
   const addAssembly = useEstimateStore((s) => s.addAssembly);
   const setHourlyRate = useEstimateStore((s) => s.setHourlyRate);
   const addLabour = useEstimateStore((s) => s.addLabour);
+  const clearEstimate = useEstimateStore((s) => s.clear);
+
+  const confirmClear = () => {
+    const n = estimate.lineItems.length;
+    Alert.alert(
+      'Clear this quote?',
+      `All ${n} item${n === 1 ? '' : 's'} will be removed so you can start a new quote. This can't be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Clear quote', style: 'destructive', onPress: clearEstimate },
+      ],
+    );
+  };
   const showLaborBreakdown = useSettingsStore((s) => s.showLaborBreakdown);
   const advancedMode = useSettingsStore((s) => s.advancedMode);
   const [editing, setEditing] = useState<LineItem | null>(null);
@@ -188,7 +201,10 @@ export default function EstimateScreen() {
               onPress={previewPdf}
               disabled={previewing}
             >
-              <Text style={styles.reviewBtnText}>{previewing ? 'Building…' : 'Preview PDF quote'}</Text>
+              <Text style={styles.reviewBtnText}>{previewing ? 'Building…' : 'Preview & send quote'}</Text>
+            </Pressable>
+            <Pressable onPress={confirmClear} hitSlop={8} style={styles.clearLink}>
+              <Text style={styles.clearLinkText}>Clear quote</Text>
             </Pressable>
           </View>
         )}
@@ -300,6 +316,8 @@ const styles = StyleSheet.create({
   footer: { marginTop: space.lg, paddingTop: space.lg, borderTopWidth: 1, borderTopColor: colors.hairline },
   reviewBtn: { backgroundColor: colors.accent, borderRadius: radius.pill, paddingVertical: 14, alignItems: 'center', marginTop: space.md },
   reviewBtnText: { color: colors.accentInk, fontWeight: '800', fontSize: 16 },
+  clearLink: { alignSelf: 'center', marginTop: space.md, padding: space.sm },
+  clearLinkText: { color: colors.danger, fontWeight: '700', fontSize: 15 },
   reviewBtnBusy: { opacity: 0.6 },
   rateRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.tile, padding: space.lg, marginBottom: space.lg, borderWidth: 1, borderColor: colors.hairline },
   rateLabel: { fontSize: 15, color: colors.textSecondary, fontWeight: '600' },

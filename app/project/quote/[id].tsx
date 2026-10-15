@@ -14,7 +14,9 @@ import { priceEstimate, priceLine } from '@/src/domain/pricing';
 import { formatMoney } from '@/src/domain/money';
 import { addLine, removeLine, lineFromMaterial, lineFromLabour } from '@/src/data/estimate-service';
 import { loadProjects, loadLocations } from '@/src/data/project-repo';
-import { loadProjectEstimate, saveProjectEstimate } from '@/src/data/project-estimate-repo';
+import { loadProjectEstimate, saveProjectEstimate, projectEstimateId } from '@/src/data/project-estimate-repo';
+import { StatusChip } from '@/src/ui/quotes/StatusChip';
+import { needsChaseUp } from '@/src/domain/quotes';
 import { newEstimateDefaults } from '@/src/state/settingsStore';
 import { loadCatalogue } from '@/src/data/catalogue-repo';
 import { MaterialPicker } from '@/src/ui/catalogue/MaterialPicker';
@@ -186,6 +188,14 @@ export default function ProjectQuoteScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
+        {/* Status — once the quote has been sent, link to it in the Quotes list */}
+        {estimate.status !== 'draft' && projectId ? (
+          <Pressable style={styles.statusRow} onPress={() => router.push(`/quote/${projectEstimateId(projectId)}` as any)}>
+            <StatusChip status={estimate.status} chaseUp={needsChaseUp(estimate, Date.now())} />
+            <Text style={styles.statusLink}>View in Quotes ›</Text>
+          </Pressable>
+        ) : null}
+
         {/* Labour rate */}
         {rateEditing ? (
           <View style={styles.rateRow}>
@@ -319,7 +329,7 @@ export default function ProjectQuoteScreen() {
               onPress={previewPdf}
               disabled={previewing}
             >
-              <Text style={styles.previewBtnText}>{previewing ? 'Building…' : 'Preview PDF quote'}</Text>
+              <Text style={styles.previewBtnText}>{previewing ? 'Building…' : 'Preview & send quote'}</Text>
             </Pressable>
           </View>
         )}
@@ -374,6 +384,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.lg, paddingVertical: space.md, gap: space.sm,
   },
   back: { color: colors.textSecondary, fontSize: 16, fontWeight: '600' },
+  statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.md },
+  statusLink: { color: colors.accent, fontSize: 14, fontWeight: '700' },
   headerTitle: { flex: 1, color: colors.textPrimary, fontSize: 17, fontWeight: '700', textAlign: 'center' },
   reviewBtnDisabled: { opacity: 0.35 },
   previewBtn: { backgroundColor: colors.accent, borderRadius: radius.pill, paddingVertical: space.md, alignItems: 'center', marginTop: space.lg },

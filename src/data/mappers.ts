@@ -84,13 +84,20 @@ export interface RawEstimate {
   vat_rate_pct: number;
   show_labor_breakdown?: boolean | null;
   applied_labor_toggle_ids: string;
+  client_id?: string | null;
+  client_name?: string | null;
+  sent_at?: number | null;
+  status_changed_at?: number | null;
+  created_at?: number | null;
 }
 
 // ── Validation guards for string-typed enums ──────────────────────────────
 
 const TOGGLE_TYPES: readonly LaborToggleType[] = ['percentage', 'flatMultiplier', 'timeBuffer'];
 const MODES: readonly EstimateMode[] = ['quick', 'project'];
-const STATUSES: readonly EstimateStatus[] = ['draft', 'sent', 'approved', 'declined', 'signed'];
+const STATUSES: readonly EstimateStatus[] = ['draft', 'sent', 'accepted', 'declined', 'invoiced'];
+/** Statuses from before v22 — both meant the client had agreed. */
+const LEGACY_STATUSES: Record<string, EstimateStatus> = { approved: 'accepted', signed: 'accepted' };
 const CURRENCIES: readonly Currency[] = ['GBP', 'EUR'];
 
 function assertOneOf<T extends string>(value: string, allowed: readonly T[], field: string): T {
@@ -174,10 +181,10 @@ export function toLineItem(r: RawLineItem): LineItem {
 }
 
 export function toEstimate(r: RawEstimate, lines: RawLineItem[]): Estimate {
-  return {
+  const est: Estimate = {
     id: r.id,
     mode: assertOneOf(r.mode, MODES, 'mode'),
-    status: assertOneOf(r.status, STATUSES, 'status'),
+    status: assertOneOf(LEGACY_STATUSES[r.status] ?? r.status, STATUSES, 'status'),
     currency: assertOneOf(r.currency, CURRENCIES, 'currency'),
     hourlyRateMinor: r.hourly_rate_minor,
     vatRatePct: r.vat_rate_pct,
@@ -185,6 +192,12 @@ export function toEstimate(r: RawEstimate, lines: RawLineItem[]): Estimate {
     appliedLaborToggleIds: parseIdArray(r.applied_labor_toggle_ids),
     lineItems: lines.map(toLineItem),
   };
+  if (r.client_id) est.clientId = r.client_id;
+  if (r.client_name) est.clientName = r.client_name;
+  if (r.sent_at != null) est.sentAt = r.sent_at;
+  if (r.status_changed_at != null) est.statusChangedAt = r.status_changed_at;
+  if (r.created_at != null) est.createdAt = r.created_at;
+  return est;
 }
 
 // ── Domain → Row (for persistence) ─────────────────────────────────────────

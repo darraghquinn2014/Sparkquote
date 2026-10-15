@@ -14,10 +14,11 @@ import { Q, Model } from '@nozbe/watermelondb';
 import { database } from './database';
 import { EstimateModel, LineItemModel } from './models';
 import { toEstimate, lineItemToRaw } from './mappers';
-import type { RawEstimate, RawLineItem } from './mappers';
+import type { RawLineItem } from './mappers';
+import { estimateRowToRaw, lineRowToRaw } from './estimate-rows';
 import type { Estimate, LineItem } from '../domain/types';
 
-const ACTIVE_ID = 'active-estimate';
+export const ACTIVE_ID = 'active-estimate';
 
 function applyLineFields(r: LineItemModel, line: LineItem) {
   const raw = lineItemToRaw(line, ACTIVE_ID) as RawLineItem;
@@ -113,31 +114,7 @@ export async function loadActiveEstimate(): Promise<Estimate | null> {
     .query(Q.where('estimate_id', ACTIVE_ID))
     .fetch();
 
-  const rawEstimate: RawEstimate = {
-    id: estRow.id,
-    mode: estRow.mode,
-    status: estRow.status,
-    currency: estRow.currency,
-    hourly_rate_minor: estRow.hourlyRateMinor,
-    vat_rate_pct: estRow.vatRatePct,
-    show_labor_breakdown: estRow.showLaborBreakdown,
-    applied_labor_toggle_ids: estRow.appliedLaborToggleIds,
-  };
-
-  const rawLines: RawLineItem[] = lineRows.map((l) => ({
-    id: l.id,
-    source_assembly_id: l.sourceAssemblyId,
-    location_id: l.locationId,
-    description: l.description,
-    quantity: l.quantity,
-    quantity_meters: l.quantityMeters,
-    resolved_material_cost_minor: l.resolvedMaterialCostMinor,
-    labor_base_hours: l.laborBaseHours,
-    overrides_json: l.overridesJson,
-    applied_labor_toggle_ids: l.appliedLaborToggleIds,
-  }));
-
-  return toEstimate(rawEstimate, rawLines);
+  return toEstimate(estimateRowToRaw(estRow), lineRows.map(lineRowToRaw));
 }
 
 /** Delete the active estimate and its line items. */

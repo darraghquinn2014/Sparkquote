@@ -77,7 +77,7 @@ describe('Recalculation cascade (spec §5.4)', () => {
   it('signed estimates are frozen just like sent', () => {
     const cableNew: Material = { ...cableOld, unitCostMinor: 120 };
     const lookup = materialLookupFrom([sw, bb, cableNew]);
-    const signed = makeEstimate('signed', [lineFromAssembly()]);
+    const signed = makeEstimate('accepted', [lineFromAssembly()]);
     expect(computeDrift(signed, assemblies, lookup).refreshAllowed).toBe(false);
     expect(applyRefresh(signed, assemblies, lookup)).toBe(signed);
   });

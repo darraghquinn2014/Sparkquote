@@ -99,4 +99,19 @@ describe('mappers', () => {
     expect(est.mode).toBe('quick');
     expect(est.lineItems).toHaveLength(1);
   });
+
+  it('reads pre-v22 approved/signed statuses as accepted', () => {
+    const base = { id: 'e1', mode: 'quick', currency: 'GBP', hourly_rate_minor: 5000, vat_rate_pct: 20, applied_labor_toggle_ids: '[]' };
+    expect(toEstimate({ ...base, status: 'signed' }, []).status).toBe('accepted');
+    expect(toEstimate({ ...base, status: 'approved' }, []).status).toBe('accepted');
+  });
+
+  it('maps quote tracking fields', () => {
+    const est = toEstimate(
+      { id: 'e1', mode: 'quick', status: 'sent', currency: 'GBP', hourly_rate_minor: 5000, vat_rate_pct: 20, applied_labor_toggle_ids: '[]',
+        client_id: 'c1', client_name: 'John', sent_at: 1000, status_changed_at: 2000, created_at: 500 },
+      [],
+    );
+    expect(est).toMatchObject({ clientId: 'c1', clientName: 'John', sentAt: 1000, statusChangedAt: 2000, createdAt: 500 });
+  });
 });

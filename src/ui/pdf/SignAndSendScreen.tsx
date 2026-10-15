@@ -4,7 +4,7 @@
  * The client-facing close-out: review the total on-screen, sign with a finger,
  * and the signature is embedded into a locked PDF ready to share. The signature
  * pad emits a base64 PNG which goes straight into the PDF template's signature
- * block. Signing transitions the estimate to 'signed' (frozen — see §5.4).
+ * block. Signing marks the quote accepted (frozen — see §5.4).
  *
  * Uses react-native-signature-canvas for the finger pad. Verified by typecheck
  * + review; the canvas and print/share calls need a device to execute.
