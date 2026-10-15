@@ -45,7 +45,8 @@ const HELP_GROUPS: HelpGroup[] = [
         title: 'Home screen',
         summary: 'Your starting point — a quick price, a project, or a tool, one tap away.',
         actions: [
-          { label: 'Quick estimate tile', detail: 'Opens the Estimate screen — the same live estimate whether you got there from here or from "+Job" anywhere else. Shows your current item count and total if one is in progress.' },
+          { label: 'Quick quote tile', detail: 'For a one-off job. Opens the Estimate screen — the same live estimate whether you got there from here or from "+Job" anywhere else. Shows your current item count and total if one is in progress.' },
+          { label: 'Which one?', detail: 'On the Quick quote tile. Explains Quick quote vs Project side by side, with a button into each. A quick quote can\x27t be moved into a project later, so if the job might grow, start a project.' },
           { label: 'Projects tile', detail: 'Jumps to the Projects tab. Shows how many projects you have.' },
           { label: 'Catalogue tile', detail: 'Opens materials & assemblies. Shows your material count.' },
           { label: 'Tools bar', detail: 'Opens the site calculators hub (Voltage Drop, Ohm\'s Law).' },
@@ -63,7 +64,7 @@ const HELP_GROUPS: HelpGroup[] = [
         icon: '⚡',
         accent: colors.accent,
         title: 'Quick Quote & Estimate',
-        summary: 'Build a fast, itemised estimate — jobs, labour, materials — with the total updating live.',
+        summary: 'For one-off jobs: a fast, itemised estimate — jobs, labour, materials — with the total updating live. Bigger multi-room jobs go in a Project.',
         actions: [
           { label: '+ Job', detail: 'Opens the Assembly Picker — tap one of your saved "Add-Job" assemblies (materials + labour bundled) to add it as a line. Tap again to add another; use remove to take one off.' },
           { label: '+ Labour', detail: 'Opens the Labour sheet — an hours-based line (recalculates if you change your hourly rate) or a fixed flat amount that ignores the rate entirely.' },
@@ -73,7 +74,7 @@ const HELP_GROUPS: HelpGroup[] = [
           { label: 'Swipe a line left', detail: 'Reveals Delete.' },
           { label: 'Labour rate row', detail: 'Tap to edit your hourly rate inline; every hours-based labour line recalculates immediately.' },
           { label: 'Preview PDF quote', detail: 'Renders the client-facing PDF (no internal costs or markup — just what the client sees) so you can check it before Review & sign.' },
-          { label: '"Last estimate" banner', detail: 'Only shows if you have unsaved work waiting. Resume restores it; ✕ dismisses it for good.' },
+          { label: '"Last quick quote" banner', detail: 'Only shows if you have unsaved work waiting. Resume restores it; ✕ dismisses it for good.' },
         ],
       },
       {

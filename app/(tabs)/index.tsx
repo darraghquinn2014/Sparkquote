@@ -22,6 +22,7 @@ import {
   LightningIllustration,
   ShelvesIllustration,
 } from '@/src/ui/home/CardIllustrations';
+import { QuoteTypeExplainer } from '@/src/ui/home/QuoteTypeExplainer';
 
 const allToggles = seedLaborToggles.map(toLaborToggle);
 const { width: W } = Dimensions.get('window');
@@ -39,8 +40,8 @@ const C = {
 type Accent = keyof typeof C;
 
 const HOME_HINTS = [
-  { id: 'quick-estimate', text: "Start here for a quick, on-the-spot price — tap Quick estimate, or just talk (tap the mic)." },
-  { id: 'projects', text: 'For a full job with floors, rooms and photos, use Projects instead of Quick estimate.' },
+  { id: 'quick-estimate', text: "For a one-off job, tap Quick quote for an on-the-spot price — or just talk (tap the mic)." },
+  { id: 'projects', text: 'For a bigger job across several rooms, use Projects instead. Not sure which? Tap “Which one?” on the Quick quote tile.' },
   { id: 'help', text: "Stuck? Tap Help any time — and you can switch these tips off in Settings once you're comfortable." },
 ];
 
@@ -51,13 +52,15 @@ interface BlockProps {
   sub: string;
   stat?: string;
   illustration?: React.ReactNode;
+  /** Small extra control pinned top-right (standard layout only). */
+  aside?: React.ReactNode;
   onPress: () => void;
   wide?: boolean;
   tall?: boolean;
   thin?: boolean;
 }
 
-function Block({ accent, icon, label, sub, stat, illustration, onPress, wide, tall, thin }: BlockProps) {
+function Block({ accent, icon, label, sub, stat, illustration, aside, onPress, wide, tall, thin }: BlockProps) {
   const color = C[accent];
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({
@@ -102,15 +105,17 @@ function Block({ accent, icon, label, sub, stat, illustration, onPress, wide, ta
         ) : (
           /* Standard vertical layout */
           <>
-            <View style={[styles.badge, { backgroundColor: color + '22' }]}>
-              <Text style={[styles.badgeIcon, { color }]}>{icon}</Text>
+            <View style={styles.blockTop}>
+              <View style={[styles.badge, { backgroundColor: color + '22' }]}>
+                <Text style={[styles.badgeIcon, { color }]}>{icon}</Text>
+              </View>
+              {aside}
             </View>
             <View style={styles.blockBottom}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.blockLabel}>{label}</Text>
-                <Text style={stat ? [styles.blockStat, { color }] : styles.blockSub}>
-                  {stat ?? sub}
-                </Text>
+                <Text style={styles.blockSub}>{sub}</Text>
+                {stat ? <Text style={[styles.blockStat, { color, marginTop: 4 }]}>{stat}</Text> : null}
               </View>
               <Text style={[styles.blockArrow, { color }]}>›</Text>
             </View>
@@ -130,6 +135,7 @@ export default function HomeScreen() {
 
   const [projectCount, setProjectCount] = useState<number | null>(null);
   const [materialCount, setMaterialCount] = useState<number | null>(null);
+  const [explainerOpen, setExplainerOpen] = useState(false);
   const hint = useHintWalkthrough('home', HOME_HINTS);
 
   useFocusEffect(
@@ -167,7 +173,7 @@ export default function HomeScreen() {
     ? `${estimate.lineItems.length} item${estimate.lineItems.length !== 1 ? 's' : ''} · ${formatMoney(priceEstimate(estimate, allToggles).grandTotalMinor, estimate.currency)}`
     : hasSaved && savedEstimate
       ? `${savedEstimate.lineItems.length} item${savedEstimate.lineItems.length !== 1 ? 's' : ''} · ${formatMoney(priceEstimate(savedEstimate, allToggles).grandTotalMinor, savedEstimate.currency)}`
-      : 'No estimate yet';
+      : undefined;
 
   const catStat = materialCount == null
     ? undefined
@@ -199,9 +205,14 @@ export default function HomeScreen() {
           <Block
             accent="estimate"
             icon="⚡"
-            label="Quick estimate"
-            sub="Rough price on the spot — tap or talk"
-            stat={estimateStat}
+            label="Quick quote"
+            sub="One-off job, priced on the spot — e.g. add 2 sockets"
+            stat={estimateStat ? `In progress: ${estimateStat}` : undefined}
+            aside={
+              <Pressable onPress={() => setExplainerOpen(true)} hitSlop={10} style={[styles.asideLink, { borderColor: C.estimate }]}>
+                <Text style={[styles.asideLinkText, { color: C.estimate }]}>Which one?</Text>
+              </Pressable>
+            }
             illustration={<LightningIllustration color={C.estimate} size={100} />}
             wide tall
             onPress={() => router.push('/estimate' as never)}
@@ -211,7 +222,7 @@ export default function HomeScreen() {
               accent="projects"
               icon="⊞"
               label="Projects"
-              sub="Jobs, rooms & photos"
+              sub="Multi-room jobs — e.g. a rewire"
               stat={projectStat}
               illustration={<HouseIllustration color={C.projects} size={72} />}
               onPress={() => router.navigate('/(tabs)/projects' as never)}
@@ -244,6 +255,14 @@ export default function HomeScreen() {
           />
         </View>
       </ScrollView>
+      <QuoteTypeExplainer
+        visible={explainerOpen}
+        quickColor={C.estimate}
+        projectColor={C.projects}
+        onQuick={() => { setExplainerOpen(false); router.push('/estimate' as never); }}
+        onProject={() => { setExplainerOpen(false); router.navigate('/(tabs)/projects' as never); }}
+        onClose={() => setExplainerOpen(false)}
+      />
       <ScreenHints hint={hint} />
     </SafeAreaView>
   );
@@ -309,6 +328,8 @@ const styles = StyleSheet.create({
     padding: space.lg,
     justifyContent: 'space-between',
     overflow: 'hidden',
+    // Fill the row height so side-by-side tiles match when one has more text.
+    flexGrow: 1,
     // Coloured glow — visible on iOS; elevation adds depth on Android
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
@@ -338,6 +359,9 @@ const styles = StyleSheet.create({
   badgeIcon: { fontSize: 22, fontWeight: '700' },
   badgeIconSm: { fontSize: 18, fontWeight: '700' },
 
+  blockTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  asideLink: { borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: 6, backgroundColor: colors.ground },
+  asideLinkText: { fontSize: 13, fontWeight: '800' },
   blockBottom: {
     flexDirection: 'row',
     alignItems: 'flex-end',

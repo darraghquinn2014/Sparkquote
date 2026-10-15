@@ -110,7 +110,7 @@ export default function EstimateScreen() {
         <Pressable onPress={() => router.back()} hitSlop={12}>
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
-        <Text style={styles.title}>Current estimate</Text>
+        <Text style={styles.title}>Quick quote</Text>
         <HeaderMicButton />
       </View>
 
@@ -136,7 +136,7 @@ export default function EstimateScreen() {
           savedEstimate && estimate.lineItems.length === 0 ? (
             <View style={styles.resumeBanner}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.resumeTitle}>Last estimate</Text>
+                <Text style={styles.resumeTitle}>Last quick quote</Text>
                 <Text style={styles.resumeSub}>
                   {savedEstimate.lineItems.length} item{savedEstimate.lineItems.length !== 1 ? 's' : ''} · {formatMoney(priceEstimate(savedEstimate, allToggles).grandTotalMinor, savedEstimate.currency)}
                 </Text>
