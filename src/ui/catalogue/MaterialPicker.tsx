@@ -6,7 +6,7 @@
  * Stays open after each add (with a brief "Added" confirmation) so several
  * materials can be added in one session.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, StyleSheet, useWindowDimensions,
 } from 'react-native';
@@ -16,6 +16,7 @@ import { colors, space, radius, type } from '../theme/tokens';
 import { formatMoney } from '../../domain/money';
 import { drumLengthMeters, drumsNeededFor } from '../../domain/drum-size';
 import { packSize, packsNeededFor } from '../../domain/pack-size';
+import { useSettingsStore } from '../../state/settingsStore';
 
 interface Props {
   visible: boolean;
@@ -39,6 +40,14 @@ export function MaterialPicker({ visible, materials, currency, onAdd, onClose }:
     const ids = Array.from(new Set(materials.map((m) => m.catalogueId))).sort();
     return ids.length > 1 ? ids : [];
   }, [materials]);
+
+  // Each time the picker opens, start on the preferred price list from setup
+  // (if it's still installed); otherwise show every list.
+  const preferredSupplierId = useSettingsStore((s) => s.preferredSupplierId);
+  useEffect(() => {
+    if (!visible) return;
+    setActiveSupplier(preferredSupplierId && suppliers.includes(preferredSupplierId) ? preferredSupplierId : null);
+  }, [visible, preferredSupplierId, suppliers.join('|')]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

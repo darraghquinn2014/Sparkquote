@@ -22,6 +22,12 @@ interface SettingsData {
   /** Group ids (one per screen's walkthrough) that have already auto-played
    * once, so returning to a screen doesn't replay it uninvited. */
   seenHintGroups: string[];
+  /** Whether the first-run setup (business, rate, VAT, prices) has been
+   * finished or skipped. Re-runnable from Settings. */
+  firstRunSetupComplete: boolean;
+  /** Price list (material catalogueId) the Material Picker opens filtered
+   * to. null = show every installed price list. */
+  preferredSupplierId: string | null;
 }
 
 const DEFAULTS: SettingsData = {
@@ -34,6 +40,8 @@ const DEFAULTS: SettingsData = {
   voiceSetupComplete: false,
   hintsEnabled: true,
   seenHintGroups: [],
+  firstRunSetupComplete: false,
+  preferredSupplierId: null,
 };
 
 const settingsPath = () =>
@@ -67,6 +75,8 @@ interface SettingsStore extends SettingsData {
   setHintsEnabled: (enabled: boolean) => void;
   markHintGroupSeen: (groupId: string) => void;
   resetHints: () => void;
+  setFirstRunSetupComplete: (complete: boolean) => void;
+  setPreferredSupplierId: (id: string | null) => void;
 }
 
 function snapshot(s: SettingsStore): SettingsData {
@@ -80,6 +90,8 @@ function snapshot(s: SettingsStore): SettingsData {
     voiceSetupComplete: s.voiceSetupComplete,
     hintsEnabled: s.hintsEnabled,
     seenHintGroups: s.seenHintGroups,
+    firstRunSetupComplete: s.firstRunSetupComplete,
+    preferredSupplierId: s.preferredSupplierId,
   };
 }
 
@@ -153,5 +165,15 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   resetHints: () => {
     set({ seenHintGroups: [] });
     saveToDisk({ ...snapshot(get()), seenHintGroups: [] });
+  },
+
+  setFirstRunSetupComplete: (complete) => {
+    set({ firstRunSetupComplete: complete });
+    saveToDisk({ ...snapshot(get()), firstRunSetupComplete: complete });
+  },
+
+  setPreferredSupplierId: (id) => {
+    set({ preferredSupplierId: id });
+    saveToDisk({ ...snapshot(get()), preferredSupplierId: id });
   },
 }));

@@ -4,6 +4,8 @@
  * The logo is kept as a resized JPEG at a stable path (LOGO_PATH).
  */
 import * as FileSystem from 'expo-file-system/legacy';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 export interface BusinessProfile {
   businessName: string;
@@ -49,4 +51,25 @@ export async function deleteLogoFile(): Promise<void> {
   try {
     await FileSystem.deleteAsync(LOGO_PATH, { idempotent: true });
   } catch { /* ignore */ }
+}
+
+/**
+ * Let the user pick a logo image, resize it for PDF embedding (~400px wide,
+ * 0.85 quality) and save it at LOGO_PATH. Returns false if they cancelled.
+ * Throws if the image could not be read.
+ */
+export async function pickAndSaveLogo(): Promise<boolean> {
+  const res = await DocumentPicker.getDocumentAsync({
+    type: ['image/jpeg', 'image/png', 'image/webp', 'image/*'],
+    copyToCacheDirectory: true,
+    multiple: false,
+  });
+  if (res.canceled || !res.assets?.[0]) return false;
+  const processed = await ImageManipulator.manipulateAsync(
+    res.assets[0].uri,
+    [{ resize: { width: 400 } }],
+    { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG },
+  );
+  await FileSystem.copyAsync({ from: processed.uri, to: LOGO_PATH });
+  return true;
 }

@@ -26,6 +26,7 @@ export default function RootLayout() {
         <Stack.Screen name="business-profile" options={{ headerShown: false }} />
         <Stack.Screen name="help" options={{ headerShown: false }} />
         <Stack.Screen name="voice-setup" options={{ headerShown: false }} />
+        <Stack.Screen name="setup" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="import" options={{ headerShown: false }} />
         <Stack.Screen name="project/new" options={{ headerShown: false }} />
         <Stack.Screen name="project/[id]" options={{ headerShown: false }} />

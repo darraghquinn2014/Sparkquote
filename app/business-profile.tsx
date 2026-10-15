@@ -6,11 +6,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { useRouter, useFocusEffect } from 'expo-router';
-import * as DocumentPicker from 'expo-document-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
-  loadBusinessProfile, saveBusinessProfile, deleteLogoFile,
+  loadBusinessProfile, saveBusinessProfile, deleteLogoFile, pickAndSaveLogo,
   LOGO_PATH, type BusinessProfile,
 } from '@/src/data/business-profile';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
@@ -38,21 +36,8 @@ export default function BusinessProfileScreen() {
 
   const pickLogo = async () => {
     try {
-      const res = await DocumentPicker.getDocumentAsync({
-        type: ['image/jpeg', 'image/png', 'image/webp', 'image/*'],
-        copyToCacheDirectory: true,
-        multiple: false,
-      });
-      if (res.canceled || !res.assets?.[0]) return;
       setSaving(true);
-      const asset = res.assets[0];
-      // Resize to a sensible max for PDF embedding (~400px wide, 0.85 quality)
-      const processed = await ImageManipulator.manipulateAsync(
-        asset.uri,
-        [{ resize: { width: 400 } }],
-        { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG },
-      );
-      await FileSystem.copyAsync({ from: processed.uri, to: LOGO_PATH });
+      if (!(await pickAndSaveLogo())) return;
       setLogoUri(LOGO_PATH + '?t=' + Date.now()); // cache-bust for Image component
     } catch (e) {
       Alert.alert('Could not load image', String(e));

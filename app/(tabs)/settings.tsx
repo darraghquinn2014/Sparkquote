@@ -158,6 +158,10 @@ export default function SettingsScreen() {
           <Text style={styles.rowText}>Help</Text>
           <Text style={styles.chevron}>›</Text>
         </Pressable>
+        <Pressable style={styles.row} onPress={() => router.push('/setup' as any)}>
+          <Text style={styles.rowText}>Run setup again</Text>
+          <Text style={styles.chevron}>›</Text>
+        </Pressable>
         <Pressable style={styles.row} onPress={() => router.push('/business-profile' as any)}>
           <Text style={styles.rowText}>Business profile</Text>
           <Text style={styles.chevron}>›</Text>

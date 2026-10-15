@@ -124,7 +124,7 @@ export function GlobalVoiceControl() {
     || pathname.startsWith('/project/certificates/') || pathname.startsWith('/certificate/')
     || pathname === '/settings' || pathname === '/business-profile' || pathname === '/media-settings'
     || pathname === '/cloud-backup' || pathname === '/profit-report' || pathname === '/suppliers' || pathname === '/import'
-    || pathname === '/feedback';
+    || pathname === '/feedback' || pathname === '/setup';
   const { projectId: currentProjectId, locationId: currentLocationId } = useCurrentProjectContext();
   const voice = useVoiceCommand();
 
