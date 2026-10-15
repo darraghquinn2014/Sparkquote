@@ -15,6 +15,7 @@ import { formatMoney } from '@/src/domain/money';
 import { addLine, removeLine, lineFromMaterial, lineFromLabour } from '@/src/data/estimate-service';
 import { loadProjects, loadLocations } from '@/src/data/project-repo';
 import { loadProjectEstimate, saveProjectEstimate } from '@/src/data/project-estimate-repo';
+import { newEstimateDefaults } from '@/src/state/settingsStore';
 import { loadCatalogue } from '@/src/data/catalogue-repo';
 import { MaterialPicker } from '@/src/ui/catalogue/MaterialPicker';
 import { LabourSheet } from '@/src/ui/catalogue/LabourSheet';
@@ -41,9 +42,7 @@ function emptyEstimate(): Estimate {
     id: '',
     mode: 'project',
     status: 'draft',
-    currency: 'GBP',
-    hourlyRateMinor: 5000,
-    vatRatePct: 20,
+    ...newEstimateDefaults(),
     appliedLaborToggleIds: [],
     lineItems: [],
   };

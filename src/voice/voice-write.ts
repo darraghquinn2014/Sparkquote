@@ -5,6 +5,7 @@
  * app/project/quote/[id].tsx uses. No parallel write logic.
  */
 import { loadProjectEstimate, saveProjectEstimate } from '../data/project-estimate-repo';
+import { newEstimateDefaults } from '../state/settingsStore';
 import { addAssemblyToEstimate, addLine, lineFromLabour, lineFromMaterial } from '../data/estimate-service';
 import type { MaterialLookup } from '../domain/assembly';
 import type { Assembly, Estimate, Material } from '../domain/types';
@@ -14,9 +15,7 @@ function emptyProjectEstimate(): Estimate {
     id: '',
     mode: 'project',
     status: 'draft',
-    currency: 'GBP',
-    hourlyRateMinor: 5000,
-    vatRatePct: 20,
+    ...newEstimateDefaults(),
     appliedLaborToggleIds: [],
     lineItems: [],
   };

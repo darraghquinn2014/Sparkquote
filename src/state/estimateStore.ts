@@ -15,6 +15,7 @@ import {
   loadActiveEstimate,
   clearActiveEstimate,
 } from '@/src/data/estimate-repo';
+import { newEstimateDefaults, useSettingsStore } from '@/src/state/settingsStore';
 
 interface EstimateStore {
   estimate: Estimate;
@@ -41,9 +42,7 @@ function emptyEstimate(): Estimate {
     id: `est_${Date.now().toString(36)}`,
     mode: 'quick',
     status: 'draft',
-    currency: 'GBP',
-    hourlyRateMinor: 5000,
-    vatRatePct: 20,
+    ...newEstimateDefaults(),
     showLaborBreakdown: true,
     appliedLaborToggleIds: [],
     lineItems: [],
@@ -160,3 +159,18 @@ export const useEstimateStore = create<EstimateStore>((set, get) => ({
       return { estimate, savedEstimate: null };
     }),
 }));
+
+// The store is created before Settings is read from disk, so the initial
+// empty estimate starts on the hardcoded defaults. Whenever Settings change
+// (including hydrate), refresh the defaults on an estimate that has no lines
+// yet — an estimate with lines keeps its own rate/VAT/currency.
+useSettingsStore.subscribe((settings, prev) => {
+  if (
+    settings.hourlyRateMinor === prev.hourlyRateMinor &&
+    settings.vatRatePct === prev.vatRatePct &&
+    settings.currency === prev.currency
+  ) return;
+  const { estimate } = useEstimateStore.getState();
+  if (estimate.lineItems.length > 0) return;
+  useEstimateStore.setState({ estimate: { ...estimate, ...newEstimateDefaults() } });
+});

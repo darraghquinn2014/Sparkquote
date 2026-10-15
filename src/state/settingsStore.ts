@@ -83,6 +83,16 @@ function snapshot(s: SettingsStore): SettingsData {
   };
 }
 
+/**
+ * The Settings defaults a brand-new estimate (quick or project) starts from.
+ * Read at creation time, so existing estimates keep whatever they were
+ * created with — changing Settings never reprices a quote already made.
+ */
+export function newEstimateDefaults(): Pick<SettingsData, 'currency' | 'hourlyRateMinor' | 'vatRatePct'> {
+  const s = useSettingsStore.getState();
+  return { currency: s.currency, hourlyRateMinor: s.hourlyRateMinor, vatRatePct: s.vatRatePct };
+}
+
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
   ...DEFAULTS,
   hydrated: false,
