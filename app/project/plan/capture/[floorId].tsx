@@ -11,7 +11,9 @@
  */
 import React, { useCallback, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Alert, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
+import { ScreenHints, HintHeaderSlot } from '@/src/ui/hints/ScreenHints';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -34,7 +36,15 @@ const mediaPaths = {
 
 type Step = 'capture' | 'review';
 
+const WALL_CAPTURE_HINTS = [
+  { id: 'shot', text: "Take one photo per wall, standing back and facing it straight on. Skip any wall you can't get to." },
+  { id: 'symbols', text: "Symbols you tagged on the plan (sockets, switches…) appear on the photo — drag one to fix its height, tap to remove it." },
+  { id: 'next', text: "Tap Looks good — Next for the next wall. Skipped walls can be finished later from the room screen." },
+];
+
 export default function WallCaptureWizard() {
+  const hint = useHintWalkthrough('wall-capture', WALL_CAPTURE_HINTS);
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { floorId } = useLocalSearchParams<{ floorId: string }>();
 
@@ -167,7 +177,9 @@ export default function WallCaptureWizard() {
             <Text style={styles.title} numberOfLines={1}>{wall.label || 'Wall'}</Text>
             <Text style={styles.subtitle}>{room?.name} · Wall {index + 1} of {pendingWalls.length}</Text>
           </View>
-          <View style={{ width: 44 }} />
+          <View style={{ width: 44, alignItems: 'flex-end' }}>
+            <HintHeaderSlot hint={hint} />
+          </View>
         </View>
 
         {step === 'capture' ? (
@@ -211,6 +223,7 @@ export default function WallCaptureWizard() {
             </>
           )
         )}
+        <ScreenHints hint={hint} bottomInset={insets.bottom} showFab={false} />
       </SafeAreaView>
 
       <SimpleCameraCapture
@@ -228,7 +241,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: space.lg, paddingVertical: space.md,
   },
-  back: { color: colors.textSecondary, fontSize: 16, fontWeight: '600', width: 44 },
+  back: { color: colors.textSecondary, fontSize: 16, fontWeight: '600', minWidth: 44 },
   title: { color: colors.textPrimary, fontSize: 17, fontWeight: '800' },
   subtitle: { color: colors.textMuted, fontSize: 12, marginTop: 1 },
 

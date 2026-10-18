@@ -5,6 +5,8 @@ import {
 } from 'react-native';
 import RNShare from 'react-native-share';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
+import { ScreenHints, HintHeaderSlot } from '@/src/ui/hints/ScreenHints';
 import { Swipeable } from 'react-native-gesture-handler';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -37,7 +39,14 @@ const mediaPaths = {
 
 type CameraState = 'live' | 'preview';
 
+const SNAG_HINTS = [
+  { id: 'add', text: "Tap the yellow + at the bottom to log anything that needs fixing before sign-off — add a photo and the room it's in." },
+  { id: 'progress', text: "Tap Start work when you begin it, then tap the item to add progress notes like \"waiting on parts\"." },
+  { id: 'resolve', text: "Tick the box when it's fixed — you can add a note and an \"after\" photo. Swipe left to delete; Share all sends the list." },
+];
+
 export default function SnagListScreen() {
+  const hint = useHintWalkthrough('snag-list', SNAG_HINTS);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id: projectId, promptPhotoFor } = useLocalSearchParams<{ id: string; promptPhotoFor?: string }>();
@@ -425,7 +434,10 @@ export default function SnagListScreen() {
         <Pressable onPress={() => router.back()} hitSlop={12}>
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
-        <HeaderMicButton />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+          <HintHeaderSlot hint={hint} />
+          <HeaderMicButton />
+        </View>
         <View style={styles.headerTitleOverlay} pointerEvents="none">
           <Text style={styles.title}>Snag List</Text>
           {projectName ? <Text style={styles.sub}>{projectName}</Text> : null}
@@ -845,6 +857,7 @@ export default function SnagListScreen() {
           )}
         </View>
       </Modal>
+      <ScreenHints hint={hint} bottomInset={insets.bottom} showFab={false} />
     </SafeAreaView>
   );
 }

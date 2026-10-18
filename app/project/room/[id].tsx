@@ -9,6 +9,8 @@ import {
   Image as RNImage,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
+import { ScreenHints, HintHeaderSlot } from '@/src/ui/hints/ScreenHints';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { CameraPreview } from '@/src/media/CameraPreview';
@@ -77,7 +79,14 @@ function buildDimensionsCaption(
   return `${roomName} — ${size}`;
 }
 
+const ROOM_HINTS = [
+  { id: 'add-photo', text: "Tap + Add photo to snap the room for reference while you price. Room photos are private — never on the client PDF." },
+  { id: 'photo-details', text: "Tap a photo to view it and add a name, note or Before/During/After tag. Hold a photo to delete it." },
+  { id: 'walls', text: "Trace this room's walls on the floor plan to get its size — it's then stamped onto your photos automatically." },
+];
+
 export default function RoomScreen() {
+  const hint = useHintWalkthrough('room', ROOM_HINTS);
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
@@ -489,9 +498,12 @@ export default function RoomScreen() {
         <Pressable onPress={() => router.back()} hitSlop={12}>
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+          <HintHeaderSlot hint={hint} />
         <Pressable style={styles.addBtn} onPress={openCamera} hitSlop={8}>
           <Text style={styles.addBtnText}>+ Add photo</Text>
         </Pressable>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -974,6 +986,7 @@ export default function RoomScreen() {
           )}
         </View>
       </Modal>
+      <ScreenHints hint={hint} bottomInset={insets.bottom} showFab={false} />
     </SafeAreaView>
   );
 }

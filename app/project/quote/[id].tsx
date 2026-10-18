@@ -8,7 +8,9 @@ import {
   ActivityIndicator, Alert,
 } from 'react-native';
 
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
+import { ScreenHints, HintHeaderSlot } from '@/src/ui/hints/ScreenHints';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { priceEstimate, priceLine } from '@/src/domain/pricing';
 import { formatMoney } from '@/src/domain/money';
@@ -50,7 +52,15 @@ function emptyEstimate(): Estimate {
   };
 }
 
+const PROJECT_QUOTE_HINTS = [
+  { id: 'per-room', text: "Each room is priced separately — tap + Add item for materials or jobs, + Labour for hours or a fixed price." },
+  { id: 'edit', text: "Tap a line to change it, ✕ to remove it. Tap Labour rate to change the rate for this quote." },
+  { id: 'send', text: "Check the totals at the bottom, then tap Preview & send quote to make the PDF for your client." },
+];
+
 export default function ProjectQuoteScreen() {
+  const hint = useHintWalkthrough('project-quote', PROJECT_QUOTE_HINTS);
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id: projectId } = useLocalSearchParams<{ id: string }>();
 
@@ -184,7 +194,10 @@ export default function ProjectQuoteScreen() {
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Quote'}</Text>
-        <HeaderMicButton keepSpace />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+          <HintHeaderSlot hint={hint} />
+          <HeaderMicButton keepSpace={!hint.hintsEnabled} />
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -373,6 +386,7 @@ export default function ProjectQuoteScreen() {
           router.push(`/review?projectId=${projectId}` as any);
         }}
       />
+      <ScreenHints hint={hint} bottomInset={insets.bottom} showFab={false} />
     </SafeAreaView>
   );
 }

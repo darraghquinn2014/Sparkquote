@@ -6,7 +6,9 @@
  */
 import React, { useCallback, useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, Alert, ActivityIndicator, TextInput } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
+import { ScreenHints, HintHeaderSlot } from '@/src/ui/hints/ScreenHints';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import type { Project, Location } from '@/src/domain/types';
 import { loadProjects, loadLocation, loadLocations, addLocation, renameLocation, deleteLocation } from '@/src/data/project-repo';
@@ -22,7 +24,15 @@ import { colors, space, radius } from '@/src/ui/theme/tokens';
 
 const allToggles = seedLaborToggles.map(toLaborToggle);
 
+const FLOOR_HINTS = [
+  { id: 'add-room', text: "Tap + Add room and pick a common name like Kitchen or Bathroom, or + Custom for anything else." },
+  { id: 'open-room', text: "Tap a room to add reference photos. Edit renames it; Select lets you delete several at once." },
+  { id: 'plan', text: "Tap Plan to draw this floor's layout and trace walls — that gives each room its size." },
+];
+
 export default function FloorDetailScreen() {
+  const hint = useHintWalkthrough('floor', FLOOR_HINTS);
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [floor, setFloor] = useState<Location | null>(null);
@@ -161,9 +171,12 @@ export default function FloorDetailScreen() {
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12}><Text style={styles.back}>‹ Back</Text></Pressable>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+          <HintHeaderSlot hint={hint} />
         <Pressable style={styles.planBtn} onPress={() => router.push(`/project/plan/${floor.id}` as any)} hitSlop={8}>
           <Text style={styles.planBtnText}>Plan</Text>
         </Pressable>
+        </View>
         <View style={styles.headerTitleOverlay} pointerEvents="none">
           <Text style={styles.title} numberOfLines={1}>{floor.name.toUpperCase()}</Text>
           {project?.name ? <Text style={styles.sub} numberOfLines={1}>{project.name}</Text> : null}
@@ -286,6 +299,7 @@ export default function FloorDetailScreen() {
           </Pressable>
         )}
       </ScrollView>
+      <ScreenHints hint={hint} bottomInset={insets.bottom} showFab={false} />
     </SafeAreaView>
   );
 }
