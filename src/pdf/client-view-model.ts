@@ -12,7 +12,7 @@
  * here exposes the electrician's margins to their customer.
  */
 
-import type { Currency, Estimate } from '../domain/types';
+import type { Currency, Estimate, Location } from '../domain/types';
 import type { EstimatePriceBreakdown } from '../domain/pricing';
 
 /** What a client is allowed to see for one line. */
@@ -24,9 +24,18 @@ export interface ClientLine {
   lineTotalMinor: number;
 }
 
+/** A room's lines on a project quote, with the room's all-in subtotal. */
+export interface ClientSection {
+  title: string;
+  subtotalMinor: number;
+  lines: ClientLine[];
+}
+
 export interface ClientEstimate {
   currency: Currency;
   lines: ClientLine[];
+  /** Project quotes only: the same lines grouped by room, in floor/room order. */
+  sections?: ClientSection[];
   subtotalMinor: number;
   vatRatePct: number;
   vatAmountMinor: number;
@@ -49,6 +58,28 @@ export interface ClientEstimateMeta {
   clientName?: string;
   reference?: string;
   dateIso?: string;
+  /** Room heading per locationId, in display order (see roomLabels). When
+   * given, lines are also grouped into per-room sections. */
+  roomLabels?: Map<string, string>;
+}
+
+/** Section title for lines not assigned to a room — matches the quote screen. */
+export const GENERAL_SECTION_TITLE = 'General';
+
+/**
+ * Room headings for a project's locations, floors first then their rooms in
+ * the order the quote screen lists them. The floor name is only prefixed when
+ * there's more than one floor ("First Floor · Bedroom 1").
+ */
+export function roomLabels(locations: Location[]): Map<string, string> {
+  const floors = locations.filter((l) => l.parentId == null);
+  const labels = new Map<string, string>();
+  for (const floor of floors) {
+    for (const room of locations.filter((l) => l.parentId === floor.id)) {
+      labels.set(room.id, floors.length > 1 ? `${floor.name} · ${room.name}` : room.name);
+    }
+  }
+  return labels;
 }
 
 function quantityLabel(quantity?: number, quantityMeters?: number): string {
@@ -80,6 +111,23 @@ export function toClientEstimate(
     };
   });
 
+  let sections: ClientSection[] | undefined;
+  if (meta.roomLabels) {
+    // Keyed by room id (two rooms can share a name); seeded in room order so
+    // sections follow the floor/room layout, not the order lines were added.
+    const GENERAL = '';
+    const byRoom = new Map<string, ClientSection>();
+    for (const [id, title] of meta.roomLabels) byRoom.set(id, { title, subtotalMinor: 0, lines: [] });
+    byRoom.set(GENERAL, { title: GENERAL_SECTION_TITLE, subtotalMinor: 0, lines: [] });
+    pricing.lines.forEach((b, i) => {
+      const locationId = lineById.get(b.lineId)?.locationId;
+      const section = byRoom.get(locationId && byRoom.has(locationId) ? locationId : GENERAL)!;
+      section.lines.push(lines[i]!);
+      section.subtotalMinor += b.lineTotalMinor;
+    });
+    sections = [...byRoom.values()].filter((s) => s.lines.length > 0);
+  }
+
   const result: ClientEstimate = {
     currency: estimate.currency,
     lines,
@@ -88,6 +136,7 @@ export function toClientEstimate(
     vatAmountMinor: pricing.vatAmountMinor,
     grandTotalMinor: pricing.grandTotalMinor,
   };
+  if (sections) result.sections = sections;
   if (estimate.showLaborBreakdown) result.laborTotalMinor = pricing.laborTotalMinor;
   if (meta.businessName != null) result.businessName = meta.businessName;
   if (meta.tagline != null) result.tagline = meta.tagline;

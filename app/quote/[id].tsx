@@ -20,7 +20,8 @@ import {
 import type { Client, EstimateStatus } from '@/src/domain/types';
 import { toLaborToggle } from '@/src/data/mappers';
 import { seedLaborToggles } from '@/src/data/seed/assemblies';
-import { toClientEstimate } from '@/src/pdf/client-view-model';
+import { toClientEstimate, roomLabels } from '@/src/pdf/client-view-model';
+import { loadLocations } from '@/src/data/project-repo';
 import { renderEstimateHtml } from '@/src/pdf/render-html';
 import { ClientPicker } from '@/src/ui/clients/ClientPicker';
 import { loadCatalogue } from '@/src/data/catalogue-repo';
@@ -97,7 +98,9 @@ export default function QuoteDetailScreen() {
     try {
       const logoDataUri = await readLogoDataUri();
       const profile = await loadBusinessProfile();
+      const locations = quote.projectId ? await loadLocations(quote.projectId) : null;
       const html = renderEstimateHtml(toClientEstimate(estimate, priced, {
+        roomLabels: locations ? roomLabels(locations) : undefined,
         businessName: profile.businessName || undefined,
         tagline: profile.tagline || undefined,
         logoDataUri: logoDataUri ?? undefined,

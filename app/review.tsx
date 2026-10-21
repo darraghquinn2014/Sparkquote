@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Alert, Switch, Pressable } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SignAndSendScreen } from '@/src/ui/pdf/SignAndSendScreen';
-import { toClientEstimate } from '@/src/pdf/client-view-model';
+import { toClientEstimate, roomLabels } from '@/src/pdf/client-view-model';
 import { renderEstimateHtml } from '@/src/pdf/render-html';
 import { priceEstimate } from '@/src/domain/pricing';
 import { toLaborToggle } from '@/src/data/mappers';
@@ -11,7 +11,7 @@ import { seedLaborToggles } from '@/src/data/seed/assemblies';
 import { useEstimateStore } from '@/src/state/estimateStore';
 import { useSettingsStore } from '@/src/state/settingsStore';
 import { loadProjectEstimate, projectEstimateId } from '@/src/data/project-estimate-repo';
-import { loadProjects } from '@/src/data/project-repo';
+import { loadProjects, loadLocations } from '@/src/data/project-repo';
 import { saveQuickQuote, setQuoteStatus } from '@/src/data/quote-repo';
 import { loadClient } from '@/src/data/client-repo';
 import type { Client, Estimate, EstimateStatus, Project } from '@/src/domain/types';
@@ -37,6 +37,8 @@ export default function ReviewRoute() {
   const [busy, setBusy] = useState(false);
   const [projectEstimate, setProjectEstimate] = useState<Estimate | null>(null);
   const [projectData, setProjectData] = useState<Project | null>(null);
+  /** Room headings for the project PDF's per-room sections. */
+  const [projectRooms, setProjectRooms] = useState<Map<string, string> | null>(null);
   const [profile, setProfile] = useState<BusinessProfile>({ businessName: '', tagline: '', logoPath: null });
   const [logoDataUri, setLogoDataUri] = useState<string | null>(null);
   // Client for a quick quote (project quotes use the project's client).
@@ -60,6 +62,7 @@ export default function ReviewRoute() {
     if (!projectId) return;
     loadProjectEstimate(projectId).then((e) => { if (e) setProjectEstimate(e); }).catch(console.error);
     loadProjects().then((ps) => setProjectData(ps.find((p) => p.id === projectId) ?? null)).catch(console.error);
+    loadLocations(projectId).then((locs) => setProjectRooms(roomLabels(locs))).catch(console.error);
   }, [projectId]);
 
   // A quick quote started by repeating an earlier quote carries its client.
@@ -80,6 +83,7 @@ export default function ReviewRoute() {
     clientName: clientName || undefined,
     reference: projectData ? projectData.name.slice(0, 20).toUpperCase() : undefined,
     dateIso: new Date().toISOString(),
+    roomLabels: projectRooms ?? undefined,
   });
 
   const priced = priceEstimate(estimate, toggles);

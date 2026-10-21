@@ -35,7 +35,7 @@ import { seedLaborToggles } from '@/src/data/seed/assemblies';
 import type { Project, Location, Estimate, LineItem, Material } from '@/src/domain/types';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import { loadBusinessProfile, readLogoDataUri } from '@/src/data/business-profile';
-import { toClientEstimate } from '@/src/pdf/client-view-model';
+import { toClientEstimate, roomLabels } from '@/src/pdf/client-view-model';
 import { renderEstimateHtml } from '@/src/pdf/render-html';
 import { PdfPreviewModal } from '@/src/ui/pdf/PdfPreviewModal';
 
@@ -154,6 +154,7 @@ export default function ProjectQuoteScreen() {
         clientName: project?.clientName || undefined,
         reference: project ? project.name.slice(0, 20).toUpperCase() : undefined,
         dateIso: new Date().toISOString(),
+        roomLabels: roomLabels(locations),
       };
       const priced = priceEstimate(estimate, allToggles);
       const client = toClientEstimate(estimate, priced, meta);

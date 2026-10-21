@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { toClientEstimate } from '../client-view-model';
+import { toClientEstimate, roomLabels } from '../client-view-model';
 import { renderEstimateHtml, escapeHtml } from '../render-html';
 import { priceEstimate } from '../../domain/pricing';
-import type { Estimate, LaborToggle, LineItem } from '../../domain/types';
+import type { Estimate, LaborToggle, LineItem, Location } from '../../domain/types';
 
 const toggles: LaborToggle[] = [
   { id: 'tgl_height', label: 'Working Height', type: 'percentage', value: 0.15, appliesTo: 'line' },
@@ -56,6 +56,58 @@ describe('toClientEstimate', () => {
     expect(client.businessName).toBe('Watts Electrical');
     expect(client.clientName).toBe('Acme Ltd');
     expect(client.grandTotalMinor).toBeGreaterThan(0);
+  });
+});
+
+describe('per-room sections', () => {
+  const loc = (id: string, name: string, parentId?: string): Location =>
+    ({ id, projectId: 'p1', name, parentId, createdAt: 0 }) as unknown as Location;
+  const oneFloor = [loc('f1', 'Ground Floor'), loc('kit', 'Kitchen', 'f1'), loc('liv', 'Living Room', 'f1')];
+
+  it('labels rooms by name, prefixing the floor only when there are several', () => {
+    expect([...roomLabels(oneFloor).values()]).toEqual(['Kitchen', 'Living Room']);
+    const twoFloors = [...oneFloor, loc('f2', 'First Floor'), loc('bed', 'Bedroom', 'f2')];
+    expect([...roomLabels(twoFloors).values()]).toEqual([
+      'Ground Floor · Kitchen', 'Ground Floor · Living Room', 'First Floor · Bedroom',
+    ]);
+  });
+
+  it('groups lines by room in room order with subtotals, unassigned lines last under General', () => {
+    const est = estimate([
+      line({ id: 'a', description: 'Living socket', locationId: 'liv' }),
+      line({ id: 'b', description: 'Callout', locationId: undefined }),
+      line({ id: 'c', description: 'Kitchen socket', locationId: 'kit' }),
+      line({ id: 'd', description: 'Kitchen light', locationId: 'kit' }),
+    ]);
+    const priced = priceEstimate(est, toggles);
+    const total = (id: string) => priced.lines.find((l) => l.lineId === id)!.lineTotalMinor;
+    const client = toClientEstimate(est, priced, { roomLabels: roomLabels(oneFloor) });
+
+    expect(client.sections!.map((s) => s.title)).toEqual(['Kitchen', 'Living Room', 'General']);
+    expect(client.sections![0]!.lines.map((l) => l.description)).toEqual(['Kitchen socket', 'Kitchen light']);
+    expect(client.sections![0]!.subtotalMinor).toBe(total('c') + total('d'));
+    // flat list is unchanged
+    expect(client.lines).toHaveLength(4);
+  });
+
+  it('keeps same-named rooms as separate sections', () => {
+    const rooms = [loc('f1', 'Ground Floor'), loc('b1', 'Bedroom', 'f1'), loc('b2', 'Bedroom', 'f1')];
+    const est = estimate([line({ id: 'x', locationId: 'b1' }), line({ id: 'y', locationId: 'b2' })]);
+    const client = toClientEstimate(est, priceEstimate(est, toggles), { roomLabels: roomLabels(rooms) });
+    expect(client.sections).toHaveLength(2);
+  });
+
+  it('quick quotes stay a flat list', () => {
+    const est = estimate([line()]);
+    expect(toClientEstimate(est, priceEstimate(est, toggles)).sections).toBeUndefined();
+  });
+
+  it('renders a heading and total per room', () => {
+    const est = estimate([line({ id: 'c', description: 'Kitchen socket', locationId: 'kit' })]);
+    const html = renderEstimateHtml(toClientEstimate(est, priceEstimate(est, toggles), { roomLabels: roomLabels(oneFloor) }));
+    expect(html).toContain('<tr class="section-head"><td colspan="3">Kitchen</td></tr>');
+    expect(html).toContain('Kitchen total');
+    expect(html).not.toContain('Living Room');
   });
 });
 

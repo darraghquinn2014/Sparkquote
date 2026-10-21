@@ -39,16 +39,28 @@ export function renderEstimateHtml(
   estimate: ClientEstimate,
   signature?: SignatureBlock,
 ): string {
-  const rows = estimate.lines
-    .map(
-      (l) => `
+  const lineRows = (lines: ClientEstimate['lines']) =>
+    lines
+      .map(
+        (l) => `
       <tr>
         <td class="desc">${escapeHtml(l.description)}</td>
         <td class="qty">${escapeHtml(l.quantityLabel)}</td>
         <td class="amt">${money(estimate, l.lineTotalMinor)}</td>
       </tr>`,
-    )
-    .join('');
+      )
+      .join('');
+
+  // Project quotes: a heading and subtotal per room; otherwise one flat list.
+  const rows = estimate.sections
+    ? estimate.sections
+        .map(
+          (s) => `
+      <tr class="section-head"><td colspan="3">${escapeHtml(s.title)}</td></tr>${lineRows(s.lines)}
+      <tr class="section-total"><td colspan="2">${escapeHtml(s.title)} total</td><td class="amt">${money(estimate, s.subtotalMinor)}</td></tr>`,
+        )
+        .join('')
+    : lineRows(estimate.lines);
 
   const vatRow =
     estimate.vatRatePct > 0
@@ -102,6 +114,8 @@ export function renderEstimateHtml(
   td.qty, td.amt { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
   td.qty { width: 70px; color: #555; }
   td.amt { width: 110px; font-weight: 600; }
+  tr.section-head td { padding-top: 18px; font-size: 14px; font-weight: 700; border-bottom: 1px solid #ddd; }
+  tr.section-total td { font-size: 12px; color: #555; text-align: right; border-bottom: none; padding-bottom: 4px; }
   .summary { margin-top: 16px; margin-left: auto; width: 260px; }
   .summary table { width: 100%; }
   .summary td { padding: 6px 0; }
