@@ -486,7 +486,9 @@ export function AnnotationEditor({
                 </View>
                 <Text style={styles.toolHint}>
                   Tap empty photo to place · Tap a symbol to remove it · {COLORS[colorIdx].label}
-                  {linkedWallLabel ? `\nSymbols sync to "${linkedWallLabel}" on the floor plan` : ''}
+                  {linkedWallLabel
+                    ? `\nSymbols sync to "${linkedWallLabel}" — open it from the room's Walls list and tap a symbol for its height & distance`
+                    : '\nMarkup only — for heights & distances, tag symbols on a wall photo (trace the wall on the floor plan first)'}
                 </Text>
               </>
             )}

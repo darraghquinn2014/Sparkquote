@@ -20,7 +20,9 @@ import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-g
 import { runOnJS } from 'react-native-reanimated';
 import type { FloorPlan, Location, Wall, WallSymbol } from '@/src/domain/types';
 import type { Photo } from '@/src/media/media-types';
-import type { SymbolType } from '@/src/media/annotation-service';
+import { loadAnnotations, type SymbolType, type AnnotationStroke, type PlacedSymbol } from '@/src/media/annotation-service';
+import * as Sharing from 'expo-sharing';
+import { PhotoShareCapture } from '@/src/ui/photos/PhotoShareCapture';
 import { loadLocation } from '@/src/data/project-repo';
 import { loadPhoto, addLocationPhoto, deleteLocationPhoto } from '@/src/data/photo-repo';
 import { saveCapture, deletePhoto, rotatePreview } from '@/src/media/camera-service';
@@ -30,6 +32,7 @@ import {
   loadFloorPlan, flipWallDirection,
 } from '@/src/data/floor-plan-repo';
 import { wallLengthMeters } from '@/src/domain/wall-geometry';
+import { measureSymbol, symbolMeasurementText } from '@/src/domain/symbol-measurements';
 import { useVoiceAction } from '@/src/voice/voice-bus';
 import { SYMBOL_LABELS, SYMBOL_TYPE_COLORS } from '@/src/ui/annotations/symbols';
 import { SymbolTypePicker } from '@/src/ui/annotations/SymbolTypePicker';
@@ -43,7 +46,7 @@ import { ScreenHints, HintHeaderSlot } from '@/src/ui/hints/ScreenHints';
 const WALL_HINTS = [
   { id: 'attach-photo', text: 'Attach a photo of this wall or ceiling first — you\'ll tag what\'s on it while it\'s fresh in your memory.' },
   { id: 'tag-symbol', text: 'Tap + Add symbol, then tap the photo to drop one in place — or Tag from plan to place several at once if you\'ve traced this wall.' },
-  { id: 'symbol-info', text: "Tap a placed symbol to see its distance from each end and remove it. Drag it up or down to adjust its height." },
+  { id: 'symbol-info', text: "Tap a placed symbol to see its height above the floor and its distance from each end of the wall (or remove it). Drag it up or down to adjust its height." },
 ];
 
 const mediaPaths = {
@@ -63,6 +66,9 @@ export default function WallScreen() {
   const [room, setRoom] = useState<Location | null>(null);
   const [symbols, setSymbols] = useState<WallSymbol[]>([]);
   const [photo, setPhoto] = useState<Photo | null>(null);
+  const [shareItem, setShareItem] = useState<{
+    strokes: AnnotationStroke[]; symbols: PlacedSymbol[]; measurements: Record<string, string>;
+  } | null>(null);
   const [floorPlan, setFloorPlan] = useState<FloorPlan | null>(null);
   const [taggerOpen, setTaggerOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -265,11 +271,40 @@ export default function WallScreen() {
   const wallLenMeters = wall && floorPlan?.pxPerMeter
     ? wallLengthMeters(wall, { width: floorPlan.width, height: floorPlan.height }, floorPlan.pxPerMeter)
     : null;
-  const infoDistFromStart = infoSymbol && wallLenMeters != null ? infoSymbol.positionAlongWall * wallLenMeters : null;
-  const infoDistFromEnd = infoSymbol && wallLenMeters != null ? (1 - infoSymbol.positionAlongWall) * wallLenMeters : null;
-  const infoHeightAboveFloor = infoSymbol && room?.heightMeters != null
-    ? (1 - infoSymbol.photoY) * room.heightMeters
-    : null;
+  const infoMeasure = infoSymbol ? measureSymbol(infoSymbol, wallLenMeters, room?.heightMeters) : null;
+  const infoDistFromStart = infoMeasure?.fromEnds?.start ?? null;
+  const infoDistFromEnd = infoMeasure?.fromEnds?.end ?? null;
+  const infoHeightAboveFloor = infoMeasure?.heightAboveFloor ?? null;
+
+  // ── Share (photo + symbols with their measurements burned in) ────────────
+
+  const startShare = async () => {
+    if (!photo) return;
+    try {
+      const { strokes } = await loadAnnotations(photo.id);
+      const measurements: Record<string, string> = {};
+      for (const s of symbols) {
+        const text = symbolMeasurementText(measureSymbol(s, wallLenMeters, room?.heightMeters));
+        if (text) measurements[s.id] = text;
+      }
+      setShareItem({
+        strokes,
+        symbols: symbols.map((s) => ({ id: s.id, type: s.type, x: s.positionAlongWall, y: s.photoY, color: s.color ?? '#FFFFFF' })),
+        measurements,
+      });
+    } catch (e) {
+      Alert.alert('Share failed', String(e));
+    }
+  };
+
+  const handleShareReady = async (filePath: string) => {
+    setShareItem(null);
+    try {
+      await Sharing.shareAsync(filePath, { mimeType: 'image/jpeg', UTI: 'public.image', dialogTitle: wall?.label ?? 'Share wall photo' });
+    } catch (e) {
+      Alert.alert('Share failed', String(e));
+    }
+  };
 
   const handleSymbolDragEnd = async (symbol: WallSymbol, photoY: number) => {
     setSymbols((prev) => prev.map((s) => (s.id === symbol.id ? { ...s, photoY } : s)));
@@ -366,6 +401,11 @@ export default function WallScreen() {
                   <Text style={styles.symbolModeBtnText}>Tag from plan</Text>
                 </Pressable>
               )}
+              {!addingSymbol && (
+                <Pressable style={styles.symbolModeBtn} onPress={startShare} disabled={shareItem != null} hitSlop={6}>
+                  <Text style={styles.symbolModeBtnText}>{shareItem ? 'Preparing…' : 'Share'}</Text>
+                </Pressable>
+              )}
             </View>
 
             <GestureDetector gesture={placeTapGesture}>
@@ -384,7 +424,7 @@ export default function WallScreen() {
 
         {photo && (
           <Text style={styles.hint}>
-            {addingSymbol ? 'Tap the photo to place a symbol' : 'Drag a symbol to adjust height · Tap for distance & to remove'}
+            {addingSymbol ? 'Tap the photo to place a symbol' : 'Tap a symbol to see its height & distance · Drag it up or down to adjust'}
           </Text>
         )}
         <ScreenHints hint={hint} bottomInset={insets.bottom} showFab={false} />
@@ -453,6 +493,18 @@ export default function WallScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Off-screen render of the photo + symbols + measurements for sharing */}
+      {shareItem && photo && (
+        <PhotoShareCapture
+          photo={photo}
+          strokes={shareItem.strokes}
+          symbols={shareItem.symbols}
+          measurements={shareItem.measurements}
+          onReady={handleShareReady}
+          onError={(e) => { setShareItem(null); Alert.alert('Share failed', String(e)); }}
+        />
+      )}
 
       {/* Rename sheet */}
       <Modal visible={editingLabel} transparent animationType="fade" onRequestClose={() => setEditingLabel(false)}>

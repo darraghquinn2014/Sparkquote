@@ -37,11 +37,13 @@ const SYMBOL_SCALE = CAPTURE_WIDTH / REFERENCE_DISPLAY_WIDTH;
 interface Props {
   photo: Photo;
   symbols: WallSymbol[];
+  /** Symbol id → measurement line burned in under its name. */
+  measurements?: Record<string, string>;
   onReady: (filePath: string) => void;
   onError: (error: unknown) => void;
 }
 
-export function WallShareCapture({ photo, symbols, onReady, onError }: Props) {
+export function WallShareCapture({ photo, symbols, measurements, onReady, onError }: Props) {
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const [loaded, setLoaded] = useState(false);
   const viewRef = useRef<View>(null);
@@ -122,6 +124,9 @@ export function WallShareCapture({ photo, symbols, onReady, onError }: Props) {
               y: symbol.photoY * size.height,
               color: symbol.color ?? '#FFFFFF',
             }}
+            showLabel
+            subLabel={measurements?.[symbol.id]}
+            canvasWidth={size.width}
           />
         ))}
       </Svg>

@@ -31,11 +31,13 @@ interface Props {
   photo: Photo;
   strokes: AnnotationStroke[];
   symbols: PlacedSymbol[];
+  /** Wall photos: symbol id → measurement line burned in under its name. */
+  measurements?: Record<string, string>;
   onReady: (filePath: string) => void;
   onError: (error: unknown) => void;
 }
 
-export function PhotoShareCapture({ photo, strokes, symbols, onReady, onError }: Props) {
+export function PhotoShareCapture({ photo, strokes, symbols, measurements, onReady, onError }: Props) {
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const [loaded, setLoaded] = useState(false);
   const viewRef = useRef<View>(null);
@@ -107,7 +109,14 @@ export function PhotoShareCapture({ photo, strokes, symbols, onReady, onError }:
           <Path key={i} d={s.path} stroke={s.color} strokeWidth={s.width} fill="none" strokeLinecap="round" strokeLinejoin="round" />
         ))}
         {renderedSymbols.map((sym) => (
-          <PlacedSymbolGroup key={sym.id} scale={SYMBOL_SCALE} symbol={sym} showLabel />
+          <PlacedSymbolGroup
+            key={sym.id}
+            scale={SYMBOL_SCALE}
+            symbol={sym}
+            showLabel
+            subLabel={measurements?.[sym.id]}
+            canvasWidth={size.width}
+          />
         ))}
       </Svg>
     </View>

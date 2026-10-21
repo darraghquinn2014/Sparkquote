@@ -187,14 +187,30 @@ const LABEL_PAD_X = 5;
 const LABEL_HEIGHT = LABEL_FONT_SIZE * 1.7;
 const LABEL_OFFSET_Y = 24;
 
-function SymbolLabel({ text }: { text: string }) {
-  const width = text.length * LABEL_CHAR_WIDTH + LABEL_PAD_X * 2;
+// Optional second line (e.g. a shared wall photo's measurements), a little smaller.
+const SUB_FONT_SIZE = LABEL_FONT_SIZE * 0.85;
+const SUB_LINE_GAP = SUB_FONT_SIZE * 1.35;
+
+function labelWidth(text: string, subText?: string): number {
+  const subWidth = subText ? subText.length * SUB_FONT_SIZE * 0.55 : 0;
+  return Math.max(text.length * LABEL_CHAR_WIDTH, subWidth) + LABEL_PAD_X * 2;
+}
+
+function SymbolLabel({ text, subText, nudgeX = 0 }: { text: string; subText?: string; nudgeX?: number }) {
+  const width = labelWidth(text, subText);
+  const height = LABEL_HEIGHT + (subText ? SUB_LINE_GAP : 0);
+  const radius = subText ? LABEL_HEIGHT / 3 : LABEL_HEIGHT / 2;
   return (
-    <G transform={`translate(0, ${LABEL_OFFSET_Y})`}>
-      <Rect x={-width / 2} y={-LABEL_HEIGHT / 2} width={width} height={LABEL_HEIGHT} rx={LABEL_HEIGHT / 2} fill="rgba(0,0,0,0.72)" />
+    <G transform={`translate(${nudgeX}, ${LABEL_OFFSET_Y})`}>
+      <Rect x={-width / 2} y={-LABEL_HEIGHT / 2} width={width} height={height} rx={radius} fill="rgba(0,0,0,0.72)" />
       <SvgText x={0} y={LABEL_FONT_SIZE * 0.35} fontSize={LABEL_FONT_SIZE} fontWeight="700" fill="#FFFFFF" textAnchor="middle">
         {text}
       </SvgText>
+      {subText && (
+        <SvgText x={0} y={LABEL_FONT_SIZE * 0.35 + SUB_LINE_GAP} fontSize={SUB_FONT_SIZE} fontWeight="600" fill="#FFD27A" textAnchor="middle">
+          {subText}
+        </SvgText>
+      )}
     </G>
   );
 }
@@ -209,13 +225,26 @@ function SymbolLabel({ text }: { text: string }) {
 // small 40x40 drag-handle preview would clip a label rendered below the
 // glyph) — enabled where a photo's own symbols need to show which specific
 // variant was placed (annotation editor, room lightbox, flattened share).
+//
+// subLabel adds a second line under the name. canvasWidth (same units as
+// symbol.x) slides the label sideways so a long one near the photo's edge
+// isn't cut off; the glyph itself stays put.
 export function PlacedSymbolGroup({
-  symbol, scale = 1, showLabel = false,
-}: { symbol: PlacedSymbol; scale?: number; showLabel?: boolean }) {
+  symbol, scale = 1, showLabel = false, subLabel, canvasWidth,
+}: { symbol: PlacedSymbol; scale?: number; showLabel?: boolean; subLabel?: string; canvasWidth?: number }) {
+  const text = SYMBOL_LABELS[symbol.type];
+  let nudgeX = 0;
+  if (showLabel && canvasWidth != null) {
+    const half = labelWidth(text, subLabel) / 2;
+    const margin = 4;
+    const minX = (margin - symbol.x) / scale + half;
+    const maxX = (canvasWidth - margin - symbol.x) / scale - half;
+    nudgeX = minX > maxX ? 0 : Math.min(Math.max(0, minX), maxX);
+  }
   return (
     <G transform={`translate(${symbol.x}, ${symbol.y}) scale(${scale})`}>
       <SymbolElements type={symbol.type} color={symbol.color} />
-      {showLabel && <SymbolLabel text={SYMBOL_LABELS[symbol.type]} />}
+      {showLabel && <SymbolLabel text={text} subText={subLabel} nudgeX={nudgeX} />}
     </G>
   );
 }

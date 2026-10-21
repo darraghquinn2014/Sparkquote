@@ -232,7 +232,7 @@ const HELP_GROUPS: HelpGroup[] = [
           { label: 'Long-press a photo', detail: "Delete — if it's a wall's attached photo, this also removes that wall and its tagged symbols." },
           { label: '+ Add height / Edit height', detail: "Sets the room's ceiling height in metres." },
           { label: 'Room size line', detail: 'Shows automatically once the floor plan is calibrated and this room\'s walls are traced; tap the hint if it isn\'t set yet.' },
-          { label: 'Walls list', detail: "Tap a wall to open its detail screen. \"Select\" lets you multi-select walls with a photo and share them all in one message." },
+          { label: 'Walls list', detail: "Tap a wall to open its photo and symbols — tap a symbol there for its height and distance. \"Select\" lets you multi-select walls with a photo and share them all in one message." },
         ],
       },
       {
@@ -254,14 +254,16 @@ const HELP_GROUPS: HelpGroup[] = [
         icon: '⏚',
         accent: colors.accentSecondary,
         title: 'Wall symbols',
-        summary: 'One reference photo per wall/ceiling, marked up with what\'s on it — sockets, switches, spurs.',
+        summary: 'One reference photo per wall/ceiling, marked up with what\'s on it — and where to find how high each socket or switch is and how far along the wall.',
         actions: [
           { label: 'Take photo / Choose from library', detail: "Attaches the wall's one reference photo." },
           { label: '+ Add symbol', detail: 'Tap the photo to place a symbol, choose its type from the palette, and confirm.' },
           { label: 'Tag from plan', detail: 'Places the same symbols directly on the floor-plan drawing instead of the photo, if that\'s easier to work from.' },
-          { label: 'Drag a placed symbol', detail: 'Nudges its height. Tap it (without dragging) to remove it.' },
+          { label: 'Tap a placed symbol', detail: 'Shows its height above the floor and its distance from each end of the wall, with Remove. Distances need the floor plan calibrated; height needs the room\'s ceiling height set.' },
+          { label: 'Drag a placed symbol', detail: 'Nudges its height.' },
           { label: '••• overflow', detail: 'Rename the wall, "Flip symbols left ↔ right" (if the photo faces the wrong way), retake/choose a different photo, or Delete the wall (removes its photo and symbols too).' },
         ],
+        note: 'Finding symbol measurements: Room → Walls list → tap the wall → tap the symbol. From a wall\'s photo in the room gallery, tap "Heights & distances of these symbols". Symbols added with Annotate on a wall\'s photo show up here too; Annotate on other photos is markup only, with no measurements.',
       },
       {
         key: 'documents',

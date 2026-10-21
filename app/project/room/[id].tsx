@@ -27,7 +27,8 @@ import {
   loadWallsForLocation, loadWallSymbols, loadFloorPlanForLocation, deleteWall,
   addWallSymbol, deleteWallSymbol,
 } from '@/src/data/floor-plan-repo';
-import { roomFootprintMeters } from '@/src/domain/wall-geometry';
+import { roomFootprintMeters, wallLengthMeters } from '@/src/domain/wall-geometry';
+import { measureSymbol, symbolMeasurementText } from '@/src/domain/symbol-measurements';
 import { saveCapture, deletePhoto, overwritePhotoFile, rotatePreview } from '@/src/media/camera-service';
 import { useVoiceAction } from '@/src/voice/voice-bus';
 import {
@@ -82,6 +83,7 @@ const ROOM_HINTS = [
   { id: 'add-photo', text: "Tap + Add photo to snap the room for reference while you price. Room photos are private — never on the client PDF." },
   { id: 'photo-details', text: "Tap a photo to view it and add a name, note or Before/During/After tag. Hold a photo to delete it." },
   { id: 'walls', text: "Trace this room's walls on the floor plan to get its size — it's then stamped onto your photos automatically." },
+  { id: 'measurements', text: "To see how high a socket or switch is and how far along the wall, tap a wall in the Walls list, then tap the symbol." },
 ];
 
 export default function RoomScreen() {
@@ -103,7 +105,9 @@ export default function RoomScreen() {
   const [renderedSharePaths, setRenderedSharePaths] = useState<string[]>([]);
   const [captureItem, setCaptureItem] = useState<{ wall: Wall; photo: Photo; symbols: WallSymbol[] } | null>(null);
   const [sharing, setSharing] = useState(false);
-  const [photoShareItem, setPhotoShareItem] = useState<{ photo: Photo; strokes: AnnotationStroke[]; symbols: PlacedSymbol[] } | null>(null);
+  const [photoShareItem, setPhotoShareItem] = useState<{
+    photo: Photo; strokes: AnnotationStroke[]; symbols: PlacedSymbol[]; measurements?: Record<string, string>;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -297,6 +301,19 @@ export default function RoomScreen() {
     setCaptionModalOpen(true);
   };
 
+  /** Measurement line per symbol for a shared wall photo (see symbol-measurements). */
+  const wallMeasurements = (wall: Wall, symbols: WallSymbol[]): Record<string, string> => {
+    const wallLen = floorPlan?.pxPerMeter
+      ? wallLengthMeters(wall, { width: floorPlan.width, height: floorPlan.height }, floorPlan.pxPerMeter)
+      : null;
+    const out: Record<string, string> = {};
+    for (const s of symbols) {
+      const text = symbolMeasurementText(measureSymbol(s, wallLen, location?.heightMeters));
+      if (text) out[s.id] = text;
+    }
+    return out;
+  };
+
   const sharePhoto = async (photo: Photo) => {
     try {
       const available = await Sharing.isAvailableAsync();
@@ -308,12 +325,24 @@ export default function RoomScreen() {
       // never baked into the photo file — flatten them in first via PhotoShareCapture
       // so a recipient without the app still sees them. Skip that render pass
       // entirely when there's nothing to flatten.
-      const { strokes, symbols } = await loadAnnotations(photo.id);
+      const annotations = await loadAnnotations(photo.id);
+      const { strokes } = annotations;
+      let { symbols } = annotations;
+      let measurements: Record<string, string> | undefined;
+      // A wall's photo: its symbols live in wall_symbols (the same list the
+      // lightbox shows), and each gets its height/distances burned in so a
+      // recipient without the app can read them.
+      const attachedWall = walls.find((w) => w.photoId === photo.id);
+      if (attachedWall) {
+        const wallSymbols = await loadWallSymbols(attachedWall.id);
+        symbols = wallSymbols.map((s) => ({ id: s.id, type: s.type, x: s.positionAlongWall, y: s.photoY, color: s.color ?? '#FFFFFF' }));
+        measurements = wallMeasurements(attachedWall, wallSymbols);
+      }
       if (strokes.length === 0 && symbols.length === 0) {
         await Sharing.shareAsync(photo.filePath, { mimeType: 'image/jpeg', UTI: 'public.image', dialogTitle: photo.caption ?? 'Share photo' });
         return;
       }
-      setPhotoShareItem({ photo, strokes, symbols });
+      setPhotoShareItem({ photo, strokes, symbols, measurements });
     } catch (e) {
       Alert.alert('Share failed', String(e));
     }
@@ -661,7 +690,12 @@ export default function RoomScreen() {
                 ) : (
                   <View style={styles.wallThumbEmpty} />
                 )}
-                <Text style={styles.wallRowText}>{wall.label || 'Wall'}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.wallRowText}>{wall.label || 'Wall'}</Text>
+                  <Text style={styles.wallRowSub}>
+                    {wall.photoId ? 'Tap for symbol heights & distances' : 'No photo yet — tap to add one'}
+                  </Text>
+                </View>
                 {!selectMode && <Text style={styles.wallChevron}>›</Text>}
               </Pressable>
             );
@@ -682,6 +716,7 @@ export default function RoomScreen() {
         <WallShareCapture
           photo={captureItem.photo}
           symbols={captureItem.symbols}
+          measurements={wallMeasurements(captureItem.wall, captureItem.symbols)}
           onReady={handleCaptured}
           onError={handleCaptureError}
         />
@@ -693,6 +728,7 @@ export default function RoomScreen() {
           photo={photoShareItem.photo}
           strokes={photoShareItem.strokes}
           symbols={photoShareItem.symbols}
+          measurements={photoShareItem.measurements}
           onReady={handlePhotoShareCaptured}
           onError={handlePhotoShareError}
         />
@@ -754,6 +790,21 @@ export default function RoomScreen() {
           {lightboxPhoto && (
             <Pressable style={styles.lightboxInfoBar} onPress={() => {}}>
               <SafeAreaView edges={['bottom']}>
+                {/* Symbol measurements live on the wall screen — point there
+                    from wall photos so they're findable from the gallery. */}
+                {lightboxAttachedWall && (
+                  <Pressable
+                    style={styles.lightboxMeasureLink}
+                    onPress={() => {
+                      const wallId = lightboxAttachedWall.id;
+                      setLightboxPhoto(null);
+                      router.push(`/project/wall/${wallId}` as any);
+                    }}
+                  >
+                    <Text style={styles.lightboxMeasureText}>📏 Heights & distances of these symbols</Text>
+                    <Text style={styles.lightboxMeasureChevron}>›</Text>
+                  </Pressable>
+                )}
                 <View style={styles.lightboxInfoContent}>
                   <View style={{ flex: 1 }}>
                     {lightboxPhoto.caption ? (
@@ -1059,7 +1110,8 @@ const styles = StyleSheet.create({
     width: 44, height: 44, borderRadius: radius.tile / 2,
     backgroundColor: 'rgba(255,176,32,0.15)', borderWidth: 1, borderColor: colors.accent,
   },
-  wallRowText: { flex: 1, color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  wallRowText: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  wallRowSub: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
   wallChevron: { color: colors.textMuted, fontSize: 20 },
   checkbox: {
     width: 22, height: 22, borderRadius: 5, borderWidth: 2, borderColor: colors.hairline,
@@ -1143,6 +1195,13 @@ const styles = StyleSheet.create({
   lightboxDate: { color: 'rgba(255,255,255,0.45)', fontSize: 11, marginTop: 4 },
   lightboxActions: { flexDirection: 'row', gap: space.md, alignItems: 'center' },
   lightboxShareBtn: { color: colors.textSecondary, fontSize: 14, fontWeight: '600' },
+  lightboxMeasureLink: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginHorizontal: space.lg, marginTop: space.md, paddingVertical: space.sm, paddingHorizontal: space.md,
+    borderRadius: radius.pill, backgroundColor: colors.accent,
+  },
+  lightboxMeasureText: { color: colors.accentInk, fontSize: 14, fontWeight: '700' },
+  lightboxMeasureChevron: { color: colors.accentInk, fontSize: 18, fontWeight: '700' },
   lightboxAnnotateBtn: { color: '#06D6A0', fontSize: 14, fontWeight: '700' },
   lightboxEditBtn: { color: colors.accent, fontSize: 14, fontWeight: '700' },
   annotationBadge: {
