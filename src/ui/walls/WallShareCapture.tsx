@@ -14,7 +14,7 @@
  * onto pixel coordinates.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -77,7 +77,11 @@ export function WallShareCapture({ photo, symbols, onReady, onError }: Props) {
         try {
           if (!viewRef.current) throw new Error('Capture view not mounted');
           const uri = await captureRef(viewRef, { format: 'jpg', quality: 0.9, result: 'tmpfile' });
-          onReady(uri);
+          // iOS's captureRef tmpfile result is a bare filesystem path (built from
+          // NSTemporaryDirectory(), no scheme) — expo-sharing and react-native-share
+          // both require a file:// URI on iOS or they fail to read the file.
+          // Android's tmpfile result is already file://-prefixed, so only iOS needs this.
+          onReady(Platform.OS === 'ios' && !uri.startsWith('file://') ? `file://${uri}` : uri);
         } catch (e) {
           onError(e);
         }
