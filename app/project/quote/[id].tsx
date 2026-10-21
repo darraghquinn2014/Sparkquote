@@ -14,7 +14,9 @@ import { ScreenHints, HintHeaderSlot } from '@/src/ui/hints/ScreenHints';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { priceEstimate, priceLine } from '@/src/domain/pricing';
 import { formatMoney } from '@/src/domain/money';
-import { addLine, removeLine, lineFromMaterial, lineFromLabour } from '@/src/data/estimate-service';
+import { addLine, removeLine, lineFromMaterial, lineFromLabour, addAssemblyToEstimate } from '@/src/data/estimate-service';
+import { materialLookupFrom } from '@/src/domain/assembly';
+import { AssemblyPicker } from '@/src/ui/estimate/AssemblyPicker';
 import { loadProjects, loadLocations } from '@/src/data/project-repo';
 import { loadProjectEstimate, saveProjectEstimate, projectEstimateId } from '@/src/data/project-estimate-repo';
 import { StatusChip } from '@/src/ui/quotes/StatusChip';
@@ -32,7 +34,7 @@ import { useVoiceAction } from '@/src/voice/voice-bus';
 import { HeaderMicButton } from '@/src/ui/voice/HeaderMicButton';
 import { toLaborToggle } from '@/src/data/mappers';
 import { seedLaborToggles } from '@/src/data/seed/assemblies';
-import type { Project, Location, Estimate, LineItem, Material } from '@/src/domain/types';
+import type { Project, Location, Estimate, LineItem, Material, Assembly } from '@/src/domain/types';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import { loadBusinessProfile, readLogoDataUri } from '@/src/data/business-profile';
 import { toClientEstimate, roomLabels } from '@/src/pdf/client-view-model';
@@ -53,7 +55,7 @@ function emptyEstimate(): Estimate {
 }
 
 const PROJECT_QUOTE_HINTS = [
-  { id: 'per-room', text: "Each room is priced separately — tap + Add item for materials or jobs, + Labour for hours or a fixed price." },
+  { id: 'per-room', text: "Each room is priced separately — tap + Job for a saved job, + Material for a single item, + Labour for hours or a fixed price." },
   { id: 'edit', text: "Tap a line to change it, ✕ to remove it. Tap Labour rate to change the rate for this quote." },
   { id: 'send', text: "Check the totals at the bottom, then tap Preview & send quote to make the PDF for your client." },
 ];
@@ -71,6 +73,8 @@ export default function ProjectQuoteScreen() {
   const [loading, setLoading] = useState(true);
 
   const [pickerRoomId, setPickerRoomId] = useState<string | null>(null);
+  const [jobRoomId, setJobRoomId] = useState<string | null>(null);
+  const [assemblies, setAssemblies] = useState<Assembly[]>([]);
   const [labourRoomId, setLabourRoomId] = useState<string | null>(null);
   // const [measureRoomId, setMeasureRoomId] = useState<string | null>(null); // measure-room disabled, see import above
   const [editLine, setEditLine] = useState<LineItem | null>(null);
@@ -91,6 +95,7 @@ export default function ProjectQuoteScreen() {
     setLocations(locs);
     setEstimate(saved ?? emptyEstimate());
     setMaterials(cat.materials);
+    setAssemblies(cat.assemblies);
     setLoading(false);
   }, [projectId]);
 
@@ -123,6 +128,25 @@ export default function ProjectQuoteScreen() {
     save(addLine(estimate, line));
     setPickerRoomId(null);
   }, [pickerRoomId, estimate, save]);
+
+  // The job picker stays open for several taps, so these add/remove one job
+  // at a time in the room it was opened for.
+  const handleAddJob = (assembly: Assembly) => {
+    if (!jobRoomId) return;
+    save(addAssemblyToEstimate(estimate, assembly, materialLookupFrom(materials), jobRoomId));
+  };
+
+  const handleRemoveJob = (assemblyId: string) => {
+    const line = estimate.lineItems.find(
+      (l) => l.sourceAssemblyId === assemblyId && !l.overrides && l.locationId === jobRoomId,
+    );
+    if (!line) return;
+    if ((line.quantity ?? 1) <= 1) {
+      save(removeLine(estimate, line.id));
+    } else {
+      save({ ...estimate, lineItems: estimate.lineItems.map((l) => l.id === line.id ? { ...l, quantity: (l.quantity ?? 1) - 1 } : l) });
+    }
+  };
 
   const handleAddLabour = useCallback((opts: { hours?: number; flatMinor?: number }) => {
     if (!labourRoomId) return;
@@ -292,8 +316,11 @@ export default function ProjectQuoteScreen() {
                     ))}
 
                     <View style={styles.roomActions}>
+                      <Pressable style={styles.actionBtn} onPress={() => setJobRoomId(room.id)}>
+                        <Text style={styles.actionBtnText}>+ Job</Text>
+                      </Pressable>
                       <Pressable style={styles.actionBtn} onPress={() => setPickerRoomId(room.id)}>
-                        <Text style={styles.actionBtnText}>+ Add item</Text>
+                        <Text style={styles.actionBtnText}>+ Material</Text>
                       </Pressable>
                       <Pressable style={styles.actionBtn} onPress={() => setLabourRoomId(room.id)}>
                         <Text style={styles.actionBtnText}>+ Labour</Text>
@@ -349,6 +376,18 @@ export default function ProjectQuoteScreen() {
         )}
       </ScrollView>
 
+      <AssemblyPicker
+        visible={jobRoomId != null}
+        assemblies={assemblies}
+        materials={materials}
+        toggles={allToggles}
+        hourlyRateMinor={estimate.hourlyRateMinor}
+        currency={estimate.currency}
+        lineItems={estimate.lineItems.filter((l) => l.locationId === jobRoomId)}
+        onAdd={handleAddJob}
+        onRemove={handleRemoveJob}
+        onClose={() => setJobRoomId(null)}
+      />
       <MaterialPicker
         visible={pickerRoomId != null}
         materials={materials}
