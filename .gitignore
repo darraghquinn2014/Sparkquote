@@ -49,3 +49,6 @@ app-example
 # local build logs
 *.log
 .metro-log.txt
+
+# local scratch (demo video clips, build logs) — never commit or upload to EAS
+.scratch/
