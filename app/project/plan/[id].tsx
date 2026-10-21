@@ -1178,7 +1178,7 @@ const styles = StyleSheet.create({
   back: { color: colors.textSecondary, fontSize: 16, fontWeight: '600' },
   title: { color: colors.textPrimary, fontSize: 16, fontWeight: '800', letterSpacing: 0.5 },
   sub: { color: colors.accent, fontSize: 12, fontWeight: '700', marginTop: 1 },
-  moreBtn: { color: colors.textSecondary, fontSize: 20, fontWeight: '700', letterSpacing: 2, width: 24, textAlign: 'right' },
+  moreBtn: { color: colors.textSecondary, fontSize: 20, fontWeight: '700', letterSpacing: 2, width: 60, textAlign: 'right' },
   empty: { color: colors.textMuted, textAlign: 'center', marginTop: space.xxl },
 
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.xl },
