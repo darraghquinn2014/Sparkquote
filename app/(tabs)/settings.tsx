@@ -6,6 +6,7 @@ import { useFocusEffect } from 'expo-router';
 import { useSettingsStore } from '@/src/state/settingsStore';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import { TabBarHeightReporter } from '@/src/ui/TabBarHeightReporter';
+import { ProjectsDemoModal } from '@/src/ui/demo/ProjectsDemoModal';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -26,6 +27,7 @@ export default function SettingsScreen() {
   const [rateEditing, setRateEditing] = useState(false);
   const [vatText, setVatText] = useState('');
   const [vatEditing, setVatEditing] = useState(false);
+  const [demoOpen, setDemoOpen] = useState(false);
 
   useFocusEffect(useCallback(() => { hydrate(); }, [hydrate]));
 
@@ -169,6 +171,13 @@ export default function SettingsScreen() {
           </Pressable>
         )}
 
+        <Pressable style={styles.row} onPress={() => setDemoOpen(true)}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowText}>Watch the Projects demo</Text>
+            <Text style={styles.rowSub}>Floor plans, walls, room photos and per-room quotes</Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </Pressable>
         <Pressable style={styles.row} onPress={() => router.push('/help')}>
           <Text style={styles.rowText}>Help</Text>
           <Text style={styles.chevron}>›</Text>
@@ -218,6 +227,7 @@ export default function SettingsScreen() {
           </>
         )}
       </ScrollView>
+      <ProjectsDemoModal visible={demoOpen} onClose={() => setDemoOpen(false)} />
     </SafeAreaView>
   );
 }

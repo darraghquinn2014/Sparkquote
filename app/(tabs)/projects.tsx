@@ -14,6 +14,11 @@ import { TabBarHeightReporter } from '@/src/ui/TabBarHeightReporter';
 import { HeaderMicButton } from '@/src/ui/voice/HeaderMicButton';
 import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
 import { ScreenHints, HintHeaderSlot } from '@/src/ui/hints/ScreenHints';
+import { ProjectsDemoModal } from '@/src/ui/demo/ProjectsDemoModal';
+import { useSettingsStore } from '@/src/state/settingsStore';
+
+// Auto-open the demo at most once per app launch until "Don't show again".
+let demoShownThisLaunch = false;
 
 const PROJECTS_LIST_HINTS = [
   { id: 'new-project', text: 'Tap + New project to start a full job — you\'ll add floors, rooms, photos and pricing per room.' },
@@ -27,6 +32,17 @@ export default function ProjectsScreen() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const hint = useHintWalkthrough('projects-list', PROJECTS_LIST_HINTS);
+  const settingsHydrated = useSettingsStore((s) => s.hydrated);
+  const projectsDemoDismissed = useSettingsStore((s) => s.projectsDemoDismissed);
+  const setProjectsDemoDismissed = useSettingsStore((s) => s.setProjectsDemoDismissed);
+  const [demoOpen, setDemoOpen] = useState(false);
+
+  useFocusEffect(useCallback(() => {
+    if (settingsHydrated && !projectsDemoDismissed && !demoShownThisLaunch) {
+      demoShownThisLaunch = true;
+      setDemoOpen(true);
+    }
+  }, [settingsHydrated, projectsDemoDismissed]));
 
   const filteredProjects = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -133,6 +149,11 @@ export default function ProjectsScreen() {
         />
       )}
       <ScreenHints hint={hint} showFab={false} />
+      <ProjectsDemoModal
+        visible={demoOpen}
+        onClose={() => setDemoOpen(false)}
+        onDontShowAgain={() => { setProjectsDemoDismissed(true); setDemoOpen(false); }}
+      />
     </SafeAreaView>
   );
 }

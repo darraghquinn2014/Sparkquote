@@ -34,6 +34,9 @@ interface SettingsData {
   /** Whether existing projects' free-text client names have been turned
    * into saved clients (one-time, after the v21 migration). */
   clientsBackfilled: boolean;
+  /** "Don't show again" on the Projects demo video. Until then it opens on
+   * the Projects tab once per app launch; Settings can always replay it. */
+  projectsDemoDismissed: boolean;
 }
 
 const DEFAULTS: SettingsData = {
@@ -50,6 +53,7 @@ const DEFAULTS: SettingsData = {
   preferredSupplierId: null,
   advancedMode: false,
   clientsBackfilled: false,
+  projectsDemoDismissed: false,
 };
 
 const settingsPath = () =>
@@ -87,6 +91,7 @@ interface SettingsStore extends SettingsData {
   setPreferredSupplierId: (id: string | null) => void;
   setAdvancedMode: (on: boolean) => void;
   setClientsBackfilled: () => void;
+  setProjectsDemoDismissed: (dismissed: boolean) => void;
 }
 
 function snapshot(s: SettingsStore): SettingsData {
@@ -104,6 +109,7 @@ function snapshot(s: SettingsStore): SettingsData {
     preferredSupplierId: s.preferredSupplierId,
     advancedMode: s.advancedMode,
     clientsBackfilled: s.clientsBackfilled,
+    projectsDemoDismissed: s.projectsDemoDismissed,
   };
 }
 
@@ -197,5 +203,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   setClientsBackfilled: () => {
     set({ clientsBackfilled: true });
     saveToDisk({ ...snapshot(get()), clientsBackfilled: true });
+  },
+
+  setProjectsDemoDismissed: (dismissed) => {
+    set({ projectsDemoDismissed: dismissed });
+    saveToDisk({ ...snapshot(get()), projectsDemoDismissed: dismissed });
   },
 }));
