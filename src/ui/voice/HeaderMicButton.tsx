@@ -6,7 +6,7 @@ import { useSettingsStore } from '../../state/settingsStore';
 
 /**
  * Small header-embedded trigger for the global voice-control sheet — used on
- * the four screens (Home, Estimate, Projects, project detail) that place
+ * the screens (Estimate, Projects, project detail, …) that place
  * their own mic button in the header instead of the floating one GlobalVoiceControl
  * shows everywhere else (see hasOwnHeaderMic in GlobalVoiceControl.tsx).
  * Hidden in simple mode — voice is an advanced feature. Headers that centre

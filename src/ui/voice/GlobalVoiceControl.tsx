@@ -110,16 +110,16 @@ export function GlobalVoiceControl() {
   /** These screens have their own header mic button (see
    * TabBarHeightReporter's sibling pattern) instead of the floating one, so
    * users always have exactly one visible mic trigger, never two. */
-  const hasOwnHeaderMic = pathname === '/' || pathname === '/estimate' || pathname === '/projects'
+  const hasOwnHeaderMic = pathname === '/estimate' || pathname === '/projects'
     || pathname === '/catalogue' || isPlainProjectDetail || pathname.startsWith('/project/quote/')
     || pathname.startsWith('/project/snag/');
-  /** Tools, Help, Review/Sign, the floor-plan trace/wall screens,
+  /** Home (its header was too crowded for the mic), Tools, Help, Review/Sign, the floor-plan trace/wall screens,
    * Certificates, and Settings (the tab itself and all its sub-screens) are
    * reference/utility screens where voice isn't needed for now (and the FAB
    * gets in the way of their canvas/form UIs) — no mic trigger here at all,
    * header or floating. Not a permanent removal — may bring voice back to
    * these later. */
-  const isVoiceFreeScreen = pathname === '/help' || pathname === '/tools' || pathname.startsWith('/tools/')
+  const isVoiceFreeScreen = pathname === '/' || pathname === '/help' || pathname === '/tools' || pathname.startsWith('/tools/')
     || pathname === '/review' || pathname.startsWith('/project/plan/') || pathname.startsWith('/project/wall/')
     || pathname.startsWith('/project/certificates/') || pathname.startsWith('/certificate/')
     || pathname === '/settings' || pathname === '/business-profile' || pathname === '/media-settings'

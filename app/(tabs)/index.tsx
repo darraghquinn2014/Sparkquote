@@ -17,7 +17,6 @@ import { seedLaborToggles } from '@/src/data/seed/assemblies';
 import { colors, space, radius } from '@/src/ui/theme/tokens';
 import { CircuitBackground } from '@/src/ui/home/CircuitBackground';
 import { TabBarHeightReporter } from '@/src/ui/TabBarHeightReporter';
-import { HeaderMicButton } from '@/src/ui/voice/HeaderMicButton';
 import { useHintWalkthrough } from '@/src/ui/hints/useHintWalkthrough';
 import { ScreenHints, HintHeaderSlot } from '@/src/ui/hints/ScreenHints';
 import {
@@ -211,7 +210,9 @@ export default function HomeScreen() {
         <View style={styles.brandRow}>
           <Image source={require('@/assets/images/brand-mark.png')} style={styles.brandMark} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.brandName}>
+            {/* One line, shrinking to fit beside the ? and mic buttons on
+                narrow screens or large system text sizes. */}
+            <Text style={styles.brandName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
               <Text style={{ color: C.brand }}>Spark</Text>Quote
             </Text>
             <View style={styles.brandMeta}>
@@ -221,7 +222,6 @@ export default function HomeScreen() {
           </View>
           <View style={styles.headerBtns}>
             <HintHeaderSlot hint={hint} />
-            <HeaderMicButton />
           </View>
         </View>
 
